@@ -290,4 +290,77 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
 
 app.get('/paga/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pay.html')));
 
+// ---------- Sveglia siti: visita i link ogni 5 minuti (anti-spegnimento Render gratuito) ----------
+const MONITORS_FILE = path.join(__dirname, 'data', 'monitors.json');
+const PING_EVERY_MS = 5 * 60 * 1000;
+// Render imposta RENDER_EXTERNAL_URL da solo; in locale non ci auto-pinghiamo
+const SELF_URL = (process.env.RENDER_EXTERNAL_URL || BASE_URL).replace(/\/$/, '');
+const selfPingEnabled = !/localhost|127\.0\.0\.1/.test(SELF_URL);
+let monitors = (() => { try { return JSON.parse(fs.readFileSync(MONITORS_FILE, 'utf8')); } catch { return []; } })();
+const selfStatus = { url: SELF_URL, enabled: selfPingEnabled };
+function saveMonitors() {
+  fs.mkdirSync(path.dirname(MONITORS_FILE), { recursive: true });
+  fs.writeFileSync(MONITORS_FILE, JSON.stringify(monitors, null, 2));
+}
+
+async function pingUrl(url) {
+  const started = Date.now();
+  try {
+    // 60 secondi: un sito Render addormentato può metterci ~50s a svegliarsi
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(60000),
+      headers: { 'User-Agent': 'RistoWeb-Sveglia/1.0' },
+      redirect: 'follow',
+    });
+    await r.body?.cancel();
+    return { ok: r.status < 500, status: r.status, ms: Date.now() - started, at: new Date().toISOString() };
+  } catch (err) {
+    return { ok: false, status: 0, error: err.name === 'TimeoutError' ? 'Timeout' : 'Non raggiungibile', ms: Date.now() - started, at: new Date().toISOString() };
+  }
+}
+async function pingMonitor(m) {
+  m.last = await pingUrl(m.url);
+  saveMonitors();
+  return m;
+}
+async function pingAll() {
+  if (selfPingEnabled) selfStatus.last = await pingUrl(`${SELF_URL}/healthz`);
+  await Promise.all(monitors.map(pingMonitor));
+}
+setInterval(() => pingAll().catch(err => console.error('Ping error:', err.message)), PING_EVERY_MS);
+setTimeout(() => pingAll().catch(() => {}), 10000);
+
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
+
+app.get('/api/admin/monitors', requireAdmin, (req, res) => {
+  res.json({ monitors, self: selfStatus, everyMinutes: PING_EVERY_MS / 60000 });
+});
+app.post('/api/admin/monitors', requireAdmin, async (req, res) => {
+  const url = cleanUrl(req.body && req.body.url);
+  if (!url) return res.status(400).json({ error: 'Link non valido' });
+  if (monitors.some(m => m.url === url)) return res.status(400).json({ error: 'Questo link è già nell\'elenco' });
+  if (monitors.length >= 50) return res.status(400).json({ error: 'Massimo 50 siti' });
+  const m = {
+    id: crypto.randomBytes(6).toString('hex'),
+    url,
+    name: String((req.body && req.body.name) || '').trim().slice(0, 80) || new URL(url).hostname,
+    createdAt: new Date().toISOString(),
+  };
+  monitors.push(m);
+  await pingMonitor(m);
+  res.json({ monitor: m });
+});
+app.post('/api/admin/monitors/:id/ping', requireAdmin, async (req, res) => {
+  const m = monitors.find(x => x.id === req.params.id);
+  if (!m) return res.status(404).json({ error: 'Non trovato' });
+  res.json({ monitor: await pingMonitor(m) });
+});
+app.delete('/api/admin/monitors/:id', requireAdmin, (req, res) => {
+  const before = monitors.length;
+  monitors = monitors.filter(x => x.id !== req.params.id);
+  if (monitors.length === before) return res.status(404).json({ error: 'Non trovato' });
+  saveMonitors();
+  res.json({ ok: true });
+});
+
 app.listen(PORT, () => console.log(`RistoWeb Studio attivo su ${BASE_URL}`));

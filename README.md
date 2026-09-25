@@ -29,3 +29,15 @@ npm start              # http://localhost:3000
 **Importante:** gli ordini sono salvati in `data/orders.json`. Sui piani gratuiti il disco può azzerarsi a ogni riavvio: aggiungi un disco persistente montato su `data/`, oppure tieni nota degli ordini.
 
 Per provare i pagamenti in modalità test usa la carta `4242 4242 4242 4242`, qualsiasi data futura e CVC.
+
+## Sveglia siti (anti-spegnimento)
+Nell'admin, sezione **⏰ Sveglia siti**: aggiungi i link dei siti da tenere svegli.
+Ogni 5 minuti il server li visita e visita anche se stesso (`/healthz`), così Render gratuito non li spegne.
+L'auto-ping si attiva da solo su Render (usa `RENDER_EXTERNAL_URL`, che Render imposta in automatico).
+
+Attenzione ai limiti del piano gratuito di Render:
+- **750 ore gratis al mese per account**: un servizio sempre acceso ne usa ~744. Con 2 o più web service
+  gratuiti sempre svegli sullo stesso account finisci le ore e Render li sospende fino al mese dopo.
+- I siti dei clienti conviene pubblicarli come **Static Site** su Render: sono gratis, non si spengono mai
+  e non consumano ore (non serve pingarli).
+- Il piano gratuito non ha disco permanente: `data/*.json` (ordini ed elenco siti) si azzera a ogni deploy o riavvio.

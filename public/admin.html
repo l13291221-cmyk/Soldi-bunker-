@@ -35,6 +35,18 @@
     .btn-wa { background: #25d366; color: #fff; }
     .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
     .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; }
+    .mon { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .mon:last-child { border-bottom: 0; }
+    .mon .info { flex: 1; min-width: 0; }
+    .mon .info b { display: block; font-weight: 600; }
+    .mon .info a { color: var(--muted); font-size: .85rem; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mon .st { font-size: .8rem; color: var(--muted); text-align: right; white-space: nowrap; }
+    .led { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #555; }
+    .led.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .led.ko { background: var(--red); box-shadow: 0 0 10px var(--red); }
+    .mon-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+    @media (max-width: 700px) { .mon-add { grid-template-columns: 1fr; } .mon { flex-wrap: wrap; } .mon .st { text-align: left; } }
+    .self { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; margin-bottom: 8px; }
     .codebox { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--gold); background: rgba(214,177,106,.06); flex-wrap: wrap; }
     .codebox .code { font: 700 1.5rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 3px; color: var(--gold-2); }
     .codebox small { display: block; color: var(--muted); font-size: .75rem; letter-spacing: 1px; text-transform: uppercase; }
@@ -47,6 +59,7 @@
   <div class="wrap">
     <a href="/" class="brand"><span class="brand-mark">R</span>Admin</a>
     <nav class="nav">
+      <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>
       <button class="btn btn-ghost btn-sm" id="logout">Esci</button>
     </nav>
@@ -78,6 +91,19 @@
       <div id="list"><div class="spinner"></div></div>
     </div>
   </div>
+
+  <section id="sveglia" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">⏰ Sveglia siti</h3>
+    <p class="muted small" style="margin:0 0 16px">Ogni <span id="every">5</span> minuti un bot visita questi siti così Render non li spegne. Anche questo sito si visita da solo.</p>
+    <div class="self" id="selfRow"></div>
+    <div id="monList"></div>
+    <form class="mon-add" id="monForm" autocomplete="off">
+      <input name="name" placeholder="Nome (es. Bella Napoli)">
+      <input name="url" required placeholder="https://bellanapoli.onrender.com">
+      <button class="btn btn-gold btn-sm" type="submit">+ Aggiungi</button>
+    </form>
+    <p class="err" id="monErr" style="margin:8px 0 0"></p>
+  </section>
 </main>
 
 <script src="/common.js"></script>
@@ -133,6 +159,65 @@
       </div>`).join('');
   }
 
+  function timeAgo(iso) {
+    if (!iso) return 'mai';
+    const s = Math.round((Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return 'ora';
+    if (s < 3600) return Math.round(s / 60) + ' min fa';
+    return new Date(iso).toLocaleString('it-IT');
+  }
+  function monRow(m, self) {
+    const l = m.last;
+    const led = !l ? '' : l.ok ? 'ok' : 'ko';
+    const st = !l ? 'In attesa del primo controllo' : l.ok ? `Attivo · ${l.status} · ${(l.ms / 1000).toFixed(1)}s` : `Errore · ${escapeHtml(l.error || l.status)}`;
+    return `
+      <div class="mon" data-id="${m.id || ''}">
+        <span class="led ${led}"></span>
+        <div class="info"><b>${escapeHtml(m.name)}</b><a href="${escapeHtml(m.url)}" target="_blank" rel="noopener">${escapeHtml(m.url)}</a></div>
+        <div class="st">${st}<br>${timeAgo(l && l.at)}</div>
+        ${self ? '' : '<button class="btn btn-ghost btn-sm" data-ping>Pinga ora</button><button class="btn btn-danger btn-sm" data-rm>✕</button>'}
+      </div>`;
+  }
+  async function refreshMonitors() {
+    const d = await api('/api/admin/monitors');
+    document.getElementById('every').textContent = d.everyMinutes;
+    document.getElementById('selfRow').innerHTML = d.self.enabled
+      ? monRow({ name: 'Questo sito (auto-ping)', url: d.self.url, last: d.self.last }, true)
+      : '<div class="mon"><span class="led"></span><div class="info"><b>Questo sito (auto-ping)</b><span class="muted small">Si attiva da solo quando il sito è online su Render.</span></div></div>';
+    document.getElementById('monList').innerHTML = d.monitors.length
+      ? d.monitors.map(m => monRow(m)).join('')
+      : '<div class="empty" style="padding:20px">Nessun sito ancora. Aggiungi il link del sito di un cliente qui sotto.</div>';
+  }
+  document.getElementById('monList').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const id = b.closest('.mon').dataset.id;
+    try {
+      if (b.hasAttribute('data-ping')) {
+        b.disabled = true; b.textContent = '…';
+        const { monitor } = await api(`/api/admin/monitors/${id}/ping`, { method: 'POST' });
+        toast(monitor.last.ok ? 'Sito sveglio ✓' : 'Il sito non risponde');
+      } else if (b.hasAttribute('data-rm')) {
+        if (!confirm('Togliere questo sito dall\'elenco?')) return;
+        await api(`/api/admin/monitors/${id}`, { method: 'DELETE' });
+        toast('Sito rimosso');
+      }
+      refreshMonitors();
+    } catch (err) { if (err.message !== '401') toast(err.message); }
+  });
+  document.getElementById('monForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, err = document.getElementById('monErr'), btn = f.querySelector('button');
+    err.textContent = ''; btn.disabled = true; btn.textContent = 'Controllo…';
+    try {
+      const { monitor } = await api('/api/admin/monitors', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
+      f.reset();
+      toast(monitor.last.ok ? 'Aggiunto — il sito risponde ✓' : 'Aggiunto, ma per ora il sito non risponde');
+      refreshMonitors();
+    } catch (x) { if (x.message !== '401') err.textContent = x.message; }
+    btn.disabled = false; btn.textContent = '+ Aggiungi';
+  });
+
   async function refresh() {
     const d = await api('/api/admin/orders');
     currency = d.currency;
@@ -180,7 +265,8 @@
     if (!d.admin) { location.href = '/'; return; }
     document.body.classList.add('ready');
     refresh();
-    setInterval(refresh, 15000);
+    refreshMonitors();
+    setInterval(() => { refresh(); refreshMonitors(); }, 15000);
   });
 </script>
 </body>
