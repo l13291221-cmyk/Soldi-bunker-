@@ -23,7 +23,7 @@ npm start              # http://localhost:3000
 3. Environment variables:
    - `ADMIN_PIN` = il tuo PIN
    - `STRIPE_SECRET_KEY` = chiave segreta da dashboard.stripe.com → Sviluppatori → Chiavi API (`sk_test_...` per provare, `sk_live_...` per incassare davvero)
-   - `BASE_URL` = l'indirizzo che ti dà Render (es. `https://ristoweb.onrender.com`)
+   - `BASE_URL` = non serve su Render (lo prende da solo); mettilo solo se usi un dominio tuo
 4. (Consigliato) Stripe → Webhook → endpoint `BASE_URL/api/stripe-webhook`, evento `checkout.session.completed`, poi metti il segreto in `STRIPE_WEBHOOK_SECRET`.
 
 **Importante:** gli ordini sono salvati in `data/orders.json`. Sui piani gratuiti il disco può azzerarsi a ogni riavvio: aggiungi un disco persistente montato su `data/`, oppure tieni nota degli ordini.
