@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RistoWeb Studio — Siti web per ristoranti</title>
+  <meta name="description" content="Creiamo siti web professionali per ristoranti, pizzerie e bar: menu digitale, prenotazioni su WhatsApp, Google Maps. Pronto in pochi giorni.">
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23d6b16a'/><text x='50' y='68' font-size='56' text-anchor='middle' font-family='Georgia' fill='%231a1408'>R</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">R</span>RistoWeb Studio</a>
+    <nav class="nav">
+      <a href="#servizi" class="hide-sm">Servizi</a>
+      <a href="#come-funziona" class="hide-sm">Come funziona</a>
+      <a href="#faq" class="hide-sm">FAQ</a>
+      <button class="icon-btn" id="adminBtn" title="Area riservata" aria-label="Area riservata">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="fade-in">
+        <span class="eyebrow"><span class="dot"></span> Posti disponibili questo mese</span>
+        <h1>Il tuo ristorante merita un sito <em>all'altezza</em> della tua cucina.</h1>
+        <p class="lead">Creiamo siti web eleganti per ristoranti, pizzerie e bar: menu sempre aggiornato, prenotazioni su WhatsApp e Google Maps. Tu pensi ai clienti, al resto pensiamo noi.</p>
+        <div class="hero-cta">
+          <a href="#codice" class="btn btn-gold">Ho un codice ordine →</a>
+          <a href="#servizi" class="btn btn-ghost">Scopri cosa include</a>
+        </div>
+        <div class="trust">
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Pagamento sicuro Stripe</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Online in pochi giorni</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>Perfetto da smartphone</span>
+        </div>
+      </div>
+      <div class="fade-in" style="animation-delay:.15s">
+        <div class="phone" aria-hidden="true">
+          <div class="screen">
+            <div class="screen-hero"><small>Dal 1987 · Cucina tradizionale</small><b>Trattoria da Mario</b></div>
+            <div class="screen-body">
+              <div class="menu-row"><span>Carbonara</span><span>€12</span></div>
+              <div class="menu-row"><span>Tagliata di manzo</span><span>€19</span></div>
+              <div class="menu-row"><span>Tiramisù della casa</span><span>€6</span></div>
+              <div class="screen-btn wa">Prenota su WhatsApp</div>
+              <div class="screen-btn">Come raggiungerci</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="servizi" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Cosa include</span>
+        <h2>Tutto quello che serve per <em>riempire i tavoli</em>.</h2>
+        <p>Un sito pensato per chi cerca dove mangiare dal telefono, adesso.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z"/><path d="M8 7h8M8 11h6"/></svg></div>
+          <h3>Menu digitale</h3><p>Piatti, prezzi e allergeni sempre aggiornati. Ottimo anche con il QR code sul tavolo.</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z"/></svg></div>
+          <h3>Prenotazioni WhatsApp</h3><p>Un tocco e il cliente ti scrive direttamente. Niente commissioni ad app esterne.</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+          <h3>Mappa e orari</h3><p>Indirizzo, Google Maps, orari di apertura e contatti sempre in evidenza.</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+          <h3>Galleria foto</h3><p>I tuoi piatti e il tuo locale in primo piano, con un design curato ed elegante.</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+          <h3>Trovato su Google</h3><p>Ottimizzato per le ricerche locali tipo “ristorante vicino a me”.</p>
+        </div>
+        <div class="card">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+          <h3>Veloce e mobile</h3><p>Si apre all'istante da qualsiasi smartphone. Nessuna app da scaricare.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="come-funziona">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="kicker">Come funziona</span>
+        <h2>Tre passi, <em>zero pensieri</em>.</h2>
+      </div>
+      <div class="grid-3 steps">
+        <div class="card step"><h3>Ci sentiamo</h3><p>Ti chiamiamo o ci scrivi su WhatsApp. Raccogliamo menu, foto e informazioni del locale.</p></div>
+        <div class="card step"><h3>Paghi in sicurezza</h3><p>Ricevi il tuo link personale e paghi con carta tramite Stripe, in modo protetto.</p></div>
+        <div class="card step"><h3>Sei online</h3><p>Subito dopo il pagamento ricevi il link del tuo nuovo sito, pronto da condividere.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="codice" class="alt">
+    <div class="wrap">
+      <div class="offer">
+        <div class="offer-l">
+          <span class="kicker">Il tuo ordine</span>
+          <h2 style="font-size:clamp(1.7rem,3vw,2.3rem)">Hai ricevuto un <em>codice</em> su WhatsApp?</h2>
+          <p class="muted">Inseriscilo qui per vedere il riepilogo e completare il pagamento. Se hai ricevuto un link, puoi semplicemente aprirlo.</p>
+          <form class="code-form" id="codeForm">
+            <input id="codeInput" placeholder="Es. aB3dE5fG7hJ9" required aria-label="Codice ordine">
+            <button class="btn btn-gold" type="submit">Continua</button>
+          </form>
+        </div>
+        <div class="offer-r">
+          <div class="price-note">Prezzo chiaro,<br>pagamento unico.</div>
+          <ul class="checks" style="margin:0">
+            <li>Nessun abbonamento nascosto</li>
+            <li>Pagamento con carta via Stripe</li>
+            <li>Link del sito subito dopo il pagamento</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap" style="max-width:760px">
+      <div class="section-head">
+        <span class="kicker">Domande frequenti</span>
+        <h2>Tutto chiaro, <em>prima</em> di iniziare.</h2>
+      </div>
+      <details><summary>Quanto tempo serve per avere il sito?</summary><p>Di solito pochi giorni lavorativi da quando riceviamo menu e foto.</p></details>
+      <details><summary>Il pagamento è sicuro?</summary><p>Sì. Il pagamento avviene su Stripe, una delle piattaforme più usate al mondo. Noi non vediamo mai i dati della tua carta.</p></details>
+      <details><summary>Posso modificare il menu in seguito?</summary><p>Certo: scrivici su WhatsApp e aggiorniamo piatti, prezzi e orari.</p></details>
+      <details><summary>Quando ricevo il link del sito?</summary><p>Appena il pagamento va a buon fine, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© <span id="y"></span> RistoWeb Studio</span>
+    <span>Pagamenti protetti da Stripe</span>
+  </div>
+</footer>
+
+<script src="/common.js"></script>
+<script>
+  document.getElementById('y').textContent = new Date().getFullYear();
+  document.getElementById('codeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    let v = document.getElementById('codeInput').value.trim();
+    const m = v.match(/\/paga\/([\w-]+)/);
+    if (m) v = m[1];
+    if (v) location.href = '/paga/' + encodeURIComponent(v);
+  });
+</script>
+</body>
+</html>

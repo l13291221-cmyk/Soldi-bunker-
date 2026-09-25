@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Il tuo ordine — RistoWeb Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23d6b16a'/><text x='50' y='68' font-size='56' text-anchor='middle' font-family='Georgia' fill='%231a1408'>R</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .pay-wrap { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 48px 16px; position: relative; }
+    .pay-wrap::before { content: ''; position: absolute; inset: 0; background: radial-gradient(600px 400px at 50% 0%, rgba(214,177,106,.12), transparent 70%); pointer-events: none; }
+    .pay-card { position: relative; width: min(480px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 34px; box-shadow: 0 40px 90px -40px #000; }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .row:last-of-type { border-bottom: 0; }
+    .total { font-family: var(--serif); font-size: 2.2rem; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+    .badge.ok { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .success-ic { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); color: var(--green); font-size: 2rem; }
+    .site-link { display: block; margin: 18px 0; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px dashed var(--gold); color: var(--gold-2); word-break: break-all; text-decoration: none; font-weight: 500; }
+    .note { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .9rem; color: var(--muted); margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">R</span>RistoWeb Studio</a>
+    <span class="muted small">🔒 Pagamento sicuro</span>
+  </div>
+</header>
+
+<main class="pay-wrap">
+  <div class="pay-card fade-in" id="card">
+    <div class="spinner"></div>
+  </div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const card = document.getElementById('card');
+  const id = decodeURIComponent(location.pathname.split('/').pop());
+  const params = new URLSearchParams(location.search);
+  const sessionId = params.get('session_id');
+  const cancelled = params.has('annullato');
+
+  function renderNotFound() {
+    card.innerHTML = `
+      <h2 style="font-size:1.7rem;margin-bottom:10px">Ordine non trovato</h2>
+      <p class="muted">Controlla il codice o il link che hai ricevuto su WhatsApp.</p>
+      <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Torna indietro</a>`;
+  }
+
+  function renderUnpaid(o) {
+    card.innerHTML = `
+      ${cancelled ? '<div class="note">Pagamento annullato. Nessun addebito effettuato: puoi riprovare quando vuoi.</div>' : ''}
+      <span class="kicker">Riepilogo ordine</span>
+      <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
+      <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
+      <div style="margin:18px 0">
+        <div class="row"><span class="muted">Servizio</span><span>Sito web ristorante</span></div>
+        <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
+        <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>
+      </div>
+      <button class="btn btn-gold" id="payBtn" style="width:100%">Paga ora con carta</button>
+      <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
+      <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. Subito dopo il pagamento riceverai il link del tuo sito.</p>`;
+    document.getElementById('payBtn').addEventListener('click', async e => {
+      const b = e.currentTarget;
+      b.disabled = true; b.textContent = 'Reindirizzamento…';
+      const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (d.url) { location.href = d.url; return; }
+      document.getElementById('payErr').textContent = d.error || 'Errore, riprova.';
+      b.disabled = false; b.textContent = 'Paga ora con carta';
+    });
+  }
+
+  function renderPaid(o) {
+    card.style.textAlign = 'center';
+    card.innerHTML = `
+      <div class="success-ic">✓</div>
+      <span class="badge ok">Pagamento completato</span>
+      <h2 style="font-size:1.8rem;margin:16px 0 8px">Grazie, ${escapeHtml(o.restaurant)}!</h2>
+      ${o.siteUrl ? `
+        <p class="muted" style="margin:0">Ecco il tuo nuovo sito web:</p>
+        <a class="site-link" href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">${escapeHtml(o.siteUrl)}</a>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <a class="btn btn-gold" href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">Apri il mio sito →</a>
+          <button class="btn btn-ghost" id="copyBtn">Copia link</button>
+        </div>`
+      : `
+        <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
+      <p class="muted small" style="margin:22px 0 0">Conserva questa pagina: puoi riaprirla quando vuoi per ritrovare il link.</p>`;
+    const c = document.getElementById('copyBtn');
+    if (c) c.addEventListener('click', () => navigator.clipboard.writeText(o.siteUrl).then(() => toast('Link copiato')));
+    if (sessionId) history.replaceState(null, '', location.pathname);
+  }
+
+  async function load() {
+    if (sessionId) {
+      card.innerHTML = '<div class="spinner"></div><p class="muted" style="text-align:center">Verifica del pagamento…</p>';
+      // Stripe può impiegare qualche secondo a confermare
+      for (let i = 0; i < 6; i++) {
+        const r = await fetch(`/api/orders/${encodeURIComponent(id)}/verify`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }),
+        });
+        if (r.status === 404) return renderNotFound();
+        const { order } = await r.json();
+        if (order.paid) return renderPaid(order);
+        await new Promise(res => setTimeout(res, 2000));
+      }
+    }
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}`);
+    if (!r.ok) return renderNotFound();
+    const { order } = await r.json();
+    order.paid ? renderPaid(order) : renderUnpaid(order);
+  }
+  load().catch(renderNotFound);
+</script>
+</body>
+</html>

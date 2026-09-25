@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Admin — RistoWeb Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .admin { padding: 36px 0 80px; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 24px 0 30px; }
+    @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+    .stat b { display: block; font-family: var(--serif); font-size: 1.9rem; }
+    .layout { display: grid; grid-template-columns: 360px 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+    .panel h3 { font-family: var(--sans); font-size: 1.05rem; margin-bottom: 16px; letter-spacing: 0; }
+    .field { margin-bottom: 14px; }
+    .order { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg-2); margin-bottom: 12px; }
+    .order-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .order-top h4 { margin: 0; font-size: 1.05rem; }
+    .pill { font-size: .75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+    .pill.paid { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .pill.wait { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
+    .linkbox { display: flex; gap: 8px; margin-top: 12px; }
+    .linkbox input { font-size: .85rem; padding: 10px 12px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .btn-wa { background: #25d366; color: #fff; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+    .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">R</span>Admin</a>
+    <nav class="nav">
+      <a href="/" class="hide-sm">Vedi sito</a>
+      <button class="btn btn-ghost btn-sm" id="logout">Esci</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap admin">
+  <h1 style="font-size:2rem;margin:0">Ordini</h1>
+  <div class="stats">
+    <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
+    <div class="stat"><span class="muted small">Ordini pagati</span><b id="sPaid">–</b></div>
+    <div class="stat"><span class="muted small">In attesa</span><b id="sWait">–</b></div>
+  </div>
+
+  <div class="layout">
+    <form class="panel" id="newForm">
+      <h3>+ Nuovo ordine</h3>
+      <div class="field"><label>Nome ristorante *</label><input name="restaurant" required placeholder="Trattoria da Mario"></div>
+      <div class="field"><label>Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="199"></div>
+      <div class="field"><label>Link del sito (lo vede solo dopo aver pagato)</label><input name="siteUrl" placeholder="https://trattoriadamario.it"></div>
+      <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
+      <div class="field"><label>Descrizione</label><textarea name="description" rows="2" placeholder="Sito web professionale per il tuo ristorante"></textarea></div>
+      <p class="err" id="formErr"></p>
+      <button class="btn btn-gold" style="width:100%" type="submit">Crea link di pagamento</button>
+    </form>
+
+    <div class="panel">
+      <h3>Tutti gli ordini</h3>
+      <div id="list"><div class="spinner"></div></div>
+    </div>
+  </div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  let currency = 'eur';
+
+  async function api(url, opts = {}) {
+    const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Errore');
+    return d;
+  }
+
+  function waLink(o) {
+    const msg = `Ciao! Ecco il link per completare l'ordine del sito web di ${o.restaurant}: ${o.payUrl}\nDopo il pagamento riceverai subito il link del tuo nuovo sito.`;
+    const phone = (o.phone || '').replace(/\D/g, '');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  }
+
+  function render(orders) {
+    const paid = orders.filter(o => o.paid);
+    document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount, 0), currency);
+    document.getElementById('sPaid').textContent = paid.length;
+    document.getElementById('sWait').textContent = orders.length - paid.length;
+
+    const list = document.getElementById('list');
+    if (!orders.length) { list.innerHTML = '<div class="empty">Nessun ordine ancora. Creane uno a sinistra.</div>'; return; }
+    list.innerHTML = orders.map(o => `
+      <div class="order" data-id="${o.id}">
+        <div class="order-top">
+          <div>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}</h4>
+            <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
+          </div>
+          <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
+        </div>
+        <label style="margin-top:14px">Link pagamento (da mandare su WhatsApp)</label>
+        <div class="linkbox"><input readonly value="${escapeHtml(o.payUrl)}"><button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.payUrl)}">Copia</button></div>
+        <label style="margin-top:12px">Link sito del cliente</label>
+        <div class="linkbox"><input class="site" value="${escapeHtml(o.siteUrl || '')}" placeholder="https://..."><button class="btn btn-ghost btn-sm" data-save>Salva</button></div>
+        <div class="actions">
+          <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
+          <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>
+          <button class="btn btn-danger btn-sm" data-del>Elimina</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function refresh() {
+    const d = await api('/api/admin/orders');
+    currency = d.currency;
+    render(d.orders);
+  }
+
+  document.getElementById('list').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const box = b.closest('.order');
+    const id = box.dataset.id;
+    try {
+      if (b.dataset.copy) { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); }
+      else if (b.hasAttribute('data-save')) {
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ siteUrl: box.querySelector('.site').value }) });
+        toast('Link del sito salvato'); refresh();
+      } else if (b.hasAttribute('data-del')) {
+        if (!confirm('Eliminare questo ordine? Il link di pagamento smetterà di funzionare.')) return;
+        await api(`/api/admin/orders/${id}`, { method: 'DELETE' });
+        toast('Ordine eliminato'); refresh();
+      }
+    } catch (err) { if (err.message !== '401') toast(err.message); }
+  });
+
+  document.getElementById('newForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const err = document.getElementById('formErr');
+    err.textContent = '';
+    try {
+      const { order } = await api('/api/admin/orders', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
+      f.reset();
+      await navigator.clipboard.writeText(order.payUrl).catch(() => {});
+      toast('Ordine creato — link copiato!');
+      refresh();
+    } catch (x) { if (x.message !== '401') err.textContent = x.message; }
+  });
+
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/admin/logout', { method: 'POST' });
+    location.href = '/';
+  });
+
+  api('/api/admin/me').then(d => {
+    if (!d.admin) { location.href = '/'; return; }
+    document.body.classList.add('ready');
+    refresh();
+    setInterval(refresh, 15000);
+  });
+</script>
+</body>
+</html>
