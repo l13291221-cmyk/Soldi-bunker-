@@ -35,6 +35,11 @@
     .btn-wa { background: #25d366; color: #fff; }
     .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
     .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; }
+    .codebox { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--gold); background: rgba(214,177,106,.06); flex-wrap: wrap; }
+    .codebox .code { font: 700 1.5rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 3px; color: var(--gold-2); }
+    .codebox small { display: block; color: var(--muted); font-size: .75rem; letter-spacing: 1px; text-transform: uppercase; }
+    details.more { border: 0; padding: 0; margin-top: 12px; }
+    details.more summary { font-weight: 500; font-size: .85rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -65,7 +70,7 @@
       <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
       <div class="field"><label>Descrizione</label><textarea name="description" rows="2" placeholder="Sito web professionale per il tuo ristorante"></textarea></div>
       <p class="err" id="formErr"></p>
-      <button class="btn btn-gold" style="width:100%" type="submit">Crea link di pagamento</button>
+      <button class="btn btn-gold" style="width:100%" type="submit">Crea ordine e genera codice</button>
     </form>
 
     <div class="panel">
@@ -88,7 +93,8 @@
   }
 
   function waLink(o) {
-    const msg = `Ciao! Ecco il link per completare l'ordine del sito web di ${o.restaurant}: ${o.payUrl}\nDopo il pagamento riceverai subito il link del tuo nuovo sito.`;
+    const home = location.origin + '/#codice';
+    const msg = `Ciao! Ecco il codice per il sito web di ${o.restaurant}:\n\n*${o.code}*\n\nVai su ${home} , inserisci il codice nella sezione "Hai ricevuto un codice?" e completa il pagamento. Subito dopo riceverai il link del tuo nuovo sito.`;
     const phone = (o.phone || '').replace(/\D/g, '');
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }
@@ -110,15 +116,20 @@
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
         </div>
-        <label style="margin-top:14px">Link pagamento (da mandare su WhatsApp)</label>
-        <div class="linkbox"><input readonly value="${escapeHtml(o.payUrl)}"><button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.payUrl)}">Copia</button></div>
-        <label style="margin-top:12px">Link sito del cliente</label>
+        <div class="codebox">
+          <div><small>Codice da mandare al cliente</small><span class="code">${escapeHtml(o.code)}</span></div>
+          <button class="btn btn-gold btn-sm" data-copy="${escapeHtml(o.code)}" data-msg="Codice copiato">Copia codice</button>
+        </div>
+        <label style="margin-top:12px">Link sito del cliente (lo vede solo dopo aver pagato)</label>
         <div class="linkbox"><input class="site" value="${escapeHtml(o.siteUrl || '')}" placeholder="https://..."><button class="btn btn-ghost btn-sm" data-save>Salva</button></div>
         <div class="actions">
           <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>
           <button class="btn btn-danger btn-sm" data-del>Elimina</button>
         </div>
+        <details class="more"><summary>Link diretto al pagamento (alternativa al codice)</summary>
+          <div class="linkbox"><input readonly value="${escapeHtml(o.payUrl)}"><button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.payUrl)}">Copia</button></div>
+        </details>
       </div>`).join('');
   }
 
@@ -134,7 +145,7 @@
     const box = b.closest('.order');
     const id = box.dataset.id;
     try {
-      if (b.dataset.copy) { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copiato'); }
+      if (b.dataset.copy) { await navigator.clipboard.writeText(b.dataset.copy); toast(b.dataset.msg || 'Link copiato'); }
       else if (b.hasAttribute('data-save')) {
         await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ siteUrl: box.querySelector('.site').value }) });
         toast('Link del sito salvato'); refresh();
@@ -154,8 +165,8 @@
     try {
       const { order } = await api('/api/admin/orders', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
       f.reset();
-      await navigator.clipboard.writeText(order.payUrl).catch(() => {});
-      toast('Ordine creato — link copiato!');
+      await navigator.clipboard.writeText(order.code).catch(() => {});
+      toast(`Ordine creato — codice ${order.code} copiato!`);
       refresh();
     } catch (x) { if (x.message !== '401') err.textContent = x.message; }
   });

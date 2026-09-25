@@ -27,9 +27,29 @@ function saveOrders() {
   fs.writeFileSync(tmp, JSON.stringify(orders, null, 2));
   fs.renameSync(tmp, DB_FILE);
 }
+// Codice ordine leggibile, es. "K7M2-P9QX" (senza 0/O/1/I/L per evitare confusione)
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newCode() {
+  let id;
+  do {
+    id = Array.from(crypto.randomBytes(8), b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+  } while (orders[id]);
+  return id;
+}
+function formatCode(id) {
+  return /^[A-Z0-9]{8}$/.test(id) ? `${id.slice(0, 4)}-${id.slice(4)}` : id;
+}
+function findOrder(raw) {
+  const s = String(raw || '').trim();
+  return orders[s] || orders[s.toUpperCase().replace(/[^A-Z0-9]/g, '')] || null;
+}
+function adminOrder(o) {
+  return { ...o, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
+}
 function publicOrder(o) {
   return {
     id: o.id,
+    code: formatCode(o.id),
     restaurant: o.restaurant,
     description: o.description,
     amount: o.amount,
@@ -71,19 +91,27 @@ function pinMatches(pin) {
   const b = crypto.createHash('sha256').update(ADMIN_PIN).digest();
   return ADMIN_PIN.length > 0 && crypto.timingSafeEqual(a, b);
 }
-// Blocco anti-tentativi: max 5 PIN sbagliati ogni 15 minuti per IP
-const failedLogins = new Map();
-function tooManyAttempts(ip) {
-  const f = failedLogins.get(ip);
-  if (!f) return false;
-  if (Date.now() - f.first > 15 * 60 * 1000) { failedLogins.delete(ip); return false; }
-  return f.count >= 5;
+// Blocco anti-tentativi per IP, finestra di 15 minuti
+function attemptLimiter(max) {
+  const hits = new Map();
+  const WINDOW = 15 * 60 * 1000;
+  return {
+    blocked(ip) {
+      const f = hits.get(ip);
+      if (!f) return false;
+      if (Date.now() - f.first > WINDOW) { hits.delete(ip); return false; }
+      return f.count >= max;
+    },
+    fail(ip) {
+      const f = hits.get(ip);
+      if (!f || Date.now() - f.first > WINDOW) hits.set(ip, { count: 1, first: Date.now() });
+      else f.count++;
+    },
+    reset(ip) { hits.delete(ip); },
+  };
 }
-function recordFailure(ip) {
-  const f = failedLogins.get(ip);
-  if (!f || Date.now() - f.first > 15 * 60 * 1000) failedLogins.set(ip, { count: 1, first: Date.now() });
-  else f.count++;
-}
+const pinLimiter = attemptLimiter(5);   // 5 PIN sbagliati
+const codeLimiter = attemptLimiter(30); // 30 codici ordine inesistenti
 
 const app = express();
 app.set('trust proxy', 1);
@@ -110,12 +138,12 @@ app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] })
 // ---------- API admin ----------
 app.post('/api/admin/login', (req, res) => {
   const ip = req.ip;
-  if (tooManyAttempts(ip)) return res.status(429).json({ error: 'Troppi tentativi. Riprova tra 15 minuti.' });
+  if (pinLimiter.blocked(ip)) return res.status(429).json({ error: 'Troppi tentativi. Riprova tra 15 minuti.' });
   if (!pinMatches((req.body && req.body.pin) || '')) {
-    recordFailure(ip);
+    pinLimiter.fail(ip);
     return res.status(401).json({ error: 'PIN errato' });
   }
-  failedLogins.delete(ip);
+  pinLimiter.reset(ip);
   const token = crypto.randomBytes(32).toString('hex');
   adminSessions.set(token, Date.now() + SESSION_MS);
   const secure = BASE_URL.startsWith('https') ? '; Secure' : '';
@@ -135,7 +163,7 @@ app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req) }));
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
   const list = Object.values(orders)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(o => ({ ...o, payUrl: `${BASE_URL}/paga/${o.id}` }));
+    .map(adminOrder);
   res.json({ orders: list, currency: CURRENCY });
 });
 
@@ -159,7 +187,7 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
   const url = cleanUrl(siteUrl);
   if (url === null) return res.status(400).json({ error: 'Link del sito non valido' });
-  const id = crypto.randomBytes(9).toString('base64url');
+  const id = newCode();
   orders[id] = {
     id,
     restaurant: String(restaurant).trim().slice(0, 120),
@@ -171,7 +199,7 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
     createdAt: new Date().toISOString(),
   };
   saveOrders();
-  res.json({ order: { ...orders[id], payUrl: `${BASE_URL}/paga/${id}` } });
+  res.json({ order: adminOrder(orders[id]) });
 });
 
 app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
@@ -191,7 +219,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
     o.amount = cents;
   }
   saveOrders();
-  res.json({ order: { ...o, payUrl: `${BASE_URL}/paga/${o.id}` } });
+  res.json({ order: adminOrder(o) });
 });
 
 app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
@@ -202,15 +230,24 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 // ---------- API pubbliche (cliente) ----------
-app.get('/api/orders/:id', (req, res) => {
-  const o = orders[req.params.id];
-  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+// Trova l'ordine dal codice (con o senza trattino, maiuscole/minuscole indifferenti)
+function loadPublicOrder(req, res, next) {
+  if (codeLimiter.blocked(req.ip)) return res.status(429).json({ error: 'Troppi tentativi. Riprova tra 15 minuti.' });
+  const o = findOrder(req.params.id);
+  if (!o) {
+    codeLimiter.fail(req.ip);
+    return res.status(404).json({ error: 'Codice non valido. Controlla di averlo scritto bene.' });
+  }
+  req.order = o;
+  next();
+}
+app.get('/api/orders/:id', loadPublicOrder, (req, res) => {
+  const o = req.order;
   res.json({ order: publicOrder(o) });
 });
 
-app.post('/api/orders/:id/checkout', async (req, res) => {
-  const o = orders[req.params.id];
-  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
+  const o = req.order;
   if (o.paid) return res.status(400).json({ error: 'Ordine già pagato' });
   if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
   try {
@@ -221,7 +258,7 @@ app.post('/api/orders/:id/checkout', async (req, res) => {
         price_data: {
           currency: CURRENCY,
           unit_amount: o.amount,
-          product_data: { name: `Sito web — ${o.restaurant}`, description: o.description },
+          product_data: { name: `Sito web — ${o.restaurant}`, description: `${o.description} (codice ${formatCode(o.id)})` },
         },
       }],
       metadata: { orderId: o.id },
@@ -237,9 +274,8 @@ app.post('/api/orders/:id/checkout', async (req, res) => {
 });
 
 // Verifica il pagamento al ritorno da Stripe (funziona anche senza webhook)
-app.post('/api/orders/:id/verify', async (req, res) => {
-  const o = orders[req.params.id];
-  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
+  const o = req.order;
   const sessionId = req.body && req.body.sessionId;
   if (!o.paid && stripe && sessionId) {
     try {

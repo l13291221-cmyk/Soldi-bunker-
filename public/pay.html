@@ -50,8 +50,8 @@
   function renderNotFound() {
     card.innerHTML = `
       <h2 style="font-size:1.7rem;margin-bottom:10px">Ordine non trovato</h2>
-      <p class="muted">Controlla il codice o il link che hai ricevuto su WhatsApp.</p>
-      <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Torna indietro</a>`;
+      <p class="muted">Controlla il codice che hai ricevuto su WhatsApp e riprova.</p>
+      <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Inserisci di nuovo il codice</a>`;
   }
 
   function renderUnpaid(o) {
@@ -61,6 +61,7 @@
       <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
       <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
       <div style="margin:18px 0">
+        <div class="row"><span class="muted">Codice ordine</span><span style="font-family:ui-monospace,monospace;letter-spacing:2px;color:var(--gold-2)">${escapeHtml(o.code)}</span></div>
         <div class="row"><span class="muted">Servizio</span><span>Sito web ristorante</span></div>
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>

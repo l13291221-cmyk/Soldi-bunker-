@@ -114,7 +114,7 @@ h1 em, h2 em { font-style: italic; color: var(--gold); }
 .screen-btn.wa { background: #25d366; color: #fff; }
 
 /* ---------- Sections ---------- */
-section { padding: 88px 0; }
+section { padding: 88px 0; scroll-margin-top: 64px; }
 .section-head { max-width: 640px; margin-bottom: 48px; }
 .section-head h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); margin-bottom: 14px; }
 .section-head p { color: var(--muted); margin: 0; font-size: 1.05rem; }
@@ -173,6 +173,8 @@ details p { color: var(--muted); margin: 12px 0 0; }
 /* Code form */
 .code-form { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
 .code-form input { flex: 1 1 200px; }
+.code-input { font: 600 1.25rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 4px; text-transform: uppercase; text-align: center; }
+.code-input::placeholder { color: #4a4a52; }
 
 /* Inputs */
 input, textarea {

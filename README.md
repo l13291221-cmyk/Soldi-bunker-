@@ -4,11 +4,11 @@ Landing page scura per vendere siti web ai ristoranti, con pagamento Stripe e un
 
 ## Come funziona
 1. Clicchi il **lucchetto in alto a destra** → inserisci il PIN → entri nell'admin.
-2. Crei un ordine: nome ristorante, prezzo, link del sito (anche dopo), numero WhatsApp.
-3. Premi **"Invia su WhatsApp"**: si apre WhatsApp con il messaggio e il link di pagamento già pronti.
-4. Il cliente apre il link, vede il riepilogo e paga con carta su **Stripe**.
-5. Appena il pagamento va a buon fine, sulla stessa pagina **compare il link del suo sito**.
-   Se non avevi ancora messo il link, lo aggiungi dall'admin e il cliente lo vede riaprendo la sua pagina.
+2. Crei un ordine (nome ristorante, prezzo, link del sito, numero WhatsApp): viene generato un **codice** tipo `K7M2-P9QX`.
+3. Premi **"Invia su WhatsApp"**: il messaggio con il codice e l'indirizzo del sito è già scritto.
+4. Il cliente va sul sito, nella sezione **"Hai ricevuto un codice?"** inserisce il codice e apre il pagamento.
+5. Paga con carta su **Stripe** e subito dopo **compare il link del suo sito**.
+   Se non avevi ancora messo il link, lo aggiungi dall'admin e il cliente lo vede reinserendo il codice.
 
 ## Avvio in locale
 ```bash

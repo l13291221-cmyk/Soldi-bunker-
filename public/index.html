@@ -118,11 +118,12 @@
         <div class="offer-l">
           <span class="kicker">Il tuo ordine</span>
           <h2 style="font-size:clamp(1.7rem,3vw,2.3rem)">Hai ricevuto un <em>codice</em> su WhatsApp?</h2>
-          <p class="muted">Inseriscilo qui per vedere il riepilogo e completare il pagamento. Se hai ricevuto un link, puoi semplicemente aprirlo.</p>
-          <form class="code-form" id="codeForm">
-            <input id="codeInput" placeholder="Es. aB3dE5fG7hJ9" required aria-label="Codice ordine">
-            <button class="btn btn-gold" type="submit">Continua</button>
+          <p class="muted">Inserisci il tuo codice ordine per vedere il riepilogo e passare al pagamento sicuro.</p>
+          <form class="code-form" id="codeForm" autocomplete="off">
+            <input id="codeInput" class="code-input" placeholder="XXXX-XXXX" maxlength="9" required aria-label="Codice ordine" autocapitalize="characters" spellcheck="false">
+            <button class="btn btn-gold" type="submit" id="codeBtn">Vai al pagamento →</button>
           </form>
+          <p class="err" id="codeErr" style="margin:10px 0 0"></p>
         </div>
         <div class="offer-r">
           <div class="price-note">Prezzo chiaro,<br>pagamento unico.</div>
@@ -160,12 +161,27 @@
 <script src="/common.js"></script>
 <script>
   document.getElementById('y').textContent = new Date().getFullYear();
-  document.getElementById('codeForm').addEventListener('submit', e => {
+  const codeInput = document.getElementById('codeInput');
+  const codeErr = document.getElementById('codeErr');
+  // Scrive il codice in maiuscolo e aggiunge il trattino da solo: K7M2-P9QX
+  codeInput.addEventListener('input', () => {
+    const raw = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    codeInput.value = raw.length > 4 ? raw.slice(0, 4) + '-' + raw.slice(4) : raw;
+    codeErr.textContent = '';
+  });
+  document.getElementById('codeForm').addEventListener('submit', async e => {
     e.preventDefault();
-    let v = document.getElementById('codeInput').value.trim();
-    const m = v.match(/\/paga\/([\w-]+)/);
-    if (m) v = m[1];
-    if (v) location.href = '/paga/' + encodeURIComponent(v);
+    const code = codeInput.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    const btn = document.getElementById('codeBtn');
+    if (code.length !== 8) { codeErr.textContent = 'Il codice ha 8 caratteri, es. K7M2-P9QX'; return; }
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/orders/' + encodeURIComponent(code));
+      if (r.ok) { location.href = '/paga/' + code; return; }
+      const d = await r.json().catch(() => ({}));
+      codeErr.textContent = d.error || 'Codice non valido.';
+    } catch { codeErr.textContent = 'Errore di connessione, riprova.'; }
+    btn.disabled = false;
   });
 </script>
 </body>
