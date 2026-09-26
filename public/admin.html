@@ -78,10 +78,10 @@
     <form class="panel" id="newForm">
       <h3>+ Nuovo ordine</h3>
       <div class="field"><label>Nome ristorante *</label><input name="restaurant" required placeholder="Trattoria da Mario"></div>
-      <div class="field"><label>Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="199"></div>
+      <div class="field"><label>Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="2671"></div>
       <div class="field"><label>Link del sito (lo vede solo dopo aver pagato)</label><input name="siteUrl" placeholder="https://trattoriadamario.it"></div>
       <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
-      <div class="field"><label>Descrizione</label><textarea name="description" rows="2" placeholder="Sito web professionale per il tuo ristorante"></textarea></div>
+      <div class="field"><label>Descrizione</label><textarea name="description" rows="2" placeholder="Sito web professionale per il tuo ristorante + 1 anno di assistenza gratuita"></textarea></div>
       <p class="err" id="formErr"></p>
       <button class="btn btn-gold" style="width:100%" type="submit">Crea ordine e genera codice</button>
     </form>
@@ -218,6 +218,12 @@
     btn.disabled = false; btn.textContent = '+ Aggiungi';
   });
 
+  // Prezzo standard già inserito nel modulo (si può cambiare per ogni cliente)
+  fetch('/api/config').then(r => r.json()).then(c => {
+    const a = document.querySelector('[name=amount]');
+    if (!a.value) a.value = String(c.price / 100).replace('.', ',');
+  }).catch(() => {});
+
   async function refresh() {
     const d = await api('/api/admin/orders');
     currency = d.currency;
@@ -249,7 +255,9 @@
     err.textContent = '';
     try {
       const { order } = await api('/api/admin/orders', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
+      const keepAmount = f.amount.value;
       f.reset();
+      f.amount.value = keepAmount;
       await navigator.clipboard.writeText(order.code).catch(() => {});
       toast(`Ordine creato — codice ${order.code} copiato!`);
       refresh();

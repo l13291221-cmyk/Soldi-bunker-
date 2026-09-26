@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PIN = process.env.ADMIN_PIN || '';
 const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const CURRENCY = (process.env.CURRENCY || 'eur').toLowerCase();
+// Prezzo standard mostrato sul sito e proposto nei nuovi ordini (in euro)
+const PRICE = parseFloat(String(process.env.PREZZO || '2671').replace(',', '.')) || 2671;
+const DEFAULT_DESCRIPTION = 'Sito web professionale per il tuo ristorante + 1 anno di assistenza gratuita';
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -191,7 +194,7 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   orders[id] = {
     id,
     restaurant: String(restaurant).trim().slice(0, 120),
-    description: String(description || 'Sito web professionale per il tuo ristorante').trim().slice(0, 300),
+    description: String(description || DEFAULT_DESCRIPTION).trim().slice(0, 300),
     amount: cents,
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
@@ -230,6 +233,8 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 // ---------- API pubbliche (cliente) ----------
+app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION }));
+
 // Trova l'ordine dal codice (con o senza trattino, maiuscole/minuscole indifferenti)
 function loadPublicOrder(req, res, next) {
   if (codeLimiter.blocked(req.ip)) return res.status(429).json({ error: 'Troppi tentativi. Riprova tra 15 minuti.' });

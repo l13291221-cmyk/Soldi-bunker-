@@ -43,6 +43,7 @@
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Pagamento sicuro Stripe</span>
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Online in pochi giorni</span>
           <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>Perfetto da smartphone</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z"/></svg>1 anno di assistenza gratuita</span>
         </div>
       </div>
       <div class="fade-in" style="animation-delay:.15s">
@@ -126,11 +127,14 @@
           <p class="err" id="codeErr" style="margin:10px 0 0"></p>
         </div>
         <div class="offer-r">
-          <div class="price-note">Prezzo chiaro,<br>pagamento unico.</div>
+          <span class="kicker" style="margin:0">Tutto incluso</span>
+          <div class="price-note"><span id="price">2.671 €</span></div>
+          <p class="muted small" style="margin:-8px 0 0">Pagamento unico · nessun abbonamento</p>
           <ul class="checks" style="margin:0">
-            <li>Nessun abbonamento nascosto</li>
-            <li>Pagamento con carta via Stripe</li>
-            <li>Link del sito subito dopo il pagamento</li>
+            <li>Sito web completo per il tuo locale</li>
+            <li><b>1 anno di assistenza gratuita</b></li>
+            <li>Modifiche a menu, prezzi e orari incluse</li>
+            <li>Pagamento sicuro con carta via Stripe</li>
           </ul>
         </div>
       </div>
@@ -145,7 +149,8 @@
       </div>
       <details><summary>Quanto tempo serve per avere il sito?</summary><p>Di solito pochi giorni lavorativi da quando riceviamo menu e foto.</p></details>
       <details><summary>Il pagamento è sicuro?</summary><p>Sì. Il pagamento avviene su Stripe, una delle piattaforme più usate al mondo. Noi non vediamo mai i dati della tua carta.</p></details>
-      <details><summary>Posso modificare il menu in seguito?</summary><p>Certo: scrivici su WhatsApp e aggiorniamo piatti, prezzi e orari.</p></details>
+      <details><summary>Cosa comprende l'anno di assistenza gratuita?</summary><p>Per 12 mesi dalla consegna aggiorniamo gratis menu, prezzi, orari e foto, e ti aiutiamo per qualsiasi problema al sito. Basta scriverci su WhatsApp.</p></details>
+      <details><summary>Ci sono costi mensili?</summary><p>No. Paghi una volta sola e il primo anno di assistenza è già incluso nel prezzo.</p></details>
       <details><summary>Quando ricevo il link del sito?</summary><p>Appena il pagamento va a buon fine, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
     </div>
   </section>
@@ -161,6 +166,9 @@
 <script src="/common.js"></script>
 <script>
   document.getElementById('y').textContent = new Date().getFullYear();
+  fetch('/api/config').then(r => r.json()).then(c => {
+    document.getElementById('price').textContent = formatMoney(c.price, c.currency);
+  }).catch(() => {});
   const codeInput = document.getElementById('codeInput');
   const codeErr = document.getElementById('codeErr');
   // Scrive il codice in maiuscolo e aggiunge il trattino da solo: K7M2-P9QX
