@@ -46,6 +46,28 @@
     .led.ko { background: var(--red); box-shadow: 0 0 10px var(--red); }
     .mon-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
     @media (max-width: 700px) { .mon-add { grid-template-columns: 1fr; } .mon { flex-wrap: wrap; } .mon .st { text-align: left; } }
+    @media (max-width: 640px) {
+      input, textarea { font-size: 16px !important; }
+      .admin { padding: 24px 0 60px; }
+      .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 20px; }
+      .stat { padding: 12px; }
+      .stat b { font-size: 1.25rem; }
+      .stat span { font-size: .72rem; }
+      .panel { padding: 18px 16px; border-radius: 16px; }
+      .order { padding: 14px; }
+      .order-top h4 { font-size: 1rem; }
+      .codebox .code { font-size: 1.3rem; }
+      .codebox .btn { width: 100%; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .actions .btn-wa { grid-column: 1 / -1; padding: 12px; }
+      .mon { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+      .mon .info { grid-column: 2 / -1; }
+      .mon .st { grid-column: 2 / 3; text-align: left; white-space: normal; }
+      .mon .btn { grid-row: 3; }
+      .mon [data-ping] { grid-column: 2 / 3; justify-self: start; }
+      .mon [data-rm] { grid-column: 3 / 4; }
+      #sveglia { padding: 18px 16px !important; }
+    }
     .self { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; margin-bottom: 8px; }
     .codebox { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--gold); background: rgba(214,177,106,.06); flex-wrap: wrap; }
     .codebox .code { font: 700 1.5rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 3px; color: var(--gold-2); }
@@ -81,7 +103,7 @@
       <div class="field"><label>Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="2671"></div>
       <div class="field"><label>Link del sito (lo vede solo dopo aver pagato)</label><input name="siteUrl" placeholder="https://trattoriadamario.it"></div>
       <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
-      <div class="field"><label>Descrizione</label><textarea name="description" rows="2" placeholder="Sito web professionale per la tua attività + 1 anno di assistenza gratuita"></textarea></div>
+      <div class="field"><label>Descrizione</label><textarea name="description" rows="3" placeholder="Sito web professionale per la tua attività + 1 anno di assistenza gratuita"></textarea></div>
       <p class="err" id="formErr"></p>
       <button class="btn btn-gold" style="width:100%" type="submit">Crea ordine e genera codice</button>
     </form>
