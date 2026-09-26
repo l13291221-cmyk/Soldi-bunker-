@@ -1,10 +1,10 @@
-# RistoWeb Studio
+# Nerodoro Studio
 
-Landing page scura per vendere siti web ai ristoranti, con pagamento Stripe e una piccola area admin protetta da PIN.
+Landing page scura per vendere siti web a ogni tipo di attività, con pagamento Stripe e una piccola area admin protetta da PIN.
 
 ## Come funziona
 1. Clicchi il **lucchetto in alto a destra** → inserisci il PIN → entri nell'admin.
-2. Crei un ordine (nome ristorante, prezzo, link del sito, numero WhatsApp): viene generato un **codice** tipo `K7M2-P9QX`.
+2. Crei un ordine (nome attività, prezzo, link del sito, numero WhatsApp): viene generato un **codice** tipo `K7M2-P9QX`.
 3. Premi **"Invia su WhatsApp"**: il messaggio con il codice e l'indirizzo del sito è già scritto.
 4. Il cliente va sul sito, nella sezione **"Hai ricevuto un codice?"** inserisce il codice e apre il pagamento.
 5. Paga con carta su **Stripe** e subito dopo **compare il link del suo sito**.
@@ -22,6 +22,7 @@ npm start              # http://localhost:3000
 2. Build command: `npm install` — Start command: `npm start`.
 3. Environment variables:
    - `ADMIN_PIN` = il tuo PIN
+   - `WHATSAPP` = (opzionale) il tuo numero WhatsApp Business, solo cifre con prefisso; di base è 27710933377
    - `STRIPE_SECRET_KEY` = chiave segreta da dashboard.stripe.com → Sviluppatori → Chiavi API (`sk_test_...` per provare, `sk_live_...` per incassare davvero)
    - `BASE_URL` = non serve su Render (lo prende da solo); mettilo solo se usi un dominio tuo
 4. (Consigliato) Stripe → Webhook → endpoint `BASE_URL/api/stripe-webhook`, evento `checkout.session.completed`, poi metti il segreto in `STRIPE_WEBHOOK_SECRET`.

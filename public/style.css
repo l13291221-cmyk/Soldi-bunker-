@@ -39,8 +39,10 @@ img { max-width: 100%; }
 .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 1.25rem; font-weight: 700; text-decoration: none; letter-spacing: .2px; }
 .brand-mark {
-  width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--gold-2), var(--gold)); color: #1a1408; font-size: 1rem;
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, #2a2215, #0b0b0d 75%); color: var(--gold);
+  border: 1.5px solid var(--gold); font: 600 1.05rem var(--serif);
+  box-shadow: inset 0 0 0 3px #0b0b0d, inset 0 0 0 4px rgba(214,177,106,.35);
 }
 .nav { display: flex; align-items: center; gap: 22px; font-size: .92rem; color: var(--muted); }
 .nav a { text-decoration: none; transition: color .2s; }
@@ -216,3 +218,15 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 .spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--gold); animation: spin .8s linear infinite; margin: 10px auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chips span { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--gold-2); font-size: .82rem; }
+.demo {
+  margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 22px 26px; border-radius: var(--radius); text-decoration: none;
+  border: 1px dashed var(--gold); background: linear-gradient(135deg, rgba(214,177,106,.08), transparent);
+  transition: background .2s;
+}
+.demo:hover { background: linear-gradient(135deg, rgba(214,177,106,.14), transparent); }
+.demo > span:first-child { display: grid; gap: 2px; }
+.demo b { font-size: 1.1rem; }

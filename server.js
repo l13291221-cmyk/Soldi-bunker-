@@ -1,4 +1,4 @@
-// RistoWeb Studio — landing + pagamenti Stripe + mini admin con PIN
+// Nerodoro Studio — landing + pagamenti Stripe + mini admin con PIN
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -12,7 +12,9 @@ const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `ht
 const CURRENCY = (process.env.CURRENCY || 'eur').toLowerCase();
 // Prezzo standard mostrato sul sito e proposto nei nuovi ordini (in euro)
 const PRICE = parseFloat(String(process.env.PREZZO || '2671').replace(',', '.')) || 2671;
-const DEFAULT_DESCRIPTION = 'Sito web professionale per il tuo ristorante + 1 anno di assistenza gratuita';
+// Numero WhatsApp Business (solo cifre, con prefisso internazionale)
+const WHATSAPP = String(process.env.WHATSAPP ?? '27710933377').replace(/\D/g, '');
+const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 anno di assistenza gratuita';
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -185,7 +187,7 @@ function cleanUrl(v) {
 
 app.post('/api/admin/orders', requireAdmin, (req, res) => {
   const { restaurant, description, amount, siteUrl, phone } = req.body || {};
-  if (!restaurant || !String(restaurant).trim()) return res.status(400).json({ error: 'Nome del ristorante obbligatorio' });
+  if (!restaurant || !String(restaurant).trim()) return res.status(400).json({ error: 'Nome dell\'attività obbligatorio' });
   const cents = parseAmount(amount);
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
   const url = cleanUrl(siteUrl);
@@ -233,7 +235,7 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 // ---------- API pubbliche (cliente) ----------
-app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION }));
+app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP }));
 
 // Trova l'ordine dal codice (con o senza trattino, maiuscole/minuscole indifferenti)
 function loadPublicOrder(req, res, next) {
@@ -314,7 +316,7 @@ async function pingUrl(url) {
     // 60 secondi: un sito Render addormentato può metterci ~50s a svegliarsi
     const r = await fetch(url, {
       signal: AbortSignal.timeout(60000),
-      headers: { 'User-Agent': 'RistoWeb-Sveglia/1.0' },
+      headers: { 'User-Agent': 'Nerodoro-Sveglia/1.0' },
       redirect: 'follow',
     });
     await r.body?.cancel();
@@ -368,4 +370,4 @@ app.delete('/api/admin/monitors/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => console.log(`RistoWeb Studio attivo su ${BASE_URL}`));
+app.listen(PORT, () => console.log(`Nerodoro Studio attivo su ${BASE_URL}`));
