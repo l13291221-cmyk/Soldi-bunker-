@@ -48,3 +48,8 @@ Nell'admin, pulsante **🔎 Trova clienti**: scrivi un comune e il tipo di attiv
 Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in automatico: non funziona, non va da telefono, senza https, lento, fermo da anni, in costruzione), con i pulsanti Chiama, Maps e "+ Ordine".
 I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
 Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser del dispositivo che usi.
+
+### Messaggi WhatsApp
+Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: apre WhatsApp con un messaggio già scritto,
+personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
+(IT, EN, FR, ES, DE) e 3 versioni che si alternano. Un contatore avvisa oltre i 20 messaggi al giorno.
