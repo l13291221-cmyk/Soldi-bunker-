@@ -297,6 +297,107 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
 
 app.get('/paga/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pay.html')));
 
+// ---------- Trova clienti: attività da OpenStreetMap (gratis, senza chiavi) ----------
+const OVERPASS_URLS = (process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter,https://overpass.kumi.systems/api/interpreter')
+  .split(',').map(s => s.trim()).filter(Boolean);
+const LEAD_TYPES = {
+  ristoranti: { label: 'Ristoranti e pizzerie', q: ['nwr["amenity"~"^(restaurant|fast_food)$"]'] },
+  bar: { label: 'Bar, caffè, gelaterie', q: ['nwr["amenity"~"^(cafe|bar|pub|ice_cream)$"]'] },
+  bellezza: { label: 'Parrucchieri ed estetica', q: ['nwr["shop"~"^(hairdresser|beauty|cosmetics|massage|tattoo)$"]'] },
+  negozi: { label: 'Negozi', q: ['nwr["shop"]["shop"!~"^(hairdresser|beauty|supermarket|convenience|vacant|kiosk)$"]'] },
+  alimentari: { label: 'Alimentari e botteghe', q: ['nwr["shop"~"^(bakery|butcher|pastry|greengrocer|deli|cheese|wine|alcohol|seafood|confectionery|coffee)$"]'] },
+  artigiani: { label: 'Artigiani e officine', q: ['nwr["craft"]', 'nwr["shop"~"^(car_repair|tyres|bicycle)$"]'] },
+  alloggi: { label: 'B&B, hotel, agriturismi', q: ['nwr["tourism"~"^(hotel|guest_house|hostel|apartment|chalet)$"]'] },
+  professionisti: { label: 'Studi e professionisti', q: ['nwr["office"]', 'nwr["healthcare"]["healthcare"!~"^(pharmacy|hospital)$"]', 'nwr["amenity"~"^(dentist|doctors|veterinary)$"]'] },
+};
+const leadCache = new Map(); // "città|tipo" -> { at, leads }
+const SOCIAL_RE = /facebook\.com|instagram\.com|fb\.com|tiktok\.com|linktr\.ee|tripadvisor\.|thefork\.|justeat\.|deliveroo\.|glovoapp\./i;
+const TYPE_IT = {
+  restaurant: 'Ristorante', fast_food: 'Fast food', cafe: 'Bar/Caffè', bar: 'Bar', pub: 'Pub', ice_cream: 'Gelateria',
+  hairdresser: 'Parrucchiere', beauty: 'Centro estetico', cosmetics: 'Cosmetica', massage: 'Massaggi', tattoo: 'Tatuaggi',
+  bakery: 'Panetteria', butcher: 'Macelleria', pastry: 'Pasticceria', greengrocer: 'Fruttivendolo', deli: 'Gastronomia',
+  cheese: 'Formaggi', wine: 'Enoteca', alcohol: 'Enoteca', seafood: 'Pescheria', confectionery: 'Dolciumi', coffee: 'Torrefazione',
+  car_repair: 'Officina', tyres: 'Gommista', bicycle: 'Bici', hotel: 'Hotel', guest_house: 'B&B', hostel: 'Ostello',
+  apartment: 'Appartamenti', chalet: 'Chalet', dentist: 'Dentista', doctors: 'Studio medico', veterinary: 'Veterinario',
+  clothes: 'Abbigliamento', shoes: 'Scarpe', florist: 'Fiorista', jewelry: 'Gioielleria', optician: 'Ottica', furniture: 'Arredamento',
+};
+
+function leadFromOsm(e) {
+  const t = e.tags || {};
+  if (!t.name) return null;
+  const phones = [t.phone, t['contact:phone'], t['contact:mobile'], t.mobile]
+    .filter(Boolean).join(';').split(/[;,]/).map(p => p.trim()).filter(Boolean);
+  const site = t.website || t['contact:website'] || t.url || '';
+  const social = [t['contact:facebook'], t['contact:instagram'], t.facebook, t.instagram, SOCIAL_RE.test(site) ? site : '']
+    .filter(Boolean)[0] || '';
+  const realSite = site && !SOCIAL_RE.test(site) ? site : '';
+  const kind = t.amenity || t.shop || t.craft || t.tourism || t.office || t.healthcare || '';
+  const street = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' ');
+  const city = t['addr:city'] || '';
+  const address = [street, city].filter(Boolean).join(', ');
+  return {
+    id: `${e.type[0]}${e.id}`,
+    name: t.name,
+    kind: TYPE_IT[kind] || (t.craft ? 'Artigiano' : t.office ? 'Studio/Ufficio' : kind.replace(/_/g, ' ')),
+    phones: [...new Set(phones)].slice(0, 3),
+    website: realSite ? (/^https?:\/\//i.test(realSite) ? realSite : 'https://' + realSite) : '',
+    social: social ? (/^https?:\/\//i.test(social) ? social : 'https://' + social) : '',
+    address,
+    maps: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([t.name, street, city].filter(Boolean).join(' ')),
+  };
+}
+
+async function overpass(query) {
+  let lastErr;
+  for (const url of OVERPASS_URLS) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Nerodoro-Studio/1.0' },
+        body: 'data=' + encodeURIComponent(query),
+        signal: AbortSignal.timeout(90000),
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr;
+}
+
+app.get('/api/admin/leads', requireAdmin, async (req, res) => {
+  const city = String(req.query.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
+  const type = LEAD_TYPES[req.query.type] ? req.query.type : 'ristoranti';
+  if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome del comune' });
+  const key = city.toLowerCase() + '|' + type;
+  const cached = leadCache.get(key);
+  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type });
+  // Comune (admin_level 8) o quartiere (9/10) con quel nome, in Italia
+  const cityRe = '^' + city.replace(/[.*+?^${}()|[\]]/g, '\\$&') + '$';
+  const query = `[out:json][timeout:80];
+area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
+rel["boundary"="administrative"]["admin_level"~"^(8|9|10)$"]["name"~"${cityRe}",i](area.it);
+map_to_area->.a;
+(${LEAD_TYPES[type].q.map(q => q + '(area.a);').join('')});
+out tags center 1500;`;
+  try {
+    const data = await overpass(query);
+    const seen = new Set();
+    const leads = (data.elements || []).map(leadFromOsm).filter(l => {
+      if (!l || seen.has(l.name.toLowerCase())) return false;
+      seen.add(l.name.toLowerCase());
+      return true;
+    });
+    leadCache.set(key, { at: Date.now(), leads });
+    res.json({ leads, city, type });
+  } catch (err) {
+    console.error('Overpass error:', err.message);
+    res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.' });
+  }
+});
+app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
+  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })) });
+});
+
 // ---------- Sveglia siti: visita i link ogni 5 minuti (anti-spegnimento Render gratuito) ----------
 const MONITORS_FILE = path.join(__dirname, 'data', 'monitors.json');
 const PING_EVERY_MS = 5 * 60 * 1000;

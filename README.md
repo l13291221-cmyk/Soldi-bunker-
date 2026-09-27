@@ -42,3 +42,9 @@ Attenzione ai limiti del piano gratuito di Render:
 - I siti dei clienti conviene pubblicarli come **Static Site** su Render: sono gratis, non si spengono mai
   e non consumano ore (non serve pingarli).
 - Il piano gratuito non ha disco permanente: `data/*.json` (ordini ed elenco siti) si azzera a ogni deploy o riavvio.
+
+## Trova clienti
+Nell'admin, pulsante **🔎 Trova clienti**: scrivi un comune e il tipo di attività (ristoranti, bar, parrucchieri, negozi...).
+Mostra le attività con telefono, prima quelle **senza sito**, con i pulsanti Chiama, Maps e "+ Ordine".
+I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
+Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser del dispositivo che usi.

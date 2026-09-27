@@ -81,6 +81,7 @@
   <div class="wrap">
     <a href="/" class="brand"><span class="brand-mark">N</span>Admin</a>
     <nav class="nav">
+      <a href="/clienti" class="btn btn-gold btn-sm">🔎 Trova clienti</a>
       <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>
       <button class="btn btn-ghost btn-sm" id="logout">Esci</button>
@@ -294,6 +295,16 @@
   api('/api/admin/me').then(d => {
     if (!d.admin) { location.href = '/'; return; }
     document.body.classList.add('ready');
+    // Arrivo da "Trova clienti": modulo già compilato con nome e telefono
+    const q = new URLSearchParams(location.search);
+    if (q.get('nuovo')) {
+      const f = document.getElementById('newForm');
+      f.restaurant.value = q.get('nuovo');
+      if (q.get('tel')) f.phone.value = q.get('tel');
+      history.replaceState(null, '', '/admin');
+      f.scrollIntoView({ behavior: 'smooth' });
+      toast('Controlla il prezzo e crea l\'ordine');
+    }
     refresh();
     refreshMonitors();
     setInterval(() => { refresh(); refreshMonitors(); }, 15000);

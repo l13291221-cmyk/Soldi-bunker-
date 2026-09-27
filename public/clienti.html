@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Trova clienti — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 32px 0 80px; }
+    .search { display: grid; grid-template-columns: 1.3fr 1fr auto; gap: 10px; margin: 18px 0 12px; }
+    select {
+      width: 100%; padding: 13px 14px; border-radius: 11px; border: 1px solid var(--line);
+      background: var(--bg-2); color: var(--text); font: 400 16px var(--sans); outline: none;
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .chip {
+      padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+      color: var(--muted); font: 500 .84rem var(--sans); cursor: pointer;
+    }
+    .chip.on { color: #1a1408; background: var(--gold); border-color: var(--gold); }
+    .summary { color: var(--muted); font-size: .9rem; margin: 0 0 14px; }
+    .lead { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+    .lead.st-no { opacity: .45; }
+    .lead.st-interessato { border-color: var(--green); }
+    .lead-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .lead h4 { margin: 0; font-size: 1.05rem; }
+    .lead .meta { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+    .tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .tag.nosite { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .tag.social { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
+    .tag.site { background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); }
+    .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .btn-call { background: var(--gold); color: #1a1408; }
+    .status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .status button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); font: 500 .8rem var(--sans); cursor: pointer; }
+    .status button.on { color: var(--text); border-color: var(--gold); background: rgba(214,177,106,.12); }
+    .note { margin-top: 10px; font-size: 16px; padding: 9px 12px; }
+    .hint { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
+    .more { width: 100%; margin-top: 6px; }
+    @media (max-width: 640px) {
+      .search { grid-template-columns: 1fr; }
+      .page { padding-top: 20px; }
+      .lead-actions .btn { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Trova clienti</a>
+    <nav class="nav">
+      <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <h1 style="font-size:1.9rem;margin:0">Trova clienti</h1>
+  <p class="muted" style="margin:6px 0 0">Scrivi un comune e scegli il tipo di attività: ti mostro quelle con il telefono, prima quelle senza sito.</p>
+
+  <form class="search" id="searchForm" autocomplete="off">
+    <input id="city" required placeholder="Comune (es. Monza)" aria-label="Comune">
+    <select id="type" aria-label="Tipo di attività"></select>
+    <button class="btn btn-gold" type="submit" id="goBtn">Cerca</button>
+  </form>
+
+  <div class="filters" id="filters">
+    <button class="chip on" data-f="phone">Solo con telefono</button>
+    <button class="chip on" data-f="nosite">Solo senza sito</button>
+    <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
+  </div>
+
+  <div class="hint">I dati vengono da OpenStreetMap: alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
+
+  <p class="summary" id="summary"></p>
+  <div id="list"></div>
+  <button class="btn btn-ghost more" id="moreBtn" hidden>Mostra altri</button>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const STATUSES = [['', 'Da chiamare'], ['chiamato', 'Chiamato'], ['richiamare', 'Richiamare'], ['interessato', 'Interessato'], ['no', 'Non interessato']];
+  const LS = 'nerodoro-leads';
+  let notes = {};
+  try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
+
+  let leads = [], shown = 30;
+  const filters = { phone: true, nosite: true, hideDone: false };
+
+  async function api(url) {
+    const r = await fetch(url);
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Errore');
+    return d;
+  }
+
+  function siteTag(l) {
+    if (l.website) return '<span class="tag site">Ha un sito</span>';
+    if (l.social) return '<span class="tag social">Solo social</span>';
+    return '<span class="tag nosite">Senza sito</span>';
+  }
+
+  function visible() {
+    return leads
+      .filter(l => !filters.phone || l.phones.length)
+      .filter(l => !filters.nosite || !l.website)
+      .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
+      .sort((a, b) => (!!a.website - !!b.website) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
+  }
+
+  function render() {
+    const v = visible();
+    const withPhone = leads.filter(l => l.phones.length).length;
+    const noSite = leads.filter(l => !l.website && l.phones.length).length;
+    document.getElementById('summary').textContent = leads.length
+      ? `${leads.length} attività trovate · ${withPhone} con telefono · ${noSite} con telefono e senza sito · ne mostro ${Math.min(shown, v.length)} di ${v.length}`
+      : '';
+    document.getElementById('list').innerHTML = v.slice(0, shown).map(l => {
+      const n = notes[l.id] || {};
+      const tel = l.phones[0] ? l.phones[0].replace(/[^\d+]/g, '') : '';
+      return `
+      <div class="lead st-${n.s || 'new'}" data-id="${l.id}">
+        <div class="lead-top">
+          <div><h4>${escapeHtml(l.name)}</h4>
+            <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
+            ${l.phones.length ? `<div class="meta" style="color:var(--text)">📞 ${l.phones.map(escapeHtml).join(' · ')}</div>` : ''}
+          </div>
+          ${siteTag(l)}
+        </div>
+        <div class="lead-actions">
+          ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
+          <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
+          ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
+          ${l.social ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.social)}" target="_blank" rel="noopener">Social</a>` : ''}
+          <a class="btn btn-ghost btn-sm" href="/admin?nuovo=${encodeURIComponent(l.name)}&tel=${encodeURIComponent(tel)}">+ Ordine</a>
+        </div>
+        <div class="status">${STATUSES.map(([k, t]) => `<button data-s="${k}" class="${(n.s || '') === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+        <input class="note" placeholder="Appunti (es. richiamare lunedì, parlare con il titolare)" value="${escapeHtml(n.t || '')}">
+      </div>`;
+    }).join('') || (leads.length ? '<div class="empty">Nessuna attività con questi filtri. Prova a togliere "Solo senza sito".</div>' : '');
+    document.getElementById('moreBtn').hidden = v.length <= shown;
+  }
+
+  document.getElementById('list').addEventListener('click', e => {
+    const b = e.target.closest('.status button');
+    if (!b) return;
+    const id = b.closest('.lead').dataset.id;
+    notes[id] = { ...(notes[id] || {}), s: b.dataset.s, at: Date.now() };
+    save(); render();
+  });
+  document.getElementById('list').addEventListener('change', e => {
+    if (!e.target.classList.contains('note')) return;
+    const id = e.target.closest('.lead').dataset.id;
+    notes[id] = { ...(notes[id] || {}), t: e.target.value.slice(0, 300) };
+    save(); toast('Appunto salvato');
+  });
+  document.getElementById('filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    filters[c.dataset.f] = !filters[c.dataset.f];
+    c.classList.toggle('on', filters[c.dataset.f]);
+    shown = 30; render();
+  });
+  document.getElementById('moreBtn').addEventListener('click', () => { shown += 30; render(); });
+
+  document.getElementById('searchForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const city = document.getElementById('city').value.trim();
+    const type = document.getElementById('type').value;
+    const btn = document.getElementById('goBtn');
+    btn.disabled = true; btn.textContent = 'Cerco…';
+    document.getElementById('summary').textContent = 'Sto cercando, può volerci fino a un minuto…';
+    document.getElementById('list').innerHTML = '<div class="spinner"></div>';
+    try {
+      const d = await api(`/api/admin/leads?city=${encodeURIComponent(city)}&type=${type}`);
+      leads = d.leads; shown = 30;
+      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type })); } catch {}
+      if (!leads.length) {
+        document.getElementById('summary').textContent = '';
+        document.getElementById('list').innerHTML = '<div class="empty">Nessun risultato. Controlla il nome del comune (scritto per intero, es. "Sesto San Giovanni") o prova un altro tipo di attività.</div>';
+      } else render();
+    } catch (err) {
+      if (err.message !== '401') {
+        document.getElementById('summary').textContent = '';
+        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+    btn.disabled = false; btn.textContent = 'Cerca';
+  });
+
+  api('/api/admin/me').then(async d => {
+    if (!d.admin) { location.href = '/'; return; }
+    const { types } = await api('/api/admin/lead-types');
+    document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
+    try {
+      const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
+      if (last) { document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
+    } catch {}
+    document.body.classList.add('ready');
+  });
+</script>
+</body>
+</html>
