@@ -37,6 +37,8 @@
     .tag.nosite { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
     .tag.social { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
     .tag.site { background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); }
+    .tag.bad { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.35); }
+    .reasons { color: var(--red); font-size: .84rem; margin-top: 6px; }
     .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .btn-call { background: var(--gold); color: #1a1408; }
     .status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
@@ -74,11 +76,11 @@
 
   <div class="filters" id="filters">
     <button class="chip on" data-f="phone">Solo con telefono</button>
-    <button class="chip on" data-f="nosite">Solo senza sito</button>
+    <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
     <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
   </div>
 
-  <div class="hint">I dati vengono da OpenStreetMap: alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
+  <div class="hint">I dati vengono da OpenStreetMap. I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
 
   <p class="summary" id="summary"></p>
   <div id="list"></div>
@@ -93,7 +95,7 @@
   try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
-  let leads = [], shown = 30;
+  let leads = [], shown = 30, checks = {}, checking = 0;
   const filters = { phone: true, nosite: true, hideDone: false };
 
   async function api(url) {
@@ -105,7 +107,11 @@
   }
 
   function siteTag(l) {
-    if (l.website) return '<span class="tag site">Ha un sito</span>';
+    if (l.website) {
+      const c = checks[l.id];
+      if (!c) return '<span class="tag site">Controllo sito…</span>';
+      return c.bad ? '<span class="tag bad">Sito brutto</span>' : '<span class="tag site">Sito ok</span>';
+    }
     if (l.social) return '<span class="tag social">Solo social</span>';
     return '<span class="tag nosite">Senza sito</span>';
   }
@@ -113,17 +119,25 @@
   function visible() {
     return leads
       .filter(l => !filters.phone || l.phones.length)
-      .filter(l => !filters.nosite || !l.website)
+      .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
       .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
-      .sort((a, b) => (!!a.website - !!b.website) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
+      .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
+  }
+  // Ordine: senza sito, solo social, sito brutto, sito ok
+  function rank(l) {
+    if (!l.website) return l.social ? 1 : 0;
+    const c = checks[l.id];
+    return c ? (c.bad ? 2 : 4) : 3;
   }
 
   function render() {
     const v = visible();
     const withPhone = leads.filter(l => l.phones.length).length;
     const noSite = leads.filter(l => !l.website && l.phones.length).length;
+    const badSite = leads.filter(l => l.website && l.phones.length && checks[l.id] && checks[l.id].bad).length;
     document.getElementById('summary').textContent = leads.length
-      ? `${leads.length} attività trovate · ${withPhone} con telefono · ${noSite} con telefono e senza sito · ne mostro ${Math.min(shown, v.length)} di ${v.length}`
+      ? `${leads.length} attività · ${withPhone} con telefono · ${noSite} senza sito · ${badSite} con sito brutto` +
+        (checking ? ` · controllo i siti (${checking} rimasti)…` : '') + ` · ne mostro ${Math.min(shown, v.length)} di ${v.length}`
       : '';
     document.getElementById('list').innerHTML = v.slice(0, shown).map(l => {
       const n = notes[l.id] || {};
@@ -134,6 +148,7 @@
           <div><h4>${escapeHtml(l.name)}</h4>
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
             ${l.phones.length ? `<div class="meta" style="color:var(--text)">📞 ${l.phones.map(escapeHtml).join(' · ')}</div>` : ''}
+            ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
         </div>
@@ -147,7 +162,7 @@
         <div class="status">${STATUSES.map(([k, t]) => `<button data-s="${k}" class="${(n.s || '') === k ? 'on' : ''}">${t}</button>`).join('')}</div>
         <input class="note" placeholder="Appunti (es. richiamare lunedì, parlare con il titolare)" value="${escapeHtml(n.t || '')}">
       </div>`;
-    }).join('') || (leads.length ? '<div class="empty">Nessuna attività con questi filtri. Prova a togliere "Solo senza sito".</div>' : '');
+    }).join('') || (leads.length ? '<div class="empty">Nessuna attività con questi filtri. Prova a togliere "Senza sito o sito brutto".</div>' : '');
     document.getElementById('moreBtn').hidden = v.length <= shown;
   }
 
@@ -184,6 +199,7 @@
     try {
       const d = await api(`/api/admin/leads?city=${encodeURIComponent(city)}&type=${type}`);
       leads = d.leads; shown = 30;
+      checkSites(leads);
       try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type })); } catch {}
       if (!leads.length) {
         document.getElementById('summary').textContent = '';
@@ -197,6 +213,25 @@
     }
     btn.disabled = false; btn.textContent = 'Cerca';
   });
+
+  // Controlla i siti esistenti, 5 alla volta, e aggiorna la lista man mano
+  let searchId = 0;
+  async function checkSites(list) {
+    const my = ++searchId;
+    const queue = list.filter(l => l.website && l.phones.length && !checks[l.id]);
+    checking = queue.length;
+    const worker = async () => {
+      while (queue.length && my === searchId) {
+        const l = queue.shift();
+        try { checks[l.id] = await api('/api/admin/site-check?url=' + encodeURIComponent(l.website)); }
+        catch { checks[l.id] = { bad: false, reasons: [] }; }
+        checking--;
+        if (my === searchId) render();
+      }
+    };
+    await Promise.all(Array.from({ length: 5 }, worker));
+    if (my === searchId) { checking = 0; render(); }
+  }
 
   api('/api/admin/me').then(async d => {
     if (!d.admin) { location.href = '/'; return; }

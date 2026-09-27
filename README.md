@@ -45,6 +45,6 @@ Attenzione ai limiti del piano gratuito di Render:
 
 ## Trova clienti
 Nell'admin, pulsante **🔎 Trova clienti**: scrivi un comune e il tipo di attività (ristoranti, bar, parrucchieri, negozi...).
-Mostra le attività con telefono, prima quelle **senza sito**, con i pulsanti Chiama, Maps e "+ Ordine".
+Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in automatico: non funziona, non va da telefono, senza https, lento, fermo da anni, in costruzione), con i pulsanti Chiama, Maps e "+ Ordine".
 I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
 Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser del dispositivo che usi.

@@ -394,6 +394,77 @@ out tags center 1500;`;
     res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.' });
   }
 });
+// Controllo qualità del sito di un'attività: trova i siti "da rifare"
+const dns = require('dns').promises;
+const net = require('net');
+const siteCheckCache = new Map();
+const FREE_BUILDERS = /(\.wixsite\.com|\.altervista\.org|\.jimdo(site)?\.com|\.webnode\.|\.blogspot\.|\.wordpress\.com|\.business\.site|\.weebly\.com|\.site123\.me|\.godaddysites\.com|\.paginegialle\.it|\.sites\.google\.com)/i;
+const EMPTY_WORDS = /(sito in costruzione|in allestimento|under construction|coming soon|domain (is )?for sale|dominio in vendita|questo dominio|parked (free|domain)|default web page|index of \/|it works!)/i;
+function isPrivateIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  return ip === '::1' || /^f[cd]/i.test(ip) || /^fe80/i.test(ip) || /^::ffff:(10|127|192\.168)\./.test(ip);
+}
+async function checkSite(rawUrl) {
+  const reasons = [];
+  let url;
+  try { url = new URL(rawUrl); } catch { return { bad: true, reasons: ['Link del sito non valido'] }; }
+  if (!/^https?:$/.test(url.protocol)) return { bad: true, reasons: ['Link del sito non valido'] };
+  if (FREE_BUILDERS.test(url.hostname)) reasons.push('Sito gratuito fai-da-te');
+  try {
+    const { address } = await dns.lookup(url.hostname);
+    if (isPrivateIp(address) && !process.env.SITECHECK_ALLOW_PRIVATE) return { bad: true, reasons: ['Indirizzo non valido'] };
+  } catch {
+    return { bad: true, reasons: ['Il sito non esiste più (dominio scaduto)'] };
+  }
+  const started = Date.now();
+  let r, html = '';
+  try {
+    r = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36', 'Accept-Language': 'it-IT,it' },
+    });
+    const reader = r.body.getReader();
+    let bytes = 0;
+    const dec = new TextDecoder();
+    while (bytes < 400000) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.length;
+      html += dec.decode(value, { stream: true });
+    }
+    reader.cancel().catch(() => {});
+  } catch (err) {
+    return { bad: true, reasons: [err.name === 'TimeoutError' ? 'Il sito non si apre (troppo lento)' : 'Il sito non si apre'] };
+  }
+  const ms = Date.now() - started;
+  if (r.status >= 400) return { bad: true, reasons: [`Il sito dà errore (${r.status})`] };
+  const finalUrl = new URL(r.url || url);
+  if (finalUrl.protocol === 'http:') reasons.push('Non sicuro (senza https)');
+  if (FREE_BUILDERS.test(finalUrl.hostname) && !reasons.includes('Sito gratuito fai-da-te')) reasons.push('Sito gratuito fai-da-te');
+  if (/facebook\.com|instagram\.com/i.test(finalUrl.hostname)) reasons.push('Rimanda solo ai social');
+  if (!/<meta[^>]+name=["']?viewport/i.test(html)) reasons.push('Non adatto al telefono');
+  if (ms > 5000) reasons.push(`Lento (${(ms / 1000).toFixed(1)}s)`);
+  const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/gi, ' ').replace(/\s+/g, ' ');
+  if (EMPTY_WORDS.test(text)) reasons.push('In costruzione o vuoto');
+  else if (text.length < 400) reasons.push('Quasi vuoto');
+  if (/<(font|marquee|frameset|center)\b|\.swf\b/i.test(html)) reasons.push('Grafica vecchia');
+  const years = [...text.matchAll(/(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?((?:19|20)\d{2})/gi)].map(m => +m[1]);
+  const thisYear = new Date().getFullYear();
+  if (years.length && Math.max(...years) <= thisYear - 4) reasons.push(`Fermo al ${Math.max(...years)}`);
+  return { bad: reasons.length > 0, reasons, ms };
+}
+app.get('/api/admin/site-check', requireAdmin, async (req, res) => {
+  const u = String(req.query.url || '').slice(0, 500);
+  const c = siteCheckCache.get(u);
+  if (c && Date.now() - c.at < 24 * 60 * 60 * 1000) return res.json(c.result);
+  const result = await checkSite(u).catch(() => ({ bad: true, reasons: ['Il sito non si apre'] }));
+  siteCheckCache.set(u, { at: Date.now(), result });
+  res.json(result);
+});
 app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
   res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })) });
 });
