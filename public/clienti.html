@@ -30,6 +30,7 @@
     .lead { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
     .lead.st-no { opacity: .45; }
     .lead.st-interessato { border-color: var(--green); }
+    .lead.st-scritto { border-color: rgba(37,211,102,.45); }
     .lead-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
     .lead h4 { margin: 0; font-size: 1.05rem; }
     .lead .meta { color: var(--muted); font-size: .85rem; margin-top: 2px; }
@@ -41,6 +42,12 @@
     .reasons { color: var(--red); font-size: .84rem; margin-top: 6px; }
     .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .btn-call { background: var(--gold); color: #1a1408; }
+    .btn-wa { background: #25d366; color: #fff; }
+    .msgbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .msgbar label { margin-bottom: 4px; font-size: .8rem; }
+    .msgbar .count { grid-column: 1 / -1; font-size: .88rem; color: var(--muted); }
+    .msgbar .count.warn { color: var(--red); }
+    @media (max-width: 640px) { .msgbar { grid-template-columns: 1fr; } }
     .status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
     .status button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); font: 500 .8rem var(--sans); cursor: pointer; }
     .status button.on { color: var(--text); border-color: var(--gold); background: rgba(214,177,106,.12); }
@@ -74,9 +81,16 @@
     <button class="btn btn-gold" type="submit" id="goBtn">Cerca</button>
   </form>
 
+  <div class="msgbar">
+    <div><label for="lang">Lingua del messaggio WhatsApp</label><select id="lang"></select></div>
+    <div><label for="firma">Il tuo nome nel messaggio</label><input id="firma" placeholder="Es. Luca" maxlength="40"></div>
+    <div class="count" id="count"></div>
+  </div>
+
   <div class="filters" id="filters">
     <button class="chip on" data-f="phone">Solo con telefono</button>
     <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
+    <button class="chip" data-f="waOnly">Solo WhatsApp dichiarato</button>
     <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
     <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
   </div>
@@ -89,15 +103,16 @@
 </main>
 
 <script src="/common.js"></script>
+<script src="/messages.js"></script>
 <script>
-  const STATUSES = [['', 'Da chiamare'], ['chiamato', 'Chiamato'], ['richiamare', 'Richiamare'], ['interessato', 'Interessato'], ['no', 'Non interessato']];
+  const STATUSES = [['', 'Da contattare'], ['scritto', 'Scritto su WA'], ['chiamato', 'Chiamato'], ['richiamare', 'Richiamare'], ['interessato', 'Interessato'], ['no', 'Non interessato']];
   const LS = 'nerodoro-leads';
   let notes = {};
   try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
   let leads = [], shown = 30, checks = {}, checking = 0;
-  const filters = { phone: true, nosite: true, wa: false, hideDone: false };
+  const filters = { phone: true, nosite: true, waOnly: false, wa: false, hideDone: false };
   // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
   const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
   const hasWa = l => !!l.whatsapp || l.phones.some(isMobile);
@@ -124,6 +139,7 @@
     return leads
       .filter(l => !filters.phone || l.phones.length || l.whatsapp)
       .filter(l => !filters.wa || hasWa(l))
+      .filter(l => !filters.waOnly || l.whatsapp)
       .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
       .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
       .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
@@ -159,6 +175,7 @@
           ${siteTag(l)}
         </div>
         <div class="lead-actions">
+          ${l.whatsapp ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
           ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
@@ -172,7 +189,42 @@
     document.getElementById('moreBtn').hidden = v.length <= shown;
   }
 
+  // ---- Messaggi WhatsApp ----
+  const DEMO = 'https://l13291221-cmyk.github.io/Ristorante-/';
+  const today = () => new Date().toISOString().slice(0, 10);
+  let daily = { d: today(), n: 0, total: 0 };
+  try { daily = { ...daily, ...JSON.parse(localStorage.getItem(LS + '-daily') || '{}') }; } catch {}
+  if (daily.d !== today()) { daily.d = today(); daily.n = 0; }
+  function showCount() {
+    const el = document.getElementById('count');
+    el.classList.toggle('warn', daily.n >= 20);
+    el.textContent = daily.n >= 20
+      ? `⚠️ Oggi hai scritto a ${daily.n} attività. Fermati per oggi: troppi messaggi a sconosciuti fanno bloccare il numero da WhatsApp.`
+      : `Oggi hai scritto a ${daily.n} attività (consigliato: massimo 15-20 al giorno, meglio a metà mattina o pomeriggio).`;
+  }
+  const langSel = document.getElementById('lang'), firmaIn = document.getElementById('firma');
+  langSel.innerHTML = LEAD_MESSAGES.languages.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+  try { langSel.value = localStorage.getItem(LS + '-lang') || 'it'; firmaIn.value = localStorage.getItem(LS + '-firma') || ''; } catch {}
+  langSel.addEventListener('change', () => { try { localStorage.setItem(LS + '-lang', langSel.value); } catch {} });
+  firmaIn.addEventListener('change', () => { try { localStorage.setItem(LS + '-firma', firmaIn.value.trim()); } catch {} });
+  showCount();
+
+  function sendWhatsApp(l) {
+    if (daily.n >= 20 && !confirm(`Hai già scritto a ${daily.n} attività oggi. Rischi il blocco del numero. Continuare lo stesso?`)) return;
+    const text = LEAD_MESSAGES.build({
+      lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
+      firma: firmaIn.value.trim(), esempio: DEMO, sito: location.origin,
+    });
+    window.open('https://wa.me/' + l.whatsapp.replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    daily.n++; daily.total++;
+    try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
+    notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
+    save(); showCount(); render();
+  }
+
   document.getElementById('list').addEventListener('click', e => {
+    const w = e.target.closest('[data-wa]');
+    if (w) { const l = leads.find(x => x.id === w.closest('.lead').dataset.id); if (l) sendWhatsApp(l); return; }
     const b = e.target.closest('.status button');
     if (!b) return;
     const id = b.closest('.lead').dataset.id;
