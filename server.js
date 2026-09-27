@@ -327,6 +327,10 @@ function leadFromOsm(e) {
   if (!t.name) return null;
   const phones = [t.phone, t['contact:phone'], t['contact:mobile'], t.mobile]
     .filter(Boolean).join(';').split(/[;,]/).map(p => p.trim()).filter(Boolean);
+  // WhatsApp dichiarato dall'attività su OpenStreetMap (numero o link wa.me)
+  const waRaw = String(t['contact:whatsapp'] || t.whatsapp || '');
+  let whatsapp = waRaw.replace(/^.*wa\.me\//i, '').replace(/[^\d+]/g, '');
+  if (whatsapp && !whatsapp.startsWith('+')) whatsapp = (whatsapp.startsWith('39') ? '+' : '+39') + whatsapp;
   const site = t.website || t['contact:website'] || t.url || '';
   const social = [t['contact:facebook'], t['contact:instagram'], t.facebook, t.instagram, SOCIAL_RE.test(site) ? site : '']
     .filter(Boolean)[0] || '';
@@ -340,6 +344,7 @@ function leadFromOsm(e) {
     name: t.name,
     kind: TYPE_IT[kind] || (t.craft ? 'Artigiano' : t.office ? 'Studio/Ufficio' : kind.replace(/_/g, ' ')),
     phones: [...new Set(phones)].slice(0, 3),
+    whatsapp: whatsapp.length >= 9 ? whatsapp : '',
     website: realSite ? (/^https?:\/\//i.test(realSite) ? realSite : 'https://' + realSite) : '',
     social: social ? (/^https?:\/\//i.test(social) ? social : 'https://' + social) : '',
     address,

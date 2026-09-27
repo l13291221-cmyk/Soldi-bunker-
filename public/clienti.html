@@ -77,6 +77,7 @@
   <div class="filters" id="filters">
     <button class="chip on" data-f="phone">Solo con telefono</button>
     <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
+    <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
     <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
   </div>
 
@@ -96,7 +97,10 @@
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
   let leads = [], shown = 30, checks = {}, checking = 0;
-  const filters = { phone: true, nosite: true, hideDone: false };
+  const filters = { phone: true, nosite: true, wa: false, hideDone: false };
+  // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
+  const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
+  const hasWa = l => !!l.whatsapp || l.phones.some(isMobile);
 
   async function api(url) {
     const r = await fetch(url);
@@ -118,7 +122,8 @@
 
   function visible() {
     return leads
-      .filter(l => !filters.phone || l.phones.length)
+      .filter(l => !filters.phone || l.phones.length || l.whatsapp)
+      .filter(l => !filters.wa || hasWa(l))
       .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
       .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
       .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
@@ -147,7 +152,8 @@
         <div class="lead-top">
           <div><h4>${escapeHtml(l.name)}</h4>
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
-            ${l.phones.length ? `<div class="meta" style="color:var(--text)">📞 ${l.phones.map(escapeHtml).join(' · ')}</div>` : ''}
+            ${l.whatsapp ? `<div class="meta" style="color:var(--green)">🟢 WhatsApp: ${escapeHtml(l.whatsapp)}</div>` : ''}
+            ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
