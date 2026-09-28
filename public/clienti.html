@@ -33,7 +33,9 @@
     .lead.st-scritto { border-color: rgba(37,211,102,.45); }
     .lead-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
     .lead h4 { margin: 0; font-size: 1.05rem; }
-    .lead .meta { color: var(--muted); font-size: .85rem; margin-top: 2px; }
+    .lead .meta { color: var(--muted); font-size: .85rem; margin-top: 2px; overflow-wrap: anywhere; }
+    .lead-top > div { min-width: 0; }
+    .lead h4 { overflow-wrap: anywhere; }
     .tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
     .tag.nosite { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
     .tag.social { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
@@ -202,7 +204,9 @@
   const filters = { phone: true, nosite: true, waOnly: false, wa: false, hideDone: false };
   // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
   const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
-  const hasWa = l => !!l.whatsapp || l.phones.some(isMobile);
+  // Numeri WhatsApp validi (le ricerche vecchie potevano avere più numeri incollati insieme)
+  const waList = l => (l.whatsapps || (l.whatsapp ? [l.whatsapp] : [])).filter(n => { const d = n.replace(/\D/g, ''); return d.length >= 9 && d.length <= 13; });
+  const hasWa = l => waList(l).length > 0 || l.phones.some(isMobile);
 
   async function api(url, timeoutMs = 20000) {
     const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
@@ -226,7 +230,7 @@
     return leads
       .filter(l => !filters.phone || l.phones.length || l.whatsapp)
       .filter(l => !filters.wa || hasWa(l))
-      .filter(l => !filters.waOnly || l.whatsapp)
+      .filter(l => !filters.waOnly || waList(l).length)
       .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
       .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
       .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
@@ -255,14 +259,14 @@
         <div class="lead-top">
           <div><h4>${escapeHtml(l.name)}</h4>
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
-            ${l.whatsapp ? `<div class="meta" style="color:var(--green)">🟢 WhatsApp: ${escapeHtml(l.whatsapp)}</div>` : ''}
+            ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp: ${escapeHtml(n)}</div>`).join('')}
             ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
         </div>
         <div class="lead-actions">
-          ${l.whatsapp ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
+          ${waList(l).length ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
           ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
@@ -302,7 +306,7 @@
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
       firma: firmaIn.value.trim(), esempio: DEMO, sito: location.origin,
     });
-    window.open('https://wa.me/' + l.whatsapp.replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    window.open('https://wa.me/' + waList(l)[0].replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
     daily.n++; daily.total++;
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
     notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };

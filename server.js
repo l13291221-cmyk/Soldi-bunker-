@@ -328,15 +328,42 @@ const TYPE_IT = {
   clothes: 'Abbigliamento', shoes: 'Scarpe', florist: 'Fiorista', jewelry: 'Gioielleria', optician: 'Ottica', furniture: 'Arredamento',
 };
 
+// Separa più numeri scritti insieme ("+39 333...;+39 334..." o "+39333...+39334...")
+// e tiene solo quelli validi, in formato internazionale (+39...)
+function splitPhones(raw) {
+  const chunks = raw.replace(/https?:\/\/(api\.)?wa\.me\/|https?:\/\/api\.whatsapp\.com\/send\?phone=/gi, ';')
+    .split(/[;,/|\n]|(?=\+)/).map(c => c.trim()).filter(Boolean);
+  const out = [];
+  const add = n => {
+    let d = n.replace(/[^\d+]/g, '');
+    if (d.startsWith('00')) d = '+' + d.slice(2);
+    if (!d.startsWith('+')) d = /^39\d{9,10}$/.test(d) ? '+' + d : '+39' + d;
+    const digits = d.slice(1);
+    if (digits.length >= 9 && digits.length <= 13 && !out.includes(d)) out.push(d);
+  };
+  for (const c0 of chunks) {
+    const c = c0.replace(/^00/, '+');
+    const digits = c.replace(/\D/g, '');
+    if (digits.length <= 13) { add(c); continue; }
+    // troppe cifre: più numeri separati da spazi. Li ricompongo pezzo per pezzo:
+    // un numero è completo quando ha almeno 9 cifre (senza il prefisso +39)
+    let cur = '';
+    const national = x => x.replace(/\D/g, '').replace(/^39(?=\d{9})/, '').length;
+    for (const tok of c.split(/\s+/)) {
+      cur += tok;
+      if (national(cur) >= 9) { add(cur); cur = ''; }
+    }
+    if (cur) add(cur);
+  }
+  return out;
+}
+
 function leadFromOsm(e) {
   const t = e.tags || {};
   if (!t.name) return null;
-  const phones = [t.phone, t['contact:phone'], t['contact:mobile'], t.mobile]
-    .filter(Boolean).join(';').split(/[;,]/).map(p => p.trim()).filter(Boolean);
-  // WhatsApp dichiarato dall'attività su OpenStreetMap (numero o link wa.me)
-  const waRaw = String(t['contact:whatsapp'] || t.whatsapp || '');
-  let whatsapp = waRaw.replace(/^.*wa\.me\//i, '').replace(/[^\d+]/g, '');
-  if (whatsapp && !whatsapp.startsWith('+')) whatsapp = (whatsapp.startsWith('39') ? '+' : '+39') + whatsapp;
+  const phones = splitPhones([t.phone, t['contact:phone'], t['contact:mobile'], t.mobile].filter(Boolean).join(';'));
+  // WhatsApp dichiarato dall'attività su OpenStreetMap (uno o più numeri o link wa.me)
+  const whatsapps = splitPhones(String(t['contact:whatsapp'] || t.whatsapp || ''));
   const site = t.website || t['contact:website'] || t.url || '';
   const social = [t['contact:facebook'], t['contact:instagram'], t.facebook, t.instagram, SOCIAL_RE.test(site) ? site : '']
     .filter(Boolean)[0] || '';
@@ -350,7 +377,8 @@ function leadFromOsm(e) {
     name: t.name,
     kind: TYPE_IT[kind] || (t.craft ? 'Artigiano' : t.office ? 'Studio/Ufficio' : kind.replace(/_/g, ' ')),
     phones: [...new Set(phones)].slice(0, 3),
-    whatsapp: whatsapp.length >= 9 ? whatsapp : '',
+    whatsapp: whatsapps[0] || '',
+    whatsapps,
     website: realSite ? (/^https?:\/\//i.test(realSite) ? realSite : 'https://' + realSite) : '',
     social: social ? (/^https?:\/\//i.test(social) ? social : 'https://' + social) : '',
     address,
