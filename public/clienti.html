@@ -15,7 +15,7 @@
     body { visibility: hidden; }
     body.ready { visibility: visible; }
     .page { padding: 32px 0 80px; }
-    .search { display: grid; grid-template-columns: 1.3fr 1fr auto; gap: 10px; margin: 18px 0 12px; }
+    .search { display: grid; grid-template-columns: .8fr 1.3fr 1fr auto; gap: 10px; margin: 18px 0 12px; }
     select {
       width: 100%; padding: 13px 14px; border-radius: 11px; border: 1px solid var(--line);
       background: var(--bg-2); color: var(--text); font: 400 16px var(--sans); outline: none;
@@ -87,13 +87,27 @@
 
 <main class="wrap page">
   <h1 style="font-size:1.9rem;margin:0">Trova clienti</h1>
-  <p class="muted" style="margin:6px 0 0">Scrivi un comune e scegli il tipo di attività: ti mostro quelle con il telefono, prima quelle senza sito.</p>
+  <p class="muted" style="margin:6px 0 0">Scegli la zona (comune, provincia, regione o tutta Italia) e il tipo di attività. Per le zone grandi attiva prima "Solo WhatsApp dichiarato": è molto più veloce.</p>
 
   <form class="search" id="searchForm" autocomplete="off">
-    <input id="city" required placeholder="Comune (es. Monza)" aria-label="Comune">
+    <select id="scope" aria-label="Zona">
+      <option value="comune">📍 Comune</option>
+      <option value="provincia">🗺️ Provincia</option>
+      <option value="regione">🏞️ Regione</option>
+      <option value="italia">🇮🇹 Tutta Italia</option>
+    </select>
+    <input id="city" required placeholder="Comune (es. Monza)" aria-label="Nome della zona">
     <select id="type" aria-label="Tipo di attività"></select>
     <button class="btn btn-gold" type="submit" id="goBtn">Cerca</button>
   </form>
+
+  <div class="filters" id="filters">
+    <button class="chip on" data-f="phone">Solo con telefono</button>
+    <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
+    <button class="chip" data-f="waOnly">Solo WhatsApp dichiarato</button>
+    <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
+    <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
+  </div>
 
   <div class="saved" id="saved" hidden>
     <h3>📁 Ricerche salvate</h3>
@@ -106,13 +120,6 @@
     <div class="count" id="count"></div>
   </div>
 
-  <div class="filters" id="filters">
-    <button class="chip on" data-f="phone">Solo con telefono</button>
-    <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
-    <button class="chip" data-f="waOnly">Solo WhatsApp dichiarato</button>
-    <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
-    <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
-  </div>
 
   <div class="hint">I dati vengono da OpenStreetMap. I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
 
@@ -144,12 +151,14 @@
       catch { if (searches.length <= 1) return; searches.pop(); }
     }
   }
-  function saveSearch(city, type, list) {
-    const key = city.toLowerCase() + '|' + type;
-    const typeLabel = document.querySelector(`#type option[value="${type}"]`)?.textContent || type;
+  function saveSearch(city, type, list, scope, need) {
+    const key = [city.toLowerCase(), type, scope, need].join('|');
+    const scopeLabel = document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
+    const typeLabel = (document.querySelector(`#type option[value="${type}"]`)?.textContent || type) +
+      (scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
     // tengo solo chi si può contattare, per occupare poco spazio
     const keep = list.filter(l => l.phones.length || l.whatsapp).map(({ maps, ...rest }) => rest);
-    searches = [{ key, city, type, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
+    searches = [{ key, city, type, scope, need, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
     storeSearches();
     currentKey = key;
     renderSaved();
@@ -160,7 +169,8 @@
   function openSearch(x) {
     leads = x.leads.map(l => ({ ...l, maps: l.maps || mapsLink(l) }));
     shown = 30; currentKey = x.key;
-    document.getElementById('city').value = x.city;
+    document.getElementById('scope').value = x.scope || 'comune'; updateScope();
+    document.getElementById('city').value = x.scope === 'italia' ? '' : x.city;
     document.getElementById('type').value = x.type;
     renderSaved(); render(); checkSites(leads);
   }
@@ -325,19 +335,23 @@
 
   document.getElementById('searchForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const city = document.getElementById('city').value.trim();
+    const scope = document.getElementById('scope').value;
+    const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
     const type = document.getElementById('type').value;
+    // Il filtro WhatsApp/telefono lo applica già il server mappe: molto più veloce sulle zone grandi
+    const need = filters.waOnly ? 'wa' : (filters.phone || scope !== 'comune') ? 'phone' : 'all';
     const btn = document.getElementById('goBtn');
     btn.disabled = true; btn.textContent = 'Cerco…';
-    document.getElementById('summary').textContent = 'Sto cercando, di solito 5-20 secondi…';
+    document.getElementById('summary').textContent = scope === 'comune' ? 'Sto cercando, di solito 5-20 secondi…'
+      : 'Sto cercando in una zona grande: può volerci fino a 2-3 minuti, non chiudere la pagina…';
     document.getElementById('list').innerHTML = '<div class="spinner"></div>';
     document.getElementById('moreBtn').hidden = true;
     try {
-      const d = await api(`/api/admin/leads?city=${encodeURIComponent(city)}&type=${type}`, 100000);
+      const d = await api(`/api/admin/leads?scope=${scope}&need=${need}&city=${encodeURIComponent(city)}&type=${type}`, 200000);
       leads = d.leads; shown = 30;
-      if (leads.length) saveSearch(city, type, leads);
+      if (leads.length) saveSearch(city, type, leads, scope, need);
       checkSites(leads);
-      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type })); } catch {}
+      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope })); } catch {}
       if (!leads.length) {
         document.getElementById('summary').textContent = '';
         document.getElementById('list').innerHTML = '<div class="empty">Nessun risultato. Controlla il nome del comune (scritto per intero, es. "Sesto San Giovanni") o prova un altro tipo di attività.</div>';
@@ -353,7 +367,7 @@
 
   // Riquadro rosso con errore, motivo, dettagli e diagnosi automatica: basta uno screenshot
   async function showError(err, city, type) {
-    const reason = err.name === 'TimeoutError' ? 'La ricerca ci ha messo più di 100 secondi (timeout).'
+    const reason = err.name === 'TimeoutError' ? 'La ricerca ci ha messo troppo (timeout). Con zone grandi attiva "Solo WhatsApp dichiarato" oppure scegli una zona più piccola.'
       : err.name === 'TypeError' ? 'Connessione al tuo sito persa (internet del telefono o sito in riavvio).'
       : err.message;
     const box = document.getElementById('list');
@@ -367,7 +381,7 @@
       <div class="errhint">📸 Fai uno screenshot di questo riquadro e mandalo a Claude.</div>
     </div>`;
     try {
-      const d = await api('/api/admin/leads-debug?city=' + encodeURIComponent(city), 40000);
+      const d = await api('/api/admin/leads-debug?scope=' + document.getElementById('scope').value + '&city=' + encodeURIComponent(city), 40000);
       document.getElementById('diagOut').innerHTML = '<ul>' + Object.entries(d).map(([k, v]) =>
         `<li>${v.ok ? '✅' : '❌'} <b>${escapeHtml(k)}</b>: ${escapeHtml(v.ok ? v.info : v.error)} (${v.ms} ms)</li>`).join('') + '</ul>';
     } catch (e) {
@@ -394,13 +408,23 @@
     if (my === searchId) { checking = 0; render(); }
   }
 
+  // Zona: cambia il testo del campo; per "Tutta Italia" il nome non serve
+  const PLACEHOLDERS = { comune: 'Comune (es. Monza)', provincia: 'Provincia (es. Bologna)', regione: 'Regione (es. Emilia-Romagna)', italia: 'Tutta Italia' };
+  function updateScope() {
+    const sc = document.getElementById('scope').value, c = document.getElementById('city');
+    c.placeholder = PLACEHOLDERS[sc];
+    c.disabled = sc === 'italia'; c.required = sc !== 'italia';
+    if (sc === 'italia') c.value = '';
+  }
+  document.getElementById('scope').addEventListener('change', updateScope);
+
   api('/api/admin/me').then(async d => {
     if (!d.admin) { location.href = '/'; return; }
     const { types } = await api('/api/admin/lead-types');
     document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
     try {
       const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
-      if (last) { document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
+      if (last) { document.getElementById('scope').value = last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.body.classList.add('ready');
     // Riapro subito l'ultima ricerca salvata, senza aspettare

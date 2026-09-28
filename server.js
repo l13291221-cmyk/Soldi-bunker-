@@ -360,15 +360,15 @@ function leadFromOsm(e) {
 
 const NOMINATIM_URL = process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org/search';
 const cityAreaCache = new Map();
-async function findCityArea(city) {
-  const k = city.toLowerCase();
+async function findArea(name, scope = 'comune') {
+  const k = scope + '|' + name.toLowerCase();
   if (cityAreaCache.has(k)) return cityAreaCache.get(k);
-  const url = `${NOMINATIM_URL}?format=jsonv2&countrycodes=it&limit=8&accept-language=it&q=${encodeURIComponent(city)}`;
+  const url = `${NOMINATIM_URL}?format=jsonv2&countrycodes=it&limit=10&accept-language=it&q=${encodeURIComponent(name)}`;
   const r = await fetch(url, { headers: { 'User-Agent': OSM_UA }, signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('Nominatim ' + r.status);
-  const list = await r.json();
-  const hit = list.find(x => x.osm_type === 'relation' && /^(city|town|village|municipality|suburb|quarter|borough|hamlet|administrative)$/.test(x.addresstype || x.type))
-    || list.find(x => x.osm_type === 'relation');
+  const list = (await r.json()).filter(x => x.osm_type === 'relation');
+  const re = SCOPES[scope] && SCOPES[scope].types;
+  const hit = (re && list.find(x => re.test(x.addresstype || x.type))) || (scope === 'comune' ? list[0] : null);
   const id = hit ? 3600000000 + Number(hit.osm_id) : null;
   if (id) cityAreaCache.set(k, id);
   return id;
@@ -391,12 +391,12 @@ async function overpassOnce(url, query, signal) {
   }
   return data;
 }
-async function overpass(query) {
+async function overpass(query, timeoutMs = 80000) {
   // Chiedo a tutti i server insieme e tengo la prima risposta valida.
   // Se un server è occupato (429/504) riprovo una volta dopo qualche secondo.
   const controllers = OVERPASS_URLS.map(() => new AbortController());
   const attempts = OVERPASS_URLS.map(async (url, i) => {
-    const signal = AbortSignal.any([controllers[i].signal, AbortSignal.timeout(80000)]);
+    const signal = AbortSignal.any([controllers[i].signal, AbortSignal.timeout(timeoutMs)]);
     try {
       return { data: await overpassOnce(url, query, signal), i };
     } catch (err) {
@@ -416,37 +416,64 @@ async function overpass(query) {
   }
 }
 
+const SCOPES = {
+  comune: { label: 'Comune', types: /^(city|town|village|municipality|suburb|quarter|borough|hamlet|city_district)$/, limit: 1500, timeout: 60 },
+  provincia: { label: 'Provincia', types: /^(county|province|state_district)$/, limit: 3000, timeout: 90 },
+  regione: { label: 'Regione', types: /^(state|region)$/, limit: 4000, timeout: 120 },
+  italia: { label: 'Tutta Italia', types: null, limit: 5000, timeout: 170 },
+};
+// Filtri applicati direttamente sul server mappe: arrivano solo le attività contattabili
+const NEED_TAGS = {
+  wa: ['["contact:whatsapp"]', '["whatsapp"]'],
+  phone: ['["phone"]', '["contact:phone"]', '["contact:mobile"]', '["contact:whatsapp"]', '["whatsapp"]'],
+  all: [''],
+};
+
 app.get('/api/admin/leads', requireAdmin, async (req, res) => {
-  const city = String(req.query.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
+  const scope = SCOPES[req.query.scope] ? req.query.scope : 'comune';
+  const city = scope === 'italia' ? 'Italia' : String(req.query.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
   const type = LEAD_TYPES[req.query.type] ? req.query.type : 'ristoranti';
-  if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome del comune' });
-  const key = city.toLowerCase() + '|' + type;
+  let need = NEED_TAGS[req.query.need] ? req.query.need : 'phone';
+  if (need === 'all' && scope !== 'comune') need = 'phone'; // zone grandi: solo chi ha un contatto
+  if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome della zona' });
+  const key = [city.toLowerCase(), type, scope, need].join('|');
   const cached = leadCache.get(key);
-  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type });
-  // Comune (admin_level 8) o quartiere (9/10) con quel nome, in Italia
-  const cityRe = '^' + city.replace(/[.*+?^${}()|[\]]/g, '\\$&') + '$';
-  // Veloce: trovo prima il comune con Nominatim e cerco solo dentro quell'area.
-  // Se Nominatim non risponde, uso la ricerca per nome (più lenta).
-  const areaId = await findCityArea(city).catch(() => null);
-  const areaPart = areaId
-    ? `area(id:${areaId})->.a;`
-    : `area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
+  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type, scope, need });
+
+  let areaPart;
+  if (scope === 'italia') {
+    areaPart = 'area["ISO3166-1"="IT"]["admin_level"="2"]->.a;';
+  } else {
+    // Veloce: trovo prima la zona con Nominatim e cerco solo dentro quell'area
+    const areaId = await findArea(city, scope).catch(() => null);
+    if (areaId) areaPart = `area(id:${areaId})->.a;`;
+    else if (scope === 'comune') {
+      const cityRe = '^' + city.replace(/[.*+?^${}()|[\]]/g, '\\$&') + '$';
+      areaPart = `area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
 rel["boundary"="administrative"]["admin_level"~"^(8|9|10)$"]["name"~"${cityRe}",i](area.it);
 map_to_area->.a;`;
-  const query = `[out:json][timeout:60];
+    } else {
+      return res.status(404).json({ error: `Non trovo la ${SCOPES[scope].label.toLowerCase()} "${city}". Scrivila per intero, es. "Emilia-Romagna" o "Bologna".` });
+    }
+  }
+  const sc = SCOPES[scope];
+  const parts = LEAD_TYPES[type].q.flatMap(q => NEED_TAGS[need].map(t => q + t + '(area.a);'));
+  const query = `[out:json][timeout:${sc.timeout}][maxsize:268435456];
 ${areaPart}
-(${LEAD_TYPES[type].q.map(q => q + '(area.a);').join('')});
-out tags center 1500;`;
+(${parts.join('')});
+out tags center ${sc.limit};`;
   try {
-    const data = await overpass(query);
+    const data = await overpass(query, (sc.timeout + 15) * 1000);
     const seen = new Set();
     const leads = (data.elements || []).map(leadFromOsm).filter(l => {
-      if (!l || seen.has(l.name.toLowerCase())) return false;
-      seen.add(l.name.toLowerCase());
+      // stesso nome in città diverse è normale: doppione solo se coincide anche il contatto
+      const k = l && (l.name.toLowerCase() + '|' + (l.whatsapp || l.phones[0] || l.address));
+      if (!l || seen.has(k)) return false;
+      seen.add(k);
       return true;
     });
     leadCache.set(key, { at: Date.now(), leads });
-    res.json({ leads, city, type });
+    res.json({ leads, city, type, scope, need });
   } catch (err) {
     console.error('Overpass error:', err.message);
     res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.', detail: err.message.slice(0, 400) });
@@ -532,7 +559,7 @@ app.get('/api/admin/leads-debug', requireAdmin, async (req, res) => {
     catch (e) { out[name] = { ok: false, error: e.name === 'TimeoutError' ? 'timeout' : (e.message + (e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '')), ms: Date.now() - s0 }; }
   };
   await Promise.all([
-    t('nominatim', async () => 'area ' + await findCityArea(String(req.query.city || 'Monza'))),
+    t('nominatim', async () => 'area ' + await findArea(String(req.query.city || 'Monza'), SCOPES[req.query.scope] ? req.query.scope : 'comune')),
     ...OVERPASS_URLS.map(u => t(new URL(u).hostname, async () => {
       const d = await overpassOnce(u, '[out:json][timeout:10];node(1);out;', AbortSignal.timeout(20000));
       return (d.elements || []).length + ' risultati';
