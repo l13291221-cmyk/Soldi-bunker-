@@ -298,7 +298,13 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
 app.get('/paga/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pay.html')));
 
 // ---------- Trova clienti: attività da OpenStreetMap (gratis, senza chiavi) ----------
-const OVERPASS_URLS = (process.env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter,https://overpass.kumi.systems/api/interpreter')
+const OVERPASS_URLS = (process.env.OVERPASS_URL || [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.osm.jp/api/interpreter',
+].join(','))
   .split(',').map(s => s.trim()).filter(Boolean);
 const LEAD_TYPES = {
   ristoranti: { label: 'Ristoranti e pizzerie', q: ['nwr["amenity"~"^(restaurant|fast_food)$"]'] },
@@ -358,7 +364,7 @@ async function findCityArea(city) {
   const k = city.toLowerCase();
   if (cityAreaCache.has(k)) return cityAreaCache.get(k);
   const url = `${NOMINATIM_URL}?format=jsonv2&countrycodes=it&limit=8&accept-language=it&q=${encodeURIComponent(city)}`;
-  const r = await fetch(url, { headers: { 'User-Agent': 'Nerodoro-Studio/1.0 (trova clienti)' }, signal: AbortSignal.timeout(10000) });
+  const r = await fetch(url, { headers: { 'User-Agent': OSM_UA }, signal: AbortSignal.timeout(10000) });
   if (!r.ok) throw new Error('Nominatim ' + r.status);
   const list = await r.json();
   const hit = list.find(x => x.osm_type === 'relation' && /^(city|town|village|municipality|suburb|quarter|borough|hamlet|administrative)$/.test(x.addresstype || x.type))
@@ -368,27 +374,45 @@ async function findCityArea(city) {
   return id;
 }
 
+const OSM_UA = 'Nerodoro-Studio/1.0 (+https://github.com/l13291221-cmyk/Soldi-bunker-)';
+async function overpassOnce(url, query, signal) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': OSM_UA, 'Accept': 'application/json' },
+    body: 'data=' + encodeURIComponent(query),
+    signal,
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`${new URL(url).hostname}: HTTP ${r.status}`);
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(`${new URL(url).hostname}: risposta non valida`); }
+  if (data.remark && /timed out|runtime error|out of memory/i.test(data.remark) && !(data.elements || []).length) {
+    throw new Error(`${new URL(url).hostname}: ${data.remark.slice(0, 80)}`);
+  }
+  return data;
+}
 async function overpass(query) {
-  // Chiedo a tutti i server insieme e tengo la prima risposta valida
+  // Chiedo a tutti i server insieme e tengo la prima risposta valida.
+  // Se un server è occupato (429/504) riprovo una volta dopo qualche secondo.
   const controllers = OVERPASS_URLS.map(() => new AbortController());
   const attempts = OVERPASS_URLS.map(async (url, i) => {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Nerodoro-Studio/1.0' },
-      body: 'data=' + encodeURIComponent(query),
-      signal: AbortSignal.any([controllers[i].signal, AbortSignal.timeout(75000)]),
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    if (data.remark && /timed out|runtime error/i.test(data.remark) && !(data.elements || []).length) throw new Error(data.remark);
-    return { data, i };
+    const signal = AbortSignal.any([controllers[i].signal, AbortSignal.timeout(80000)]);
+    try {
+      return { data: await overpassOnce(url, query, signal), i };
+    } catch (err) {
+      if (signal.aborted || !/HTTP (429|502|503|504)/.test(err.message)) throw err;
+      await new Promise(r => setTimeout(r, 4000 + i * 1500));
+      return { data: await overpassOnce(url, query, signal), i };
+    }
   });
   try {
     const { data, i } = await Promise.any(attempts);
     controllers.forEach((c, j) => j !== i && c.abort());
     return data;
   } catch (err) {
-    throw err.errors ? err.errors[0] : err;
+    const reasons = (err.errors || [err]).map(e => e.name === 'TimeoutError' ? 'timeout' : e.cause ? `${e.message} (${e.cause.code || e.cause.message})` : e.message);
+    const e2 = new Error(reasons.join(' · '));
+    throw e2;
   }
 }
 
@@ -425,7 +449,7 @@ out tags center 1500;`;
     res.json({ leads, city, type });
   } catch (err) {
     console.error('Overpass error:', err.message);
-    res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.' });
+    res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.', detail: err.message.slice(0, 400) });
   }
 });
 // Controllo qualità del sito di un'attività: trova i siti "da rifare"
@@ -498,6 +522,23 @@ app.get('/api/admin/site-check', requireAdmin, async (req, res) => {
   const result = await checkSite(u).catch(() => ({ bad: true, reasons: ['Il sito non si apre'] }));
   siteCheckCache.set(u, { at: Date.now(), result });
   res.json(result);
+});
+// Diagnosi: prova Nominatim e ogni server mappe con una richiesta minuscola
+app.get('/api/admin/leads-debug', requireAdmin, async (req, res) => {
+  const out = {};
+  const t = async (name, fn) => {
+    const s0 = Date.now();
+    try { out[name] = { ok: true, info: await fn(), ms: Date.now() - s0 }; }
+    catch (e) { out[name] = { ok: false, error: e.name === 'TimeoutError' ? 'timeout' : (e.message + (e.cause ? ' (' + (e.cause.code || e.cause.message) + ')' : '')), ms: Date.now() - s0 }; }
+  };
+  await Promise.all([
+    t('nominatim', async () => 'area ' + await findCityArea(String(req.query.city || 'Monza'))),
+    ...OVERPASS_URLS.map(u => t(new URL(u).hostname, async () => {
+      const d = await overpassOnce(u, '[out:json][timeout:10];node(1);out;', AbortSignal.timeout(20000));
+      return (d.elements || []).length + ' risultati';
+    })),
+  ]);
+  res.json(out);
 });
 app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
   res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })) });

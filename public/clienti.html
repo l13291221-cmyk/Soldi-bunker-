@@ -193,7 +193,7 @@
     const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
     if (r.status === 401) { location.href = '/'; throw new Error('401'); }
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || 'Errore');
+    if (!r.ok) { const e = new Error(d.error || 'Errore'); e.detail = d.detail; throw e; }
     return d;
   }
 
@@ -341,7 +341,9 @@
       if (err.message !== '401') {
         document.getElementById('summary').textContent = '';
         const msg = err.name === 'TimeoutError' ? 'Il servizio mappe ci sta mettendo troppo. Riprova tra un minuto.' : err.message;
-        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(msg)}</div>`;
+        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(msg)}` +
+          (err.detail ? `<br><small style="display:block;margin-top:10px;font-size:.78rem;word-break:break-word">Dettagli: ${escapeHtml(err.detail)}</small>` : '') +
+          `<br><a class="btn btn-ghost btn-sm" style="margin-top:12px" href="/api/admin/leads-debug?city=${encodeURIComponent(city)}" target="_blank">Diagnosi</a></div>`;
       }
     }
     btn.disabled = false; btn.textContent = 'Cerca';
