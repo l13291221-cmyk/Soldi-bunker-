@@ -19,6 +19,8 @@ const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 ann
 // Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
+// Link del sito consegnato se nell'ordine non ne metti uno diverso
+const DEFAULT_SITE_URL = process.env.LINK_SITO || 'https://l13291221-cmyk.github.io/Ristorante-/';
 const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '3200').replace(',', '.')) || 3200;
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
@@ -80,7 +82,7 @@ function publicOrder(o) {
     package: o.package || 'base',
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
-    siteUrl: o.paid ? o.siteUrl || null : null,
+    siteUrl: o.paid ? (o.siteUrl || DEFAULT_SITE_URL) : null,
     panelPin: o.paid ? (o.panelPin || SITE_PIN || null) : null,
     siteToken: o.paid ? (o.siteToken || SITE_TOKEN || null) : null,
   };
@@ -184,7 +186,7 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req), tokenSet: !!SITE_TOKEN, pinSet: !!SITE_PIN }));
+app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req), tokenSet: !!SITE_TOKEN, pinSet: !!SITE_PIN, defaultSite: DEFAULT_SITE_URL }));
 
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
   const list = Object.values(orders)
@@ -336,8 +338,8 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
 
 app.get('/api/orders/:id/qr', loadPublicOrder, async (req, res) => {
   const o = req.order;
-  if (!o.paid || !o.siteUrl || o.package !== 'premium') return res.status(404).send('QR non disponibile');
-  await sendQr(res, o.siteUrl, o.restaurant);
+  if (!o.paid || o.package !== 'premium') return res.status(404).send('QR non disponibile');
+  await sendQr(res, o.siteUrl || DEFAULT_SITE_URL, o.restaurant);
 });
 
 app.get('/paga/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pay.html')));
