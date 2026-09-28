@@ -281,7 +281,6 @@
   }
 
   // ---- Messaggi WhatsApp ----
-  const DEMO = 'https://l13291221-cmyk.github.io/Ristorante-/';
   const today = () => new Date().toISOString().slice(0, 10);
   let daily = { d: today(), n: 0, total: 0 };
   try { daily = { ...daily, ...JSON.parse(localStorage.getItem(LS + '-daily') || '{}') }; } catch {}
@@ -304,13 +303,14 @@
     if (daily.n >= 20 && !confirm(`Hai già scritto a ${daily.n} attività oggi. Rischi il blocco del numero. Continuare lo stesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
-      firma: firmaIn.value.trim(), esempio: DEMO, sito: location.origin,
+      firma: firmaIn.value.trim(), sito: location.origin,
     });
     window.open('https://wa.me/' + waList(l)[0].replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
     daily.n++; daily.total++;
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
     notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
     save(); showCount(); render(); renderSaved();
+    toast('🎥 Ricordati di allegare il video dopo il messaggio');
   }
 
   document.getElementById('list').addEventListener('click', e => {
