@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Ricevuta — Nerodoro Studio</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 24px 0 60px; display: grid; gap: 18px; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+    .panel h3 { font: 600 1rem var(--sans); margin: 0 0 12px; letter-spacing: 0; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid2 .full { grid-column: 1 / -1; }
+    @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+    .check { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--muted); font-size: .9rem; }
+    .check input { width: auto; }
+
+    /* Il foglio della ricevuta: bianco, come un documento vero */
+    .sheet {
+      background: #fff; color: #1b1b1b; border-radius: 6px; padding: 36px 34px; font: 400 14px/1.55 var(--sans);
+      box-shadow: 0 20px 60px -20px #000; max-width: 760px; width: 100%; margin: 0 auto;
+    }
+    .sheet h1 { font: 700 22px var(--serif); margin: 0; color: #111; }
+    .sheet .sub { color: #666; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+    .sheet .top { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #111; padding-bottom: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+    .sheet .num { text-align: right; font-size: 13px; }
+    .sheet .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .sheet .parties b { display: block; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: #777; margin-bottom: 4px; }
+    .sheet table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
+    .sheet th, .sheet td { padding: 9px 6px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+    .sheet th { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #777; font-weight: 600; }
+    .sheet td.r, .sheet th.r { text-align: right; white-space: nowrap; }
+    .sheet .tot td { font-weight: 700; font-size: 15px; border-bottom: 2px solid #111; }
+    .sheet .notes { font-size: 12px; color: #444; margin-top: 16px; display: grid; gap: 4px; }
+    .sheet .foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-top: 34px; flex-wrap: wrap; }
+    .sheet .bollo { width: 92px; height: 110px; border: 1.5px dashed #999; display: grid; place-items: center; text-align: center; font-size: 10px; color: #888; padding: 6px; }
+    .sheet .sign { min-width: 220px; text-align: center; font-size: 12px; color: #555; }
+    .sheet .sign .line { border-top: 1px solid #333; margin-top: 46px; padding-top: 4px; }
+    .sheet .empty-field { color: #c0392b; }
+    @media (max-width: 560px) { .sheet { padding: 22px 18px; font-size: 13px; } .sheet .parties { grid-template-columns: 1fr; } }
+
+    @media print {
+      @page { size: A4; margin: 14mm; }
+      body { background: #fff !important; visibility: visible; }
+      .topbar, .no-print { display: none !important; }
+      .page { padding: 0; }
+      .sheet { box-shadow: none; padding: 0; max-width: none; border-radius: 0; }
+      .sheet .empty-field { color: #1b1b1b; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar no-print">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Ricevuta</a>
+    <nav class="nav"><a href="/admin" class="btn btn-ghost btn-sm">← Admin</a></nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <div class="panel no-print">
+    <h3>I tuoi dati <span class="muted small">(restano salvati su questo dispositivo)</span></h3>
+    <div class="grid2" id="meForm">
+      <div><label>Nome e cognome</label><input data-me="nome" placeholder="Mario Rossi"></div>
+      <div><label>Codice fiscale</label><input data-me="cf" placeholder="RSSMRA..." style="text-transform:uppercase"></div>
+      <div class="full"><label>Indirizzo</label><input data-me="indirizzo" placeholder="Via Roma 1, 20100 Milano (MI)"></div>
+      <div><label>Email o telefono (facoltativo)</label><input data-me="contatto" placeholder="nerodoro@email.it"></div>
+    </div>
+  </div>
+
+  <div class="panel no-print">
+    <h3>Dati del cliente</h3>
+    <div class="grid2" id="clientForm">
+      <div><label>Nome attività / ragione sociale</label><input data-cl="nome"></div>
+      <div><label>P.IVA o codice fiscale (facoltativo)</label><input data-cl="piva" style="text-transform:uppercase"></div>
+      <div class="full"><label>Indirizzo (facoltativo)</label><input data-cl="indirizzo"></div>
+      <div><label>Numero ricevuta</label><input data-cl="numero"></div>
+      <div><label>Data</label><input data-cl="data" type="date"></div>
+    </div>
+    <label class="check"><input type="checkbox" data-cl="ritenuta"> Il cliente trattiene la ritenuta d'acconto del 20% (solo se te la chiede)</label>
+    <button class="btn btn-gold" id="printBtn" style="width:100%;margin-top:14px">📄 Scarica PDF / Stampa</button>
+    <p class="muted small" style="margin:8px 0 0">Si apre la finestra di stampa: scegli <b>"Salva come PDF"</b> e poi mandalo al cliente su WhatsApp.</p>
+  </div>
+
+  <div class="sheet" id="sheet"></div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const id = new URLSearchParams(location.search).get('id');
+  const ME = 'nerodoro-ricevuta-me', CL = 'nerodoro-ricevuta-' + id, NUM = 'nerodoro-ricevuta-num';
+  const get = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+  const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  let order, me = get(ME) || {}, cl;
+
+  const money = c => formatMoney(c, 'eur');
+  const fill = (v, ph) => v ? escapeHtml(v) : `<span class="empty-field">${ph}</span>`;
+  const dateIt = d => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  function render() {
+    const gross = order.amount;
+    const rit = cl.ritenuta ? Math.round(gross * 0.2) : 0;
+    const net = gross - rit;
+    const bollo = gross > 7747;
+    document.getElementById('sheet').innerHTML = `
+      <div class="top">
+        <div><h1>Ricevuta per prestazione occasionale</h1><div class="sub">Nerodoro Studio · siti web</div></div>
+        <div class="num">Ricevuta n. <b>${fill(cl.numero, '—')}</b><br>Data: <b>${cl.data ? dateIt(cl.data) : '—'}</b></div>
+      </div>
+      <div class="parties">
+        <div><b>Prestatore</b>${fill(me.nome, 'Nome e cognome')}<br>C.F. ${fill((me.cf || '').toUpperCase(), 'codice fiscale')}<br>${fill(me.indirizzo, 'indirizzo')}${me.contatto ? '<br>' + escapeHtml(me.contatto) : ''}</div>
+        <div><b>Committente</b>${fill(cl.nome, 'nome attività')}${cl.piva ? '<br>P.IVA/C.F. ' + escapeHtml(cl.piva.toUpperCase()) : ''}${cl.indirizzo ? '<br>' + escapeHtml(cl.indirizzo) : ''}</div>
+      </div>
+      <table>
+        <thead><tr><th>Descrizione</th><th class="r">Importo</th></tr></thead>
+        <tbody>
+          <tr><td>Realizzazione sito web — ${escapeHtml(order.description || '')}<br><span style="color:#777;font-size:12px">Ordine ${escapeHtml(order.code)}</span></td><td class="r">${money(gross)}</td></tr>
+          <tr><td>Compenso lordo</td><td class="r">${money(gross)}</td></tr>
+          ${rit ? `<tr><td>Ritenuta d'acconto 20% (versata dal committente)</td><td class="r">− ${money(rit)}</td></tr>` : ''}
+          <tr class="tot"><td>Netto ${order.paid ? 'incassato' : 'da pagare'}</td><td class="r">${money(net)}</td></tr>
+        </tbody>
+      </table>
+      <div class="notes">
+        <div>Prestazione di lavoro autonomo occasionale ai sensi dell'art. 2222 del Codice Civile.</div>
+        <div>Operazione esclusa dal campo di applicazione IVA ai sensi dell'art. 5 del D.P.R. 633/1972, per mancanza del requisito dell'abitualità.</div>
+        ${order.paid ? `<div>Pagamento ricevuto con carta tramite Stripe il ${dateIt(order.paidAt || cl.data)}.</div>` : '<div>Pagamento non ancora ricevuto.</div>'}
+        ${bollo ? `<div>Imposta di bollo di € 2,00 assolta sull'originale.</div>` : ''}
+      </div>
+      <div class="foot">
+        ${bollo ? '<div class="bollo">Marca da bollo<br>€ 2,00</div>' : '<div></div>'}
+        <div class="sign">Firma del prestatore<div class="line">${fill(me.nome, '')}</div></div>
+      </div>`;
+  }
+
+  function bind() {
+    document.querySelectorAll('[data-me]').forEach(i => {
+      i.value = me[i.dataset.me] || '';
+      i.addEventListener('input', () => { me[i.dataset.me] = i.value.trim(); set(ME, me); render(); });
+    });
+    document.querySelectorAll('[data-cl]').forEach(i => {
+      if (i.type === 'checkbox') i.checked = !!cl[i.dataset.cl]; else i.value = cl[i.dataset.cl] || '';
+      i.addEventListener(i.type === 'checkbox' ? 'change' : 'input', () => {
+        cl[i.dataset.cl] = i.type === 'checkbox' ? i.checked : i.value.trim(); set(CL, cl); render();
+      });
+    });
+  }
+
+  document.getElementById('printBtn').addEventListener('click', () => {
+    if (!me.nome || !me.cf) { toast('Prima compila nome e codice fiscale'); return; }
+    const prev = document.title;
+    document.title = `Ricevuta ${cl.numero || ''} - ${cl.nome || ''}`.replace(/[\\/:*?"<>|]/g, '-');
+    window.print();
+    setTimeout(() => { document.title = prev; }, 1000);
+  });
+
+  (async () => {
+    const r = await fetch('/api/admin/orders');
+    if (r.status === 401) { location.href = '/'; return; }
+    const d = await r.json();
+    order = d.orders.find(o => o.id === id);
+    if (!order) { document.body.classList.add('ready'); document.getElementById('sheet').innerHTML = '<p>Ordine non trovato.</p>'; return; }
+    cl = get(CL);
+    if (!cl) {
+      // Numero progressivo per anno: 1/2026, 2/2026...
+      const year = new Date().getFullYear();
+      const counter = get(NUM) || {};
+      counter[year] = (counter[year] || 0) + 1;
+      set(NUM, counter);
+      cl = { nome: order.restaurant, numero: `${counter[year]}/${year}`, data: (order.paidAt || new Date().toISOString()).slice(0, 10), ritenuta: false };
+      set(CL, cl);
+    }
+    bind(); render();
+    document.body.classList.add('ready');
+  })();
+</script>
+</body>
+</html>
