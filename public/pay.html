@@ -71,7 +71,7 @@
         <div class="row"><span class="muted">Pacchetto</span><span>${o.package === 'premium' ? 'Premium' : 'Base'}</span></div>
         <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
         ${o.package === 'premium' ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
-        <div class="row"><span class="muted">Assistenza</span><span>1 anno gratuita</span></div>
+        <div class="row"><span class="muted">Assistenza</span><span>${o.package === 'premium' ? '3 anni gratuita' : '1 anno gratuita'}</span></div>
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>
       </div>

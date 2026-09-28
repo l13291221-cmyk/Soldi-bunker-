@@ -25,8 +25,8 @@ const PACKAGES = {
   },
   premium: {
     id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
-    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code + 1 anno di assistenza gratuita',
-    features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
+    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code + 3 anni di assistenza gratuita',
+    features: ['Tutto quello che c\'è nel Base', '3 anni di assistenza gratuita (invece di 1)', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
   },
 };
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
