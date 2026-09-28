@@ -15,6 +15,10 @@ const PRICE = parseFloat(String(process.env.PREZZO || '2671').replace(',', '.'))
 // Numero WhatsApp Business (solo cifre, con prefisso internazionale)
 const WHATSAPP = String(process.env.WHATSAPP ?? '27710933377').replace(/\D/g, '');
 const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 anno di assistenza gratuita';
+// Dati per il pannello del sito del cliente, mostrati SOLO dopo il pagamento.
+// Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
+const SITE_TOKEN = process.env.TOKEN_SITO || '';
+const SITE_PIN = process.env.PIN_SITO || '';
 const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '3200').replace(',', '.')) || 3200;
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
@@ -77,6 +81,8 @@ function publicOrder(o) {
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
+    panelPin: o.paid ? (o.panelPin || SITE_PIN || null) : null,
+    siteToken: o.paid ? (o.siteToken || SITE_TOKEN || null) : null,
   };
 }
 function markPaid(orderId, sessionId) {
@@ -178,7 +184,7 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req) }));
+app.get('/api/admin/me', (req, res) => res.json({ admin: isAdmin(req), tokenSet: !!SITE_TOKEN, pinSet: !!SITE_PIN }));
 
 app.get('/api/admin/orders', requireAdmin, (req, res) => {
   const list = Object.values(orders)
@@ -235,6 +241,8 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   }
   if (b.restaurant !== undefined && String(b.restaurant).trim()) o.restaurant = String(b.restaurant).trim().slice(0, 120);
   if (b.phone !== undefined) o.phone = String(b.phone).replace(/[^\d+]/g, '').slice(0, 20);
+  if (b.panelPin !== undefined) o.panelPin = String(b.panelPin).replace(/\D/g, '').slice(0, 12);
+  if (b.siteToken !== undefined) o.siteToken = String(b.siteToken).trim().slice(0, 300);
   if (b.amount !== undefined && !o.paid) {
     const cents = parseAmount(b.amount);
     if (cents === null) return res.status(400).json({ error: 'Prezzo non valido' });

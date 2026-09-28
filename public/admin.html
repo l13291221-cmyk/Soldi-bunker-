@@ -91,6 +91,7 @@
 
 <main class="wrap admin">
   <h1 style="font-size:2rem;margin:0">Ordini</h1>
+  <div id="tokWarn" class="panel" style="margin-top:14px;border-color:var(--red);color:var(--red);padding:14px 16px" hidden></div>
   <div class="stats">
     <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
     <div class="stat"><span class="muted small">Ordini pagati</span><b id="sPaid">–</b></div>
@@ -175,6 +176,11 @@
         </div>
         <label style="margin-top:12px">Link sito del cliente (lo vede solo dopo aver pagato)</label>
         <div class="linkbox"><input class="site" value="${escapeHtml(o.siteUrl || '')}" placeholder="https://..."><button class="btn btn-ghost btn-sm" data-save>Salva</button></div>
+        <details class="more"><summary>PIN e token solo per questo cliente (facoltativo)</summary>
+          <p class="muted small" style="margin:8px 0">Se lasci vuoto usa quelli impostati su Render (PIN_SITO e TOKEN_SITO).</p>
+          <div class="linkbox"><input class="pin" inputmode="numeric" value="${escapeHtml(o.panelPin || '')}" placeholder="PIN pannello (6 cifre)"></div>
+          <div class="linkbox"><input class="tok" type="password" autocomplete="off" value="${escapeHtml(o.siteToken || '')}" placeholder="Token GitHub del suo sito"><button class="btn btn-ghost btn-sm" data-savex>Salva</button></div>
+        </details>
         <div class="actions">
           <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>
@@ -278,6 +284,9 @@
       else if (b.hasAttribute('data-save')) {
         await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ siteUrl: box.querySelector('.site').value }) });
         toast('Link del sito salvato'); refresh();
+      } else if (b.hasAttribute('data-savex')) {
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ panelPin: box.querySelector('.pin').value, siteToken: box.querySelector('.tok').value }) });
+        toast('PIN e token salvati'); refresh();
       } else if (b.hasAttribute('data-del')) {
         if (!confirm('Eliminare questo ordine? Il link di pagamento smetterà di funzionare.')) return;
         await api(`/api/admin/orders/${id}`, { method: 'DELETE' });
@@ -310,6 +319,8 @@
   api('/api/admin/me').then(d => {
     if (!d.admin) { location.href = '/'; return; }
     document.body.classList.add('ready');
+    const miss = [!d.tokenSet && 'TOKEN_SITO', !d.pinSet && 'PIN_SITO'].filter(Boolean);
+    if (miss.length) { const w = document.getElementById('tokWarn'); w.hidden = false; w.innerHTML = `⚠️ Su Render mancano: <b>${miss.join(' e ')}</b>. Senza, dopo il pagamento il cliente non vede ${miss.length > 1 ? 'PIN e token' : miss[0] === 'TOKEN_SITO' ? 'il token' : 'il PIN'} del pannello.`; }
     // Arrivo da "Trova clienti": modulo già compilato con nome e telefono
     const q = new URLSearchParams(location.search);
     if (q.get('nuovo')) {

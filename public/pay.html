@@ -29,6 +29,12 @@
       .total { font-size: 1.8rem; }
       .row { padding: 12px 0; font-size: .95rem; }
     }
+    .guide { text-align: left; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .guide h3 { font: 600 1.05rem var(--sans); margin: 0 0 10px; letter-spacing: 0; }
+    .guide ol { padding-left: 20px; margin: 0; display: grid; gap: 12px; font-size: .93rem; }
+    .gbox { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); flex-wrap: wrap; }
+    .gbox code { flex: 1; min-width: 0; font: 600 .95rem ui-monospace, monospace; color: var(--gold-2); overflow-wrap: anywhere; user-select: all; }
+    .gbox code.tok { font-size: .78rem; }
   </style>
 </head>
 <body>
@@ -89,6 +95,27 @@
     });
   }
 
+  // Istruzioni per gestire il sito dal telefono, con PIN e token da copiare
+  function guide(o) {
+    if (!o.panelPin && !o.siteToken) return '';
+    const copyBox = (label, val, secret) => `
+      <div class="gbox"><span class="muted small">${label}</span>
+        <code class="${secret ? 'tok' : ''}">${escapeHtml(val)}</code>
+        <button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(val)}">Copia</button></div>`;
+    return `
+      <div class="guide">
+        <h3>📱 Come gestire il tuo sito</h3>
+        <ol>
+          <li>Apri il tuo sito e premi <b>«Amministratore»</b> nella prima schermata.</li>
+          ${o.panelPin ? `<li>Inserisci il PIN:${copyBox('PIN', o.panelPin)}</li>` : ''}
+          ${o.siteToken ? `<li><b>Solo la prima volta</b> su ogni telefono: scheda <b>«Pubblica»</b> → nel campo <b>«Token»</b> incolla questo codice:${copyBox('Token', o.siteToken, true)}<span class="muted small">Non condividerlo con nessuno: è la chiave per modificare il sito.</span></li>` : ''}
+          <li><b>Cambia il PIN</b> (consigliato): scheda «Sicurezza» → PIN attuale → nuovo PIN di 6 cifre due volte → poi «Pubblica» → «Pubblica ora».</li>
+          <li>Modifica menu, prezzi, foto e orari, poi <b>«Pubblica» → «Pubblica ora»</b>: in 1-2 minuti è online per tutti.</li>
+        </ol>
+        <p class="muted small" style="margin:10px 0 0">Per qualsiasi dubbio scrivici su WhatsApp: l'assistenza è inclusa.</p>
+      </div>`;
+  }
+
   function renderPaid(o) {
     card.style.textAlign = 'center';
     card.innerHTML = `
@@ -107,12 +134,15 @@
           <p class="muted" style="margin:0 0 10px">Il tuo QR code, pronto da stampare:</p>
           <img src="/api/orders/${encodeURIComponent(o.id)}/qr" alt="QR code del sito" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px">
           <div><a class="btn btn-ghost btn-sm" style="margin-top:10px" href="/api/orders/${encodeURIComponent(o.id)}/qr" download="QR-${escapeHtml(o.restaurant)}.png">⬇️ Scarica QR code</a></div>
-        </div>` : ''}`
+        </div>` : ''}
+        ${guide(o)}`
       : `
         <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
       <p class="muted small" style="margin:22px 0 0">Conserva questa pagina: puoi riaprirla quando vuoi per ritrovare il link.</p>`;
     const c = document.getElementById('copyBtn');
     if (c) c.addEventListener('click', () => navigator.clipboard.writeText(o.siteUrl).then(() => toast('Link copiato')));
+    card.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () =>
+      navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copiato ✓')).catch(() => toast('Tieni premuto sul codice per copiarlo'))));
     if (sessionId) history.replaceState(null, '', location.pathname);
   }
 
