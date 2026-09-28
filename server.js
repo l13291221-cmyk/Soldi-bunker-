@@ -21,7 +21,7 @@ const PACKAGES = {
   base: {
     id: 'base', name: 'Base', price: Math.round(PRICE * 100),
     description: DEFAULT_DESCRIPTION,
-    features: ['Sito web completo per la tua attività', '1 anno di assistenza gratuita', 'Modifiche a testi, foto, prezzi e orari incluse', 'Perfetto da smartphone'],
+    features: ['Sito web completo per la tua attività', '1 anno di assistenza gratuita', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone'],
   },
   premium: {
     id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
