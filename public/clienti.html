@@ -54,6 +54,11 @@
     .note { margin-top: 10px; font-size: 16px; padding: 9px 12px; }
     .hint { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
     .more { width: 100%; margin-top: 6px; }
+    .errbox { border: 2px solid var(--red); background: rgba(248,113,113,.08); color: var(--red); border-radius: 14px; padding: 16px; display: grid; gap: 8px; font-size: .88rem; word-break: break-word; }
+    .errbox b { color: var(--red); }
+    .errtitle { font-size: 1.2rem; letter-spacing: 1px; }
+    .errbox ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: grid; gap: 4px; }
+    .errhint { margin-top: 4px; font-weight: 600; }
     .saved { margin: 0 0 16px; }
     .saved h3 { font: 600 .9rem var(--sans); color: var(--muted); margin: 0 0 8px; letter-spacing: 0; }
     .saved-list { display: grid; gap: 8px; }
@@ -340,14 +345,35 @@
     } catch (err) {
       if (err.message !== '401') {
         document.getElementById('summary').textContent = '';
-        const msg = err.name === 'TimeoutError' ? 'Il servizio mappe ci sta mettendo troppo. Riprova tra un minuto.' : err.message;
-        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(msg)}` +
-          (err.detail ? `<br><small style="display:block;margin-top:10px;font-size:.78rem;word-break:break-word">Dettagli: ${escapeHtml(err.detail)}</small>` : '') +
-          `<br><a class="btn btn-ghost btn-sm" style="margin-top:12px" href="/api/admin/leads-debug?city=${encodeURIComponent(city)}" target="_blank">Diagnosi</a></div>`;
+        showError(err, city, type);
       }
     }
     btn.disabled = false; btn.textContent = 'Cerca';
   });
+
+  // Riquadro rosso con errore, motivo, dettagli e diagnosi automatica: basta uno screenshot
+  async function showError(err, city, type) {
+    const reason = err.name === 'TimeoutError' ? 'La ricerca ci ha messo più di 100 secondi (timeout).'
+      : err.name === 'TypeError' ? 'Connessione al tuo sito persa (internet del telefono o sito in riavvio).'
+      : err.message;
+    const box = document.getElementById('list');
+    box.innerHTML = `<div class="errbox">
+      <b class="errtitle">❌ ERRORE</b>
+      <div><b>Motivo:</b> ${escapeHtml(reason)}</div>
+      ${err.detail ? `<div><b>Dettagli:</b> ${escapeHtml(err.detail)}</div>` : ''}
+      <div><b>Ricerca:</b> ${escapeHtml(city)} · ${escapeHtml(type)} · ${new Date().toLocaleString('it-IT')}</div>
+      <div><b>Sito:</b> ${escapeHtml(location.host)}</div>
+      <div class="diag"><b>Diagnosi server:</b> <span id="diagOut">controllo in corso…</span></div>
+      <div class="errhint">📸 Fai uno screenshot di questo riquadro e mandalo a Claude.</div>
+    </div>`;
+    try {
+      const d = await api('/api/admin/leads-debug?city=' + encodeURIComponent(city), 40000);
+      document.getElementById('diagOut').innerHTML = '<ul>' + Object.entries(d).map(([k, v]) =>
+        `<li>${v.ok ? '✅' : '❌'} <b>${escapeHtml(k)}</b>: ${escapeHtml(v.ok ? v.info : v.error)} (${v.ms} ms)</li>`).join('') + '</ul>';
+    } catch (e) {
+      document.getElementById('diagOut').textContent = 'diagnosi non riuscita: ' + (e.name === 'TimeoutError' ? 'timeout' : e.message);
+    }
+  }
 
   // Controlla i siti esistenti, 5 alla volta, e aggiorna la lista man mano
   let searchId = 0;
