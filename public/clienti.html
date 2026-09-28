@@ -54,6 +54,15 @@
     .note { margin-top: 10px; font-size: 16px; padding: 9px 12px; }
     .hint { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
     .more { width: 100%; margin-top: 6px; }
+    .saved { margin: 0 0 16px; }
+    .saved h3 { font: 600 .9rem var(--sans); color: var(--muted); margin: 0 0 8px; letter-spacing: 0; }
+    .saved-list { display: grid; gap: 8px; }
+    .saved-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); cursor: pointer; text-align: left; color: var(--text); font: 500 .92rem var(--sans); width: 100%; }
+    .saved-item.on { border-color: var(--gold); background: rgba(214,177,106,.08); }
+    .saved-item .info { flex: 1; min-width: 0; }
+    .saved-item small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+    .saved-item .x { color: var(--muted); padding: 4px 8px; border-radius: 8px; }
+    .saved-item .x:hover { color: var(--red); }
     @media (max-width: 640px) {
       .search { grid-template-columns: 1fr; }
       .page { padding-top: 20px; }
@@ -80,6 +89,11 @@
     <select id="type" aria-label="Tipo di attività"></select>
     <button class="btn btn-gold" type="submit" id="goBtn">Cerca</button>
   </form>
+
+  <div class="saved" id="saved" hidden>
+    <h3>📁 Ricerche salvate</h3>
+    <div class="saved-list" id="savedList"></div>
+  </div>
 
   <div class="msgbar">
     <div><label for="lang">Lingua del messaggio WhatsApp</label><select id="lang"></select></div>
@@ -111,14 +125,72 @@
   try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
-  let leads = [], shown = 30, checks = {}, checking = 0;
+  let leads = [], shown = 30, checks = {}, checking = 0, currentKey = '';
+  try { checks = JSON.parse(localStorage.getItem(LS + '-checks') || '{}') || {}; } catch { checks = {}; }
+  const saveChecks = () => { try { localStorage.setItem(LS + '-checks', JSON.stringify(checks)); } catch {} };
+
+  // ---- Ricerche salvate su questo dispositivo ----
+  let searches = [];
+  try { searches = JSON.parse(localStorage.getItem(LS + '-searches') || '[]') || []; } catch { searches = []; }
+  function storeSearches() {
+    // Se lo spazio del browser finisce, tolgo le ricerche più vecchie
+    while (true) {
+      try { localStorage.setItem(LS + '-searches', JSON.stringify(searches)); return; }
+      catch { if (searches.length <= 1) return; searches.pop(); }
+    }
+  }
+  function saveSearch(city, type, list) {
+    const key = city.toLowerCase() + '|' + type;
+    const typeLabel = document.querySelector(`#type option[value="${type}"]`)?.textContent || type;
+    // tengo solo chi si può contattare, per occupare poco spazio
+    const keep = list.filter(l => l.phones.length || l.whatsapp).map(({ maps, ...rest }) => rest);
+    searches = [{ key, city, type, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
+    storeSearches();
+    currentKey = key;
+    renderSaved();
+  }
+  function mapsLink(l) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([l.name, l.address].filter(Boolean).join(' '));
+  }
+  function openSearch(x) {
+    leads = x.leads.map(l => ({ ...l, maps: l.maps || mapsLink(l) }));
+    shown = 30; currentKey = x.key;
+    document.getElementById('city').value = x.city;
+    document.getElementById('type').value = x.type;
+    renderSaved(); render(); checkSites(leads);
+  }
+  function renderSaved() {
+    const box = document.getElementById('saved');
+    box.hidden = !searches.length;
+    document.getElementById('savedList').innerHTML = searches.map((x, i) => {
+      const done = x.leads.filter(l => notes[l.id] && notes[l.id].s).length;
+      return `<div class="saved-item ${x.key === currentKey ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
+        <span class="info">${escapeHtml(x.city)} · ${escapeHtml(x.typeLabel)}
+          <small>${new Date(x.at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} · ${x.leads.length} contattabili · ${done} già contattati</small></span>
+        <span class="x" data-del="${i}" title="Elimina">✕</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('savedList').addEventListener('click', e => {
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      e.stopPropagation();
+      const x = searches[+del.dataset.del];
+      if (!confirm(`Eliminare la ricerca "${x.city} · ${x.typeLabel}"? Gli appunti restano.`)) return;
+      searches.splice(+del.dataset.del, 1); storeSearches();
+      if (x.key === currentKey) { leads = []; currentKey = ''; render(); }
+      renderSaved(); return;
+    }
+    const item = e.target.closest('.saved-item');
+    if (item) openSearch(searches[+item.dataset.i]);
+  });
   const filters = { phone: true, nosite: true, waOnly: false, wa: false, hideDone: false };
   // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
   const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
   const hasWa = l => !!l.whatsapp || l.phones.some(isMobile);
 
-  async function api(url) {
-    const r = await fetch(url);
+  async function api(url, timeoutMs = 20000) {
+    const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
     if (r.status === 401) { location.href = '/'; throw new Error('401'); }
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || 'Errore');
@@ -219,7 +291,7 @@
     daily.n++; daily.total++;
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
     notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
-    save(); showCount(); render();
+    save(); showCount(); render(); renderSaved();
   }
 
   document.getElementById('list').addEventListener('click', e => {
@@ -229,7 +301,7 @@
     if (!b) return;
     const id = b.closest('.lead').dataset.id;
     notes[id] = { ...(notes[id] || {}), s: b.dataset.s, at: Date.now() };
-    save(); render();
+    save(); render(); renderSaved();
   });
   document.getElementById('list').addEventListener('change', e => {
     if (!e.target.classList.contains('note')) return;
@@ -252,11 +324,13 @@
     const type = document.getElementById('type').value;
     const btn = document.getElementById('goBtn');
     btn.disabled = true; btn.textContent = 'Cerco…';
-    document.getElementById('summary').textContent = 'Sto cercando, può volerci fino a un minuto…';
+    document.getElementById('summary').textContent = 'Sto cercando, di solito 5-20 secondi…';
     document.getElementById('list').innerHTML = '<div class="spinner"></div>';
+    document.getElementById('moreBtn').hidden = true;
     try {
-      const d = await api(`/api/admin/leads?city=${encodeURIComponent(city)}&type=${type}`);
+      const d = await api(`/api/admin/leads?city=${encodeURIComponent(city)}&type=${type}`, 100000);
       leads = d.leads; shown = 30;
+      if (leads.length) saveSearch(city, type, leads);
       checkSites(leads);
       try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type })); } catch {}
       if (!leads.length) {
@@ -266,7 +340,8 @@
     } catch (err) {
       if (err.message !== '401') {
         document.getElementById('summary').textContent = '';
-        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+        const msg = err.name === 'TimeoutError' ? 'Il servizio mappe ci sta mettendo troppo. Riprova tra un minuto.' : err.message;
+        document.getElementById('list').innerHTML = `<div class="empty">${escapeHtml(msg)}</div>`;
       }
     }
     btn.disabled = false; btn.textContent = 'Cerca';
@@ -281,7 +356,7 @@
     const worker = async () => {
       while (queue.length && my === searchId) {
         const l = queue.shift();
-        try { checks[l.id] = await api('/api/admin/site-check?url=' + encodeURIComponent(l.website)); }
+        try { checks[l.id] = await api('/api/admin/site-check?url=' + encodeURIComponent(l.website), 30000); saveChecks(); }
         catch { checks[l.id] = { bad: false, reasons: [] }; }
         checking--;
         if (my === searchId) render();
@@ -300,6 +375,8 @@
       if (last) { document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.body.classList.add('ready');
+    // Riapro subito l'ultima ricerca salvata, senza aspettare
+    if (searches.length) openSearch(searches[0]); else renderSaved();
   });
 </script>
 </body>

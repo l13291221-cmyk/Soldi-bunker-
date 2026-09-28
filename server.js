@@ -352,21 +352,44 @@ function leadFromOsm(e) {
   };
 }
 
+const NOMINATIM_URL = process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org/search';
+const cityAreaCache = new Map();
+async function findCityArea(city) {
+  const k = city.toLowerCase();
+  if (cityAreaCache.has(k)) return cityAreaCache.get(k);
+  const url = `${NOMINATIM_URL}?format=jsonv2&countrycodes=it&limit=8&accept-language=it&q=${encodeURIComponent(city)}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Nerodoro-Studio/1.0 (trova clienti)' }, signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error('Nominatim ' + r.status);
+  const list = await r.json();
+  const hit = list.find(x => x.osm_type === 'relation' && /^(city|town|village|municipality|suburb|quarter|borough|hamlet|administrative)$/.test(x.addresstype || x.type))
+    || list.find(x => x.osm_type === 'relation');
+  const id = hit ? 3600000000 + Number(hit.osm_id) : null;
+  if (id) cityAreaCache.set(k, id);
+  return id;
+}
+
 async function overpass(query) {
-  let lastErr;
-  for (const url of OVERPASS_URLS) {
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Nerodoro-Studio/1.0' },
-        body: 'data=' + encodeURIComponent(query),
-        signal: AbortSignal.timeout(90000),
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return await r.json();
-    } catch (err) { lastErr = err; }
+  // Chiedo a tutti i server insieme e tengo la prima risposta valida
+  const controllers = OVERPASS_URLS.map(() => new AbortController());
+  const attempts = OVERPASS_URLS.map(async (url, i) => {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Nerodoro-Studio/1.0' },
+      body: 'data=' + encodeURIComponent(query),
+      signal: AbortSignal.any([controllers[i].signal, AbortSignal.timeout(75000)]),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (data.remark && /timed out|runtime error/i.test(data.remark) && !(data.elements || []).length) throw new Error(data.remark);
+    return { data, i };
+  });
+  try {
+    const { data, i } = await Promise.any(attempts);
+    controllers.forEach((c, j) => j !== i && c.abort());
+    return data;
+  } catch (err) {
+    throw err.errors ? err.errors[0] : err;
   }
-  throw lastErr;
 }
 
 app.get('/api/admin/leads', requireAdmin, async (req, res) => {
@@ -378,10 +401,16 @@ app.get('/api/admin/leads', requireAdmin, async (req, res) => {
   if (cached && Date.now() - cached.at < 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type });
   // Comune (admin_level 8) o quartiere (9/10) con quel nome, in Italia
   const cityRe = '^' + city.replace(/[.*+?^${}()|[\]]/g, '\\$&') + '$';
-  const query = `[out:json][timeout:80];
-area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
+  // Veloce: trovo prima il comune con Nominatim e cerco solo dentro quell'area.
+  // Se Nominatim non risponde, uso la ricerca per nome (più lenta).
+  const areaId = await findCityArea(city).catch(() => null);
+  const areaPart = areaId
+    ? `area(id:${areaId})->.a;`
+    : `area["ISO3166-1"="IT"]["admin_level"="2"]->.it;
 rel["boundary"="administrative"]["admin_level"~"^(8|9|10)$"]["name"~"${cityRe}",i](area.it);
-map_to_area->.a;
+map_to_area->.a;`;
+  const query = `[out:json][timeout:60];
+${areaPart}
 (${LEAD_TYPES[type].q.map(q => q + '(area.a);').join('')});
 out tags center 1500;`;
   try {
@@ -508,7 +537,7 @@ async function pingMonitor(m) {
   return m;
 }
 async function pingAll() {
-  if (selfPingEnabled) selfStatus.last = await pingUrl(`${SELF_URL}/healthz`);
+  if (selfPingEnabled) selfStatus.last = await pingUrl(`${SELF_URL}/`);
   await Promise.all(monitors.map(pingMonitor));
 }
 setInterval(() => pingAll().catch(err => console.error('Ping error:', err.message)), PING_EVERY_MS);
