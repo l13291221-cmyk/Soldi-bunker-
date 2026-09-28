@@ -15,6 +15,20 @@ const PRICE = parseFloat(String(process.env.PREZZO || '2671').replace(',', '.'))
 // Numero WhatsApp Business (solo cifre, con prefisso internazionale)
 const WHATSAPP = String(process.env.WHATSAPP ?? '27710933377').replace(/\D/g, '');
 const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 anno di assistenza gratuita';
+const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '3200').replace(',', '.')) || 3200;
+// I due pacchetti mostrati sul sito e scelti nell'admin
+const PACKAGES = {
+  base: {
+    id: 'base', name: 'Base', price: Math.round(PRICE * 100),
+    description: DEFAULT_DESCRIPTION,
+    features: ['Sito web completo per la tua attività', '1 anno di assistenza gratuita', 'Modifiche a testi, foto, prezzi e orari incluse', 'Perfetto da smartphone'],
+  },
+  premium: {
+    id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
+    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code + 1 anno di assistenza gratuita',
+    features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
+  },
+};
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -59,6 +73,7 @@ function publicOrder(o) {
     description: o.description,
     amount: o.amount,
     currency: CURRENCY,
+    package: o.package || 'base',
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
@@ -187,6 +202,7 @@ function cleanUrl(v) {
 
 app.post('/api/admin/orders', requireAdmin, (req, res) => {
   const { restaurant, description, amount, siteUrl, phone } = req.body || {};
+  const pkg = PACKAGES[req.body && req.body.package] ? req.body.package : 'base';
   if (!restaurant || !String(restaurant).trim()) return res.status(400).json({ error: 'Nome dell\'attività obbligatorio' });
   const cents = parseAmount(amount);
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
@@ -196,7 +212,8 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   orders[id] = {
     id,
     restaurant: String(restaurant).trim().slice(0, 120),
-    description: String(description || DEFAULT_DESCRIPTION).trim().slice(0, 300),
+    description: String(description || PACKAGES[pkg].description).trim().slice(0, 300),
+    package: pkg,
     amount: cents,
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
@@ -235,7 +252,21 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 // ---------- API pubbliche (cliente) ----------
-app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP }));
+app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP, packages: PACKAGES }));
+
+// QR code (PNG) del sito del cliente: solo per ordini Premium pagati, oppure per l'admin
+const QRCode = require('qrcode');
+async function sendQr(res, url, name) {
+  const png = await QRCode.toBuffer(url, { width: 1200, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#111111', light: '#ffffff' } });
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Content-Disposition', `inline; filename="QR-${String(name).replace(/[^\w-]+/g, '-').slice(0, 40)}.png"`);
+  res.send(png);
+}
+app.get('/api/admin/qr', requireAdmin, async (req, res) => {
+  const url = cleanUrl(req.query.url);
+  if (!url) return res.status(400).send('Link non valido');
+  await sendQr(res, url, req.query.name || 'sito');
+});
 
 // Trova l'ordine dal codice (con o senza trattino, maiuscole/minuscole indifferenti)
 function loadPublicOrder(req, res, next) {
@@ -293,6 +324,12 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
     }
   }
   res.json({ order: publicOrder(o) });
+});
+
+app.get('/api/orders/:id/qr', loadPublicOrder, async (req, res) => {
+  const o = req.order;
+  if (!o.paid || !o.siteUrl || o.package !== 'premium') return res.status(404).send('QR non disponibile');
+  await sendQr(res, o.siteUrl, o.restaurant);
 });
 
 app.get('/paga/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pay.html')));

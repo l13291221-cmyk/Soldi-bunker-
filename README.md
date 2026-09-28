@@ -53,3 +53,8 @@ Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser
 Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: apre WhatsApp con un messaggio già scritto,
 personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
 (IT, EN, FR, ES, DE) e 3 versioni che si alternano. Un contatore avvisa oltre i 20 messaggi al giorno.
+
+## Pacchetti
+- **Base** (`PREZZO`, default 2671 €): sito + 1 anno di assistenza.
+- **Premium** (`PREZZO_PREMIUM`, default 3200 €): Base + dominio personalizzato + QR code.
+Nell'admin scegli il pacchetto quando crei l'ordine. Per il Premium il cliente, dopo aver pagato, vede e scarica il QR code del suo sito; dall'admin il pulsante 🔳 QR code lo genera per qualsiasi ordine con un link.

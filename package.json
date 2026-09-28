@@ -17,6 +17,7 @@
   "homepage": "https://github.com/l13291221-cmyk/Soldi-bunker-#readme",
   "dependencies": {
     "express": "^5.2.1",
+    "qrcode": "^1.5.4",
     "stripe": "^22.6.2"
   },
   "private": true,

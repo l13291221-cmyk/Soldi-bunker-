@@ -68,7 +68,9 @@
       <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
       <div style="margin:18px 0">
         <div class="row"><span class="muted">Codice ordine</span><span style="font-family:ui-monospace,monospace;letter-spacing:2px;color:var(--gold-2)">${escapeHtml(o.code)}</span></div>
+        <div class="row"><span class="muted">Pacchetto</span><span>${o.package === 'premium' ? 'Premium' : 'Base'}</span></div>
         <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
+        ${o.package === 'premium' ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
         <div class="row"><span class="muted">Assistenza</span><span>1 anno gratuita</span></div>
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>
@@ -99,7 +101,13 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
           <a class="btn btn-gold" href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">Apri il mio sito →</a>
           <button class="btn btn-ghost" id="copyBtn">Copia link</button>
-        </div>`
+        </div>
+        ${o.package === 'premium' ? `
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+          <p class="muted" style="margin:0 0 10px">Il tuo QR code, pronto da stampare:</p>
+          <img src="/api/orders/${encodeURIComponent(o.id)}/qr" alt="QR code del sito" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px">
+          <div><a class="btn btn-ghost btn-sm" style="margin-top:10px" href="/api/orders/${encodeURIComponent(o.id)}/qr" download="QR-${escapeHtml(o.restaurant)}.png">⬇️ Scarica QR code</a></div>
+        </div>` : ''}`
       : `
         <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
       <p class="muted small" style="margin:22px 0 0">Conserva questa pagina: puoi riaprirla quando vuoi per ritrovare il link.</p>`;
