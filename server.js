@@ -11,7 +11,7 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '';
 const BASE_URL = (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const CURRENCY = (process.env.CURRENCY || 'eur').toLowerCase();
 // Prezzo standard mostrato sul sito e proposto nei nuovi ordini (in euro)
-const PRICE = parseFloat(String(process.env.PREZZO || '2671').replace(',', '.')) || 2671;
+const PRICE = parseFloat(String(process.env.PREZZO || '990').replace(',', '.')) || 990;
 // Numero WhatsApp Business (solo cifre, con prefisso internazionale)
 const WHATSAPP = String(process.env.WHATSAPP ?? '27710933377').replace(/\D/g, '');
 const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 anno di assistenza gratuita';
@@ -19,7 +19,7 @@ const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 ann
 // Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
-const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '3200').replace(',', '.')) || 3200;
+const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').replace(',', '.')) || 1490;
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
   base: {
