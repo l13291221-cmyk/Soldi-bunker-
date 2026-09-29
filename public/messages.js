@@ -55,33 +55,34 @@ window.LEAD_MESSAGES = (function () {
     },
   };
 
-  // {nome} attività · {problema} · {firma} · {sito} la nostra piattaforma (dove si paga)
-  // Il video di esempio lo alleghi tu subito dopo il messaggio.
+  // Primo messaggio CORTO: niente link e niente video (sembrano spam).
+  // Fa una domanda semplice; il video si manda solo a chi risponde "sì".
+  // {nome} attività · {problema} · {firma} · {sito} (non usato nel primo messaggio)
   const TEMPLATES = {
     it: [
-      'Buongiorno {nome}! Sono {firma} di Nerodoro Studio. Ho notato che {problema}: oggi chi cerca su Google "dove mangiare" trova prima i locali con un sito, e i social da soli non bastano.\n\nRealizziamo siti eleganti per locali come il vostro: menu sempre aggiornato, prenotazioni dirette su WhatsApp (senza commissioni come TheFork), mappa, orari, in italiano e inglese.\n\nVi mando qui sotto un breve video 🎥\nLa nostra piattaforma: {sito}\n\nSe vi interessa vi preparo un\'anteprima con il vostro nome, senza impegno. Se non vi interessa rispondete pure "no" e non vi scrivo più. Buona giornata!',
-      'Salve {nome}, mi chiamo {firma} (Nerodoro Studio). Cercandovi online ho visto che {problema}, e così molti clienti che vi cercano su Google finiscono da altri.\n\nVi creiamo un sito completo in pochi giorni: perfetto da telefono, con prenotazioni su WhatsApp, menu che modificate voi in un attimo e assistenza inclusa. Pagamento unico, nessun abbonamento.\n\nVi allego un video per farvi vedere il risultato 🎥\nLa nostra piattaforma: {sito}\n\nVi va di vedere un\'anteprima con il nome del vostro locale? Se non è il momento basta dirmelo, grazie!',
-      'Ciao {nome}! Sono {firma} di Nerodoro Studio. Ho visto che {problema}. Oggi la maggior parte dei clienti guarda il locale sul telefono prima di sceglierlo: un sito curato vi fa trovare su Google e porta prenotazioni dirette, senza pagare commissioni alle app.\n\nQui sotto un video di come potrebbe essere il vostro sito 🎥\nLa nostra piattaforma: {sito}\n\nSe volete vi preparo un\'anteprima con il vostro nome, gratis. Se non vi interessa rispondete "no" e non vi disturbo più 🙂',
+      'Ciao {nome}! Sono {firma}, faccio siti web per locali. Ho visto che {problema}: vi posso mandare un video di 1 minuto con un esempio? 🙂',
+      'Buongiorno {nome}, sono {firma} di Nerodoro Studio. Ho notato che {problema}. Vi interesserebbe vedere un esempio di sito per il vostro locale? Sono 30 secondi 🙂',
+      'Salve {nome}! Sono {firma}, realizzo siti per ristoranti e ho visto che {problema}. Posso mandarvi un breve video di esempio?',
     ],
     en: [
-      'Hello {nome}! I\'m {firma} from Nerodoro Studio. I noticed that {problema}, and I\'m reaching out because we build websites for businesses like yours: mobile-friendly, with WhatsApp contact, map and opening hours.\n\nI\'m sending you a short example video below 🎥\n\nOur platform: {sito}\n\nIf you\'re interested I can prepare a free proposal. If not, no problem at all: just reply "no" and I won\'t message again. Have a great day!',
-      'Hi {nome}, my name is {firma} (Nerodoro Studio). While looking you up online I saw that {problema}. We create elegant, fast websites, ready in a few days with 1 year of support included.\n\nI\'m attaching a video to show you how we work 🎥\nOur platform: {sito}\n\nWould you like an idea for yours? If it\'s not the right time just tell me, thanks!',
-      'Hello {nome}! {firma} from Nerodoro Studio here. Quick message: I saw that {problema}, and today most customers choose where to go from their phone.\n\nBelow is a video of what your website could look like 🎥\nOur platform: {sito}\n\nI can prepare a free draft with your name if you like. If you\'re not interested, reply "no" and I won\'t bother you again 🙂',
+      'Hi {nome}! I\'m {firma}, I build websites for restaurants. I noticed that {problema}: can I send you a 1-minute example video? 🙂',
+      'Hello {nome}, {firma} from Nerodoro Studio here. I noticed that {problema}. Would you like to see an example website for your place? It takes 30 seconds 🙂',
+      'Hi {nome}! I\'m {firma}, I make websites for restaurants and I saw that {problema}. May I send you a short example video?',
     ],
     fr: [
-      'Bonjour {nome} ! Je suis {firma} de Nerodoro Studio. J\'ai remarqué que {problema}, et je vous écris car nous créons des sites web pour des commerces comme le vôtre : adaptés au téléphone, avec contact WhatsApp, plan et horaires.\n\nJe vous envoie ci-dessous une courte vidéo d\'exemple 🎥\n\nNotre plateforme : {sito}\n\nSi cela vous intéresse, je vous prépare une proposition sans engagement. Sinon, aucun problème : répondez simplement « non » et je ne vous écrirai plus. Bonne journée !',
-      'Bonjour {nome}, je m\'appelle {firma} (Nerodoro Studio). En vous cherchant en ligne, j\'ai vu que {problema}. Nous créons des sites élégants et rapides, prêts en quelques jours avec 1 an d\'assistance inclus.\n\nJe vous joins une vidéo pour vous montrer notre travail 🎥\nNotre plateforme : {sito}\n\nVoulez-vous recevoir une idée pour le vôtre ? Si ce n\'est pas le moment, dites-le-moi, merci !',
-      'Bonjour {nome} ! {firma} de Nerodoro Studio. Un message rapide : j\'ai vu que {problema}, et aujourd\'hui la plupart des clients choisissent depuis leur téléphone.\n\nCi-dessous une vidéo de ce à quoi pourrait ressembler votre site 🎥\nNotre plateforme : {sito}\n\nJe peux vous préparer une maquette gratuite à votre nom. Si cela ne vous intéresse pas, répondez « non » et je ne vous dérangerai plus 🙂',
+      'Bonjour {nome} ! Je suis {firma}, je crée des sites web pour les restaurants. J\'ai vu que {problema} : je peux vous envoyer une vidéo d\'exemple d\'1 minute ? 🙂',
+      'Bonjour {nome}, {firma} de Nerodoro Studio. J\'ai remarqué que {problema}. Voulez-vous voir un exemple de site pour votre établissement ? 30 secondes 🙂',
+      'Bonjour {nome} ! Je suis {firma}, je fais des sites pour les restaurants et j\'ai vu que {problema}. Je peux vous envoyer une courte vidéo d\'exemple ?',
     ],
     es: [
-      '¡Hola {nome}! Soy {firma} de Nerodoro Studio. He visto que {problema} y os escribo porque creamos páginas web para negocios como el vuestro: perfectas en el móvil, con contacto por WhatsApp, mapa y horarios.\n\nOs envío aquí abajo un breve vídeo de ejemplo 🎥\n\nNuestra plataforma: {sito}\n\nSi os interesa os preparo una propuesta sin compromiso. Si no, ningún problema: responded "no" y no os escribo más. ¡Buen día!',
-      'Hola {nome}, me llamo {firma} (Nerodoro Studio). Buscándoos en internet he visto que {problema}. Creamos webs elegantes y rápidas, listas en pocos días y con 1 año de asistencia incluido.\n\nOs adjunto un vídeo para que veáis cómo trabajamos 🎥\nNuestra plataforma: {sito}\n\n¿Os gustaría recibir una idea para la vuestra? Si no es el momento, decídmelo, ¡gracias!',
-      '¡Hola {nome}! {firma} de Nerodoro Studio. Un mensaje rápido: he visto que {problema}, y hoy la mayoría de clientes elige desde el móvil.\n\nAquí abajo un vídeo de cómo podría ser vuestra web 🎥\nNuestra plataforma: {sito}\n\nSi queréis os preparo un borrador gratis con vuestro nombre. Si no os interesa, responded "no" y no os molesto más 🙂',
+      '¡Hola {nome}! Soy {firma}, hago páginas web para locales. He visto que {problema}: ¿os puedo enviar un vídeo de ejemplo de 1 minuto? 🙂',
+      'Hola {nome}, soy {firma} de Nerodoro Studio. He visto que {problema}. ¿Os gustaría ver un ejemplo de web para vuestro local? Son 30 segundos 🙂',
+      '¡Hola {nome}! Soy {firma}, hago webs para restaurantes y he visto que {problema}. ¿Os puedo mandar un vídeo corto de ejemplo?',
     ],
     de: [
-      'Guten Tag {nome}! Ich bin {firma} von Nerodoro Studio. Mir ist aufgefallen, dass {problema}. Wir erstellen Websites für Betriebe wie Ihren: optimiert für das Handy, mit WhatsApp-Kontakt, Karte und Öffnungszeiten.\n\nUnten schicke ich Ihnen ein kurzes Beispielvideo 🎥\n\nUnsere Plattform: {sito}\n\nWenn Sie Interesse haben, erstelle ich Ihnen gern ein unverbindliches Angebot. Wenn nicht, kein Problem: antworten Sie einfach „nein“ und ich schreibe nicht mehr. Schönen Tag!',
-      'Hallo {nome}, mein Name ist {firma} (Nerodoro Studio). Bei der Suche nach Ihnen habe ich gesehen, dass {problema}. Wir erstellen elegante, schnelle Websites, in wenigen Tagen fertig und mit 1 Jahr Support inklusive.\n\nIch hänge ein Video an, damit Sie sehen, wie wir arbeiten 🎥\nUnsere Plattform: {sito}\n\nMöchten Sie eine Idee für Ihre Website bekommen? Wenn es gerade nicht passt, sagen Sie es mir einfach, danke!',
-      'Hallo {nome}! Hier ist {firma} von Nerodoro Studio. Kurz gesagt: Ich habe gesehen, dass {problema}, und heute wählen die meisten Kunden direkt am Handy aus.\n\nUnten ein Video, wie Ihre Website aussehen könnte 🎥\nUnsere Plattform: {sito}\n\nGern erstelle ich Ihnen kostenlos einen Entwurf mit Ihrem Namen. Kein Interesse? Antworten Sie „nein“ und ich störe nicht mehr 🙂',
+      'Hallo {nome}! Ich bin {firma} und erstelle Websites für Restaurants. Mir ist aufgefallen, dass {problema}. Darf ich Ihnen ein 1-minütiges Beispielvideo schicken? 🙂',
+      'Guten Tag {nome}, hier ist {firma} von Nerodoro Studio. Mir ist aufgefallen, dass {problema}. Möchten Sie ein Beispiel für eine Website Ihres Lokals sehen? Dauert 30 Sekunden 🙂',
+      'Hallo {nome}! Ich bin {firma}, ich mache Websites für Restaurants und habe gesehen, dass {problema}. Darf ich Ihnen ein kurzes Beispielvideo schicken?',
     ],
   };
 

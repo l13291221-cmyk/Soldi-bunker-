@@ -318,7 +318,7 @@
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
     notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
     save(); showCount(); render(); renderSaved();
-    toast('🎥 Ricordati di allegare il video dopo il messaggio');
+    toast('Niente video adesso: mandalo solo se ti rispondono "sì" 👍');
   }
 
   document.getElementById('list').addEventListener('click', e => {
