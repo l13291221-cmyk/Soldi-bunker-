@@ -285,12 +285,16 @@
   let daily = { d: today(), n: 0, total: 0 };
   try { daily = { ...daily, ...JSON.parse(localStorage.getItem(LS + '-daily') || '{}') }; } catch {}
   if (daily.d !== today()) { daily.d = today(); daily.n = 0; }
+  // Limite giornaliero e orario consigliato per i messaggi
+  const DAILY_MAX = 30, HOUR_FROM = 15, HOUR_TO = 17;
+  const goodHour = () => { const h = new Date().getHours(); return h >= HOUR_FROM && h < HOUR_TO; };
   function showCount() {
     const el = document.getElementById('count');
-    el.classList.toggle('warn', daily.n >= 20);
-    el.textContent = daily.n >= 20
+    el.classList.toggle('warn', daily.n >= DAILY_MAX);
+    el.textContent = daily.n >= DAILY_MAX
       ? `⚠️ Oggi hai scritto a ${daily.n} attività. Fermati per oggi: troppi messaggi a sconosciuti fanno bloccare il numero da WhatsApp.`
-      : `Oggi hai scritto a ${daily.n} attività (consigliato: massimo 15-20 al giorno, meglio a metà mattina o pomeriggio).`;
+      : `Oggi hai scritto a ${daily.n} di ${DAILY_MAX} attività. Orario migliore: ${HOUR_FROM}:00-${HOUR_TO}:00` +
+        (goodHour() ? ' ✅ adesso è il momento giusto.' : ' ⏰ adesso non è l\'orario ideale.');
   }
   const langSel = document.getElementById('lang'), firmaIn = document.getElementById('firma');
   langSel.innerHTML = LEAD_MESSAGES.languages.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
@@ -308,7 +312,8 @@
       firmaIn.focus();
       return;
     }
-    if (daily.n >= 20 && !confirm(`Hai già scritto a ${daily.n} attività oggi. Rischi il blocco del numero. Continuare lo stesso?`)) return;
+    if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
+    if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
       firma: firmaIn.value.trim(), sito: location.origin,
