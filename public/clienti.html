@@ -294,7 +294,8 @@
   }
   const langSel = document.getElementById('lang'), firmaIn = document.getElementById('firma');
   langSel.innerHTML = LEAD_MESSAGES.languages.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
-  try { langSel.value = localStorage.getItem(LS + '-lang') || 'it'; firmaIn.value = localStorage.getItem(LS + '-firma') || ''; } catch {}
+  firmaIn.value = 'Simone';
+  try { langSel.value = localStorage.getItem(LS + '-lang') || 'it'; firmaIn.value = localStorage.getItem(LS + '-firma') || 'Simone'; } catch {}
   langSel.addEventListener('change', () => { try { localStorage.setItem(LS + '-lang', langSel.value); } catch {} });
   firmaIn.addEventListener('change', () => { try { localStorage.setItem(LS + '-firma', firmaIn.value.trim()); } catch {} });
   showCount();

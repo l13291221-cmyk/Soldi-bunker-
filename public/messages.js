@@ -109,7 +109,7 @@ window.LEAD_MESSAGES = (function () {
     return list[variant % list.length]
       .replace('{nome}', lead.name)
       .replace('{problema}', problem(lang, lead, check))
-      .replace('{firma}', firma || 'Nerodoro Studio')
+      .replace('{firma}', firma || 'Simone')
       .replace('{sito}', sito);
   }
 
