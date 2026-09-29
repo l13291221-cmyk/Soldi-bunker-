@@ -300,6 +300,13 @@
   showCount();
 
   function sendWhatsApp(l) {
+    // Senza nome il messaggio diventerebbe "Sono Nerodoro Studio di Nerodoro Studio"
+    if (!firmaIn.value.trim()) {
+      toast('Scrivi prima il tuo nome in alto (es. Luca)');
+      firmaIn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firmaIn.focus();
+      return;
+    }
     if (daily.n >= 20 && !confirm(`Hai già scritto a ${daily.n} attività oggi. Rischi il blocco del numero. Continuare lo stesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
