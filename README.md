@@ -60,7 +60,7 @@ Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser
 ### Messaggi WhatsApp
 Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: apre WhatsApp con un messaggio già scritto,
 personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
-(IT, EN, FR, ES, DE) e 3 versioni che si alternano. Un contatore avvisa oltre i 30 messaggi al giorno.
+(IT, EN, FR, ES, DE) e 3 versioni che si alternano. Il limite di messaggi al giorno si sceglie (30, 50, 75 o 100, predefinito 100); ogni 30 messaggi in un'ora consiglia una pausa.
 
 ## Pacchetti
 - **Base** (`PREZZO`, default 990 €): sito + 1 anno di assistenza.

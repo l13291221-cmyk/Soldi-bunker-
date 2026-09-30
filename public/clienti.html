@@ -48,7 +48,7 @@
     .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .btn-call { background: var(--gold); color: #1a1408; }
     .btn-wa { background: #25d366; color: #fff; }
-    .msgbar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .msgbar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
     .msgbar label { margin-bottom: 4px; font-size: .8rem; }
     .msgbar .count { grid-column: 1 / -1; font-size: .88rem; color: var(--muted); }
     .msgbar .count.warn { color: var(--red); }
@@ -126,6 +126,7 @@
   <div class="msgbar">
     <div><label for="lang">Lingua del messaggio WhatsApp</label><select id="lang"></select></div>
     <div><label for="firma">Il tuo nome nel messaggio</label><input id="firma" placeholder="Es. Luca" maxlength="40"></div>
+    <div><label for="maxDay">Messaggi al giorno</label><select id="maxDay"><option>30</option><option>50</option><option>75</option><option>100</option></select></div>
     <div class="count" id="count"></div>
   </div>
 
@@ -295,7 +296,15 @@
   try { daily = { ...daily, ...JSON.parse(localStorage.getItem(LS + '-daily') || '{}') }; } catch {}
   if (daily.d !== today()) { daily.d = today(); daily.n = 0; }
   // Limite giornaliero e orario consigliato per i messaggi
-  const DAILY_MAX = 30, HOUR_FROM = 15, HOUR_TO = 17;
+  // Limite giornaliero scelto dall'utente; ogni 30 messaggi in un'ora consiglio una pausa
+  // (tanti messaggi a sconosciuti tutti di fila sono ciò che fa bloccare il numero)
+  let DAILY_MAX = 100;
+  const HOUR_FROM = 15, HOUR_TO = 17, BURST = 30;
+  const maxSel = document.getElementById('maxDay');
+  try { DAILY_MAX = +localStorage.getItem(LS + '-max') || 100; } catch {}
+  maxSel.value = String(DAILY_MAX);
+  maxSel.addEventListener('change', () => { DAILY_MAX = +maxSel.value; try { localStorage.setItem(LS + '-max', maxSel.value); } catch {} showCount(); });
+  const sentLastHour = () => (daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000).length;
   const goodHour = () => { const h = new Date().getHours(); return h >= HOUR_FROM && h < HOUR_TO; };
   function showCount() {
     const el = document.getElementById('count');
@@ -321,6 +330,7 @@
       firmaIn.focus();
       return;
     }
+    if (sentLastHour() >= BURST && !confirm(`Hai scritto a ${sentLastHour()} attività nell'ultima ora. Meglio fare una pausa di mezz'ora: tanti messaggi di fila fanno bloccare il numero. Mandare lo stesso?`)) return;
     if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
     if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
     const text = LEAD_MESSAGES.build({
@@ -329,6 +339,7 @@
     });
     window.open('https://wa.me/' + waList(l)[0].replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
     daily.n++; daily.total++;
+    daily.times = [...(daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000), Date.now()];
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
     notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
     save(); showCount(); render(); renderSaved();
