@@ -375,6 +375,43 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   res.json({ order: adminOrder(o) });
 });
 
+// Ricevute: tutti i pagamenti ricevuti (primo pagamento e canoni di ogni mese), letti da Stripe
+app.get('/api/admin/receipts', requireAdmin, async (req, res) => {
+  const paid = Object.values(orders).filter(o => o.paid && (!req.query.order || o.id === req.query.order));
+  const base = o => ({ orderId: o.id, code: formatCode(o.id), restaurant: o.restaurant, currency: CURRENCY });
+  const firstOnly = o => ({ ...base(o), id: 'primo', first: true, paidAt: o.paidAt, amount: o.amount + (o.monthly || 0), stripeUrl: null, pdfUrl: null });
+  const receipts = [], errors = [];
+  await Promise.all(paid.map(async o => {
+    if (!stripe || !o.stripeSessionId) { receipts.push(firstOnly(o)); return; }
+    try {
+      if (o.subscriptionId) {
+        const invs = await stripe.invoices.list({ subscription: o.subscriptionId, status: 'paid', limit: 100 }).autoPagingToArray({ limit: 1000 });
+        const mine = invs.filter(inv => inv.amount_paid > 0).map(inv => {
+          const period = inv.lines && inv.lines.data && inv.lines.data[0] && inv.lines.data[0].period;
+          return {
+            ...base(o), id: inv.id, number: inv.number, first: inv.billing_reason === 'subscription_create',
+            paidAt: new Date(((inv.status_transitions && inv.status_transitions.paid_at) || inv.created) * 1000).toISOString(),
+            amount: inv.amount_paid, currency: inv.currency || CURRENCY,
+            periodStart: period ? new Date(period.start * 1000).toISOString() : null,
+            periodEnd: period ? new Date(period.end * 1000).toISOString() : null,
+            stripeUrl: inv.hosted_invoice_url || null, pdfUrl: inv.invoice_pdf || null,
+          };
+        });
+        receipts.push(...(mine.length ? mine : [firstOnly(o)]));
+      } else {
+        const s = await stripe.checkout.sessions.retrieve(o.stripeSessionId, { expand: ['payment_intent.latest_charge'] });
+        const ch = s.payment_intent && s.payment_intent.latest_charge;
+        receipts.push({ ...firstOnly(o), amount: s.amount_total ?? o.amount, stripeUrl: (ch && ch.receipt_url) || null });
+      }
+    } catch (err) {
+      errors.push(`${o.restaurant}: ${err.message}`);
+      receipts.push(firstOnly(o));
+    }
+  }));
+  receipts.sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt)));
+  res.json({ receipts, currency: CURRENCY, errors });
+});
+
 // Prova di accettazione in un file di testo: dati del cliente, IP, dispositivo e condizioni accettate
 app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
   const o = orders[req.params.id];
