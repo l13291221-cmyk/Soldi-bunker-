@@ -103,9 +103,15 @@
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
       </div>
-      <button class="btn btn-gold" id="payBtn" style="width:100%">${sub ? `Paga ${formatMoney(o.amount + o.monthly, o.currency)} con carta` : 'Paga ora con carta'}</button>
+      ${sub ? `
+      <label class="accept" style="display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:.95rem;cursor:pointer">
+        <input type="checkbox" id="accept" style="width:20px;height:20px;flex:none"><span>Accetto le condizioni</span>
+      </label>` : ''}
+      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? `Paga ${formatMoney(o.amount + o.monthly, o.currency)} con carta` : 'Paga ora con carta'}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
       <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. Subito dopo il pagamento riceverai il link del tuo sito.</p>`;
+    const acc = document.getElementById('accept');
+    if (acc) acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
     // Abbonamento: prima le condizioni (con il vincolo in fondo), poi il pagamento
     document.getElementById('payBtn').addEventListener('click', e => sub ? openTerms(o) : checkout(e.currentTarget, false, document.getElementById('payErr')));
   }
@@ -135,11 +141,7 @@
         <div class="sheet-body">
           <div class="terms-slot"><div class="spinner"></div></div>
           <div class="sheet-pay">
-            <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.92rem;cursor:pointer">
-              <input type="checkbox" id="accept" style="width:20px;height:20px;margin-top:2px;flex:none">
-              <span>Ho letto e accetto tutte le condizioni, compreso il <b>vincolo minimo di ${durata(o.months)}</b>: se disdico prima, pago comunque i mesi che mancano.</span>
-            </label>
-            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>Paga ${total} con carta</button>
+            <button class="btn btn-gold" id="sheetPay" style="width:100%">Paga ${total} con carta</button>
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
             <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe per pagare in sicurezza.</p>
           </div>
@@ -161,9 +163,9 @@
     const onKey = e => { if (e.key === 'Escape') close(); };
     document.addEventListener('keydown', onKey);
     wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
-    const acc = wrap.querySelector('#accept'), pay = wrap.querySelector('#sheetPay');
-    acc.addEventListener('change', () => { pay.disabled = !acc.checked; });
-    pay.addEventListener('click', () => checkout(pay, acc.checked, wrap.querySelector('#sheetErr')));
+    // le condizioni sono già state accettate con la casella del riepilogo
+    const pay = wrap.querySelector('#sheetPay');
+    pay.addEventListener('click', () => checkout(pay, document.getElementById('accept').checked, wrap.querySelector('#sheetErr')));
 
     // Testo completo delle condizioni, con vincolo, canone e totale di questo ordine
     const slot = wrap.querySelector('.terms-slot');
