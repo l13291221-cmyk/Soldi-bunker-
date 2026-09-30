@@ -78,3 +78,8 @@ con **vincolo minimo** (predefinito 12 mesi). Prezzi e vincolo si cambiano su Re
   nell'admin vedi lo stato dell'abbonamento (attivo / insoluto / chiuso) e la fine del vincolo.
 - Disdette e rimborsi si gestiscono dalla dashboard di Stripe (Abbonamenti).
 
+## Guida nuovo cliente
+Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la copia del sito di ogni cliente dal modello
+Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
+e i link si compilano da soli; le spunte restano salvate sul telefono.
+

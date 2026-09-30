@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Guida nuovo cliente — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .g { max-width: 760px; margin: 0 auto; padding: 28px 16px 70px; }
+    .g h1 { font-size: 1.9rem; margin: 0 0 6px; }
+    .g h2 { font: 600 1.05rem var(--sans); margin: 0 0 6px; letter-spacing: 0; }
+    .gcard { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin: 14px 0; }
+    .gstep { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start; }
+    .gstep input[type=checkbox] { width: 22px; height: 22px; margin-top: 2px; accent-color: #d6b16a; }
+    .gstep.done h2, .gstep.done .body { opacity: .5; }
+    .body { font-size: .94rem; line-height: 1.6; color: var(--text); }
+    .body ol, .body ul { padding-left: 20px; margin: 6px 0; }
+    .body li { margin: 4px 0; }
+    .body a.lnk { color: var(--gold-2); font-weight: 600; word-break: break-all; }
+    .val { display: inline-block; font: 600 .9rem ui-monospace, monospace; color: var(--gold-2); background: var(--bg-2); border: 1px solid var(--line); border-radius: 7px; padding: 1px 7px; }
+    .once { border-color: rgba(214,177,106,.45); }
+    .name-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .name-row > div { flex: 1 1 220px; }
+    .name-row label { font-size: .8rem; }
+    .warn { color: var(--red); font-weight: 600; }
+    .top-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Guida cliente</a>
+    <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+  </div>
+</header>
+
+<main class="g">
+  <h1>📋 Nuovo cliente: il suo sito</h1>
+  <p class="muted" style="margin:0">Segui i passi in ordine. Scrivi il nome del cliente qui sotto: i link e gli indirizzi si compilano da soli. Le spunte restano salvate su questo telefono.</p>
+
+  <div class="gcard once">
+    <div class="gstep" data-step="once">
+      <input type="checkbox" aria-label="Fatto">
+      <div>
+        <h2>⭐ Solo la prima volta in assoluto</h2>
+        <div class="body">
+          Apri <a class="lnk" href="https://github.com/l13291221-cmyk/Ristorante-/settings" target="_blank" rel="noopener">github.com/l13291221-cmyk/Ristorante-/settings</a>
+          e nella parte <b>General</b> spunta <b>«Template repository»</b>. Fatto una volta, vale per sempre.
+          <br><span class="warn">Non modificare mai il sito demo (Ristorante-):</span> tutte le copie partono da lì.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="gcard">
+    <div class="name-row">
+      <div><label for="repo">Nome del sito del cliente (solo lettere minuscole, numeri e trattini)</label>
+        <input id="repo" placeholder="es. nonnadina" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    </div>
+    <p class="muted small" style="margin:8px 0 0">Il sito sarà: <span class="val" id="siteUrl">https://l13291221-cmyk.github.io/nomecliente/</span></p>
+    <div class="top-actions">
+      <button class="btn btn-ghost btn-sm" id="copySite">Copia link del sito</button>
+      <button class="btn btn-ghost btn-sm" id="reset">Nuovo cliente (azzera le spunte)</button>
+    </div>
+  </div>
+
+  <div class="gcard"><div class="gstep" data-step="1">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>1. Crea la copia del sito</h2>
+      <div class="body"><ol>
+        <li>Apri <a class="lnk" href="https://github.com/l13291221-cmyk/Ristorante-/generate" target="_blank" rel="noopener">Crea copia dal modello</a> (è il pulsante «Use this template → Create a new repository»).</li>
+        <li><b>Repository name:</b> scrivi <span class="val js-repo">nomecliente</span></li>
+        <li>Lascia <b>Public</b> e premi <b>Create repository</b>.</li>
+      </ol></div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="2">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>2. Metti il sito online</h2>
+      <div class="body"><ol>
+        <li>Apri <a class="lnk js-pages" href="#" target="_blank" rel="noopener">Impostazioni Pages del sito</a>.</li>
+        <li>In <b>Build and deployment → Source</b> scegli <b>Deploy from a branch</b>.</li>
+        <li>In <b>Branch</b> scegli <b>main</b> e cartella <b>/ (root)</b> → <b>Save</b>.</li>
+        <li>Aspetta 1-2 minuti, poi apri <a class="lnk js-site" href="#" target="_blank" rel="noopener">il sito</a> e controlla che si veda.</li>
+      </ol></div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="3">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>3. Crea la chiave (token) solo per questo sito</h2>
+      <div class="body"><ol>
+        <li>Apri <a class="lnk" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Nuovo token GitHub</a>.</li>
+        <li><b>Token name:</b> <span class="val js-repo">nomecliente</span> · <b>Expiration:</b> la più lunga disponibile (se c'è una data, segnatela in calendario).</li>
+        <li><b>Repository access → Only select repositories</b> → scegli <span class="val js-repo">nomecliente</span>. <span class="warn">Solo quello, mai «All repositories».</span></li>
+        <li><b>Permissions → Repository permissions:</b> <b>Contents</b> = Read and write, <b>Pages</b> = Read and write.</li>
+        <li><b>Generate token</b> e copialo subito (inizia con <span class="val">github_pat_</span>): si vede una volta sola.</li>
+      </ol></div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="4">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>4. Scegli un PIN nuovo per il cliente</h2>
+      <div class="body">
+        PIN proposto: <span class="val" id="pin">——————</span> <button class="btn btn-ghost btn-sm" id="newPin" style="padding:4px 10px">Cambia</button> <button class="btn btn-ghost btn-sm" id="copyPin" style="padding:4px 10px">Copia</button>
+        <br><span class="warn">Mai lasciare 123456:</span> è il PIN del modello, lo conoscono tutti.
+      </div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="5">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>5. Imposta il PIN sul sito del cliente</h2>
+      <div class="body"><ol>
+        <li>Apri <a class="lnk js-site-admin" href="#" target="_blank" rel="noopener">il pannello del sito</a> (oppure il sito → tasto <b>Amministratore</b>).</li>
+        <li>PIN: <span class="val">123456</span></li>
+        <li>Scheda <b>Pubblica</b>: incolla il <b>token</b> del passo 3.</li>
+        <li>Scheda <b>Sicurezza</b>: PIN attuale <span class="val">123456</span> → nuovo PIN (quello del passo 4) due volte.</li>
+        <li>Scheda <b>Pubblica</b> → <b>Pubblica ora</b>. Dopo 1-2 minuti il nuovo PIN vale per tutti.</li>
+      </ol></div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="6">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>6. Collega tutto all'ordine</h2>
+      <div class="body"><ol>
+        <li>Apri l'<a class="lnk" href="/admin">Admin</a> e trova l'ordine del cliente.</li>
+        <li>Nel campo <b>Link sito del cliente</b> incolla <span class="val js-siteurl">https://l13291221-cmyk.github.io/nomecliente/</span> → <b>Salva</b>.</li>
+        <li>Apri <b>«PIN e token solo per questo cliente»</b>: metti il <b>PIN</b> del passo 4 e il <b>token</b> del passo 3 → <b>Salva</b>.</li>
+      </ol>
+      Quando il cliente paga, vede da solo il link del sito, il PIN, il token e le istruzioni per modificarlo.</div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="7">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>7. Contenuti del cliente (facoltativo)</h2>
+      <div class="body">Se il cliente ti ha mandato logo, foto, menu e orari, puoi inserirli tu dal pannello (schede <b>Dati</b>, <b>Orari</b>, <b>Menù</b>, <b>Immagini</b>) e premere <b>Pubblica</b>. Altrimenti li mette lui dopo il pagamento, con il PIN e il token che vede nella pagina dell'ordine.</div>
+    </div>
+  </div></div>
+
+  <div class="gcard"><div class="gstep" data-step="8">
+    <input type="checkbox" aria-label="Fatto">
+    <div>
+      <h2>8. Dopo il pagamento</h2>
+      <div class="body"><ul>
+        <li>Nell'admin l'ordine diventa <b>● Pagato</b>.</li>
+        <li>Premi <b>🧾 Ricevuta</b> e salvala (serve per i tuoi conti).</li>
+        <li>Se è <b>Premium</b>: il cliente scarica da solo il QR code; il dominio www.nome.it si collega dal pannello del sito (Pubblica → Il tuo dominio).</li>
+      </ul></div>
+    </div>
+  </div></div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const KEY = 'nerodoro-guida';
+  let st = {};
+  try { st = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { st = {}; }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} };
+  const repoIn = document.getElementById('repo');
+  const OWNER = 'l13291221-cmyk';
+  const clean = v => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  const newPin = () => String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)).replace('123456', '654321');
+
+  function fill() {
+    const repo = clean(repoIn.value) || 'nomecliente';
+    const site = `https://${OWNER}.github.io/${repo}/`;
+    document.getElementById('siteUrl').textContent = site;
+    document.querySelectorAll('.js-repo').forEach(e => e.textContent = repo);
+    document.querySelectorAll('.js-siteurl').forEach(e => e.textContent = site);
+    document.querySelectorAll('.js-site').forEach(a => a.href = site);
+    document.querySelectorAll('.js-site-admin').forEach(a => a.href = site + '#admin');
+    document.querySelectorAll('.js-pages').forEach(a => a.href = `https://github.com/${OWNER}/${repo}/settings/pages`);
+    document.getElementById('pin').textContent = st.pin;
+    document.querySelectorAll('[data-step]').forEach(s => {
+      const on = !!(st.done || {})[s.dataset.step];
+      s.querySelector('input').checked = on; s.classList.toggle('done', on);
+    });
+  }
+  if (!st.pin) st.pin = newPin();
+  repoIn.value = st.repo || '';
+  repoIn.addEventListener('input', () => { st.repo = repoIn.value; save(); fill(); });
+  repoIn.addEventListener('blur', () => { repoIn.value = clean(repoIn.value); st.repo = repoIn.value; save(); fill(); });
+  document.addEventListener('change', e => {
+    const s = e.target.closest('[data-step]');
+    if (!s) return;
+    st.done = { ...(st.done || {}), [s.dataset.step]: e.target.checked }; save(); fill();
+  });
+  const copy = (t, msg) => navigator.clipboard.writeText(t).then(() => toast(msg)).catch(() => toast('Tieni premuto sul testo per copiarlo'));
+  document.getElementById('copySite').addEventListener('click', () => copy(document.getElementById('siteUrl').textContent, 'Link copiato'));
+  document.getElementById('copyPin').addEventListener('click', () => copy(st.pin, 'PIN copiato'));
+  document.getElementById('newPin').addEventListener('click', () => { st.pin = newPin(); save(); fill(); });
+  document.getElementById('reset').addEventListener('click', () => {
+    if (!confirm('Iniziare un nuovo cliente? Le spunte si azzerano (tranne quella della prima volta).')) return;
+    st = { pin: newPin(), done: { once: !!(st.done || {}).once } }; repoIn.value = ''; save(); fill(); repoIn.focus();
+  });
+  fill();
+</script>
+</body>
+</html>
