@@ -291,6 +291,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 
 /* Pacchetti prezzi */
 .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 880px; }
+.rate { margin: -4px 0 6px; font-size: .9rem; color: var(--gold-2); font-weight: 500; }
 .plans-sub { font-size: 1.25rem; margin: 34px 0 14px; }
 .plan-price small { font-size: .45em; color: var(--muted); font-weight: 400; margin-left: 2px; }
 @media (max-width: 760px) { .plans { grid-template-columns: 1fr; } }

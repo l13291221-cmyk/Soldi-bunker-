@@ -79,3 +79,8 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
+## Pagamento in 3 rate (Klarna)
+Sul sito e nella pagina di pagamento c'è scritto che Base e Premium si possono pagare anche in 3 rate senza interessi con Klarna.
+Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Il codice non va cambiato:
+Stripe Checkout mostra da solo i metodi attivi. Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna.
+

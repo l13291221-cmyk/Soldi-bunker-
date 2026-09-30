@@ -120,12 +120,13 @@
       <div class="section-head">
         <span class="kicker">Prezzi</span>
         <h2>Due pacchetti, <em>pagamento unico</em>.</h2>
-        <p>Paghi una volta sola. L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
+        <p>Paghi una volta sola, oppure in 3 rate senza interessi con Klarna. L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
       </div>
       <div class="plans">
         <div class="plan">
           <div class="plan-name">Base</div>
           <div class="plan-price" data-price="base">990 €</div>
+          <p class="rate" data-rate="base">oppure 3 rate da 330 € con Klarna</p>
           <p class="muted small" style="margin:0">Il tuo sito, pronto in pochi giorni</p>
           <ul class="checks" data-features="base">
             <li>Sito web completo per la tua attività</li>
@@ -138,6 +139,7 @@
           <span class="plan-badge">Il più scelto</span>
           <div class="plan-name">Premium</div>
           <div class="plan-price" data-price="premium">1.490 €</div>
+          <p class="rate" data-rate="premium">oppure 3 rate da 496,67 € con Klarna</p>
           <p class="muted small" style="margin:0">Il tuo nome online, ovunque</p>
           <ul class="checks" data-features="premium">
             <li>Tutto quello che c'è nel Base</li>
@@ -232,6 +234,9 @@
       const el = document.querySelector(`[data-price="${k}"]`);
       if (el && p.recurring) el.innerHTML = escapeHtml(formatMoney(p.monthly, c.currency)) + '<small>/mese</small>';
       else if (el) el.textContent = formatMoney(p.price, c.currency);
+      // Klarna: 3 rate senza interessi per il cliente (solo pagamento unico)
+      const rate = document.querySelector(`[data-rate="${k}"]`);
+      if (rate && !p.recurring) rate.textContent = `oppure 3 rate da ${formatMoney(Math.ceil(p.price / 3), c.currency)} con Klarna`;
       const ul = document.querySelector(`[data-features="${k}"]`);
       if (ul) ul.innerHTML = p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
     }
