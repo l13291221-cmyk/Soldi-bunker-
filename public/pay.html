@@ -85,13 +85,7 @@
         <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
         ${isPremium(o) ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
         ${sub ? `
-        <div class="row" style="align-items:center"><span class="muted">Oggi paghi<br><small>${new Date().toLocaleDateString('it-IT')}</small></span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
-        <div class="sumbox">
-          <b>Riepilogo abbonamento</b>
-          <span>${formatMoney(o.monthly, o.currency)} al mese, addebitati in automatico sulla stessa carta${o.amount ? ` (oggi anche ${formatMoney(o.amount, o.currency)} di attivazione)` : ''}</span>
-          <span>Vincolo minimo ${durata(o.months)}: se lo chiudi prima, paghi i mesi rimanenti</span>
-          <span>Totale del vincolo: ${formatMoney(o.amount + o.monthly * o.months, o.currency)}</span>
-        </div>`
+        <div class="row" style="align-items:center"><span class="muted">Oggi paghi<br><small>${new Date().toLocaleDateString('it-IT')}</small></span><span style="text-align:right"><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span><br><small class="muted">Vincolo ${durata(o.months)}</small></span></div>`
         : `
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
