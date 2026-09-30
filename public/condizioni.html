@@ -13,10 +13,6 @@
   <style>
     .terms { max-width: 760px; margin: 0 auto; padding: 40px 16px 60px; }
     .terms h1 { font-size: 2rem; margin: 0 0 6px; }
-    .terms h2 { font-size: 1.25rem; margin: 30px 0 8px; }
-    .terms p, .terms li { color: var(--text); line-height: 1.65; }
-    .terms ol, .terms ul { padding-left: 22px; }
-    .terms .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 16px 0; }
   </style>
 </head>
 <body>
@@ -29,32 +25,107 @@
 
 <main class="terms">
   <h1>Condizioni del servizio</h1>
-  <p class="muted">Valide per tutti gli ordini di siti web di Nerodoro Studio. Il servizio è rivolto ad attività e professionisti.</p>
+  <div id="termsBody" class="terms-body">
+  <p class="muted">Valgono per ogni ordine di sito web fatto con Nerodoro Studio. Il servizio è rivolto ad attività e professionisti. Leggile fino in fondo: pagando dichiari di averle lette e di accettarle tutte, compreso il vincolo minimo scritto alla fine.</p>
 
-  <h2>1. Abbonamento (Base e Plus)</h2>
-  <div class="box">
-    <b>In breve:</b> paghi un <b>canone fisso ogni mese</b> (<span class="js-prices-short">Base 20 €, Plus 30 €</span>).
-    L'abbonamento ha un <b>vincolo minimo di <span class="js-months">8 anni e 4 mesi</span></b>:
-    se lo chiudi prima, i mesi che mancano alla fine del vincolo vanno pagati comunque.
-  </div>
+  <h2>1. Chi siamo</h2>
+  <p>Nerodoro Studio crea e tiene online siti web per attività: ristoranti e bar, negozi, parrucchieri ed estetica, B&amp;B e hotel, studi e professionisti, artigiani. Ci trovi su <a class="js-wa" href="https://wa.me/27710933377">WhatsApp</a>.</p>
+
+  <h2>2. Cosa ti vendiamo</h2>
+  <p>Ti vendiamo un <b>sito web in abbonamento mensile</b>: noi lo creiamo, lo mettiamo online e lo teniamo online finché l'abbonamento è attivo; tu paghi un canone fisso ogni mese. Non è una vendita del sito una volta per tutte.</p>
+  <p><b>Pacchetto Base</b></p>
+  <ul>
+    <li>Sito web completo per la tua attività, con il nome e i colori della tua attività.</li>
+    <li>Servizi, prodotti, menu e prezzi facili da consultare dal telefono.</li>
+    <li>Pulsante per scriverti su WhatsApp, senza commissioni.</li>
+    <li>Indirizzo, mappa di Google, orari di apertura e contatti in evidenza.</li>
+    <li>Galleria di foto della tua attività.</li>
+    <li>Sito preparato per le ricerche locali su Google (per esempio «vicino a me»).</li>
+    <li>Sito veloce e fatto prima di tutto per lo smartphone, senza app da scaricare.</li>
+    <li>Pannello riservato per cambiare da solo, dal telefono, menu, prezzi, foto e orari.</li>
+  </ul>
+  <p><b>Pacchetto Plus</b>: tutto quello che c'è nel Base, più</p>
+  <ul>
+    <li>un indirizzo tutto tuo, tipo <b>www.tuonome.it</b> (il dominio è incluso finché l'abbonamento è attivo);</li>
+    <li>un QR code in alta qualità, pronto da stampare su menu, vetrina e biglietti da visita.</li>
+  </ul>
+  <p><b>Cosa non è incluso</b></p>
+  <ul>
+    <li>L'assistenza: non forniamo assistenza.</li>
+    <li>La scrittura dei testi e le fotografie: li fornisci tu.</li>
+    <li>Pubblicità a pagamento, gestione dei social e vendita online dal sito.</li>
+    <li>Una posizione garantita su Google: i risultati li decide Google.</li>
+  </ul>
+
+  <h2>3. Cosa ricevi e quando</h2>
+  <ul>
+    <li><b>Il link del tuo sito</b>: compare nella pagina del tuo ordine subito dopo il pagamento. Se il sito è ancora in preparazione, il link compare appena è pronto: riapri la pagina del tuo ordine quando vuoi per ritrovarlo.</li>
+    <li><b>Le istruzioni per gestirlo</b>: come entrare nel pannello con il tasto «Amministratore», il PIN e, se serve, il codice («token») per pubblicare le modifiche.</li>
+    <li><b>Con il Plus</b>: il QR code da scaricare e il sito sul tuo indirizzo www.</li>
+    <li><b>Tempi</b>: di solito pochi giorni lavorativi da quando riceviamo testi e foto.</li>
+  </ul>
+
+  <h2>4. Come funziona, passo per passo</h2>
   <ol>
-    <li><b>Costi.</b> Il primo giorno paghi il primo mese (più l'eventuale attivazione, se indicata nel riepilogo dell'ordine). Poi il canone, sempre uguale, viene addebitato ogni mese sulla stessa carta, in automatico, tramite Stripe.
-      <span class="js-prices"></span></li>
-    <li><b>Vincolo minimo.</b> L'abbonamento dura almeno <span class="js-months">8 anni e 4 mesi</span> dal primo pagamento. Il vincolo serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
-    <li><b>Disdetta anticipata.</b> Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano fino alla fine del vincolo. Si possono pagare in un'unica volta.</li>
-    <li><b>Dopo il vincolo.</b> L'abbonamento continua mese per mese e puoi disdirlo quando vuoi, con un messaggio su WhatsApp o per email. La disdetta vale dalla fine del mese già pagato.</li>
+    <li>Ci scrivi su WhatsApp e scegli il pacchetto.</li>
+    <li>Ti mandiamo un codice ordine personale.</li>
+    <li>Inserisci il codice sul sito, vedi il riepilogo e premi «Paga».</li>
+    <li>Leggi queste condizioni e le accetti spuntando la casella in fondo.</li>
+    <li>Paghi con carta su Stripe: oggi paghi il primo mese (più l'eventuale attivazione, se indicata nel riepilogo).</li>
+    <li>Ogni mese il canone, sempre uguale, viene addebitato in automatico sulla stessa carta.</li>
+    <li>Dal pannello cambi il sito da solo quando vuoi: le modifiche vanno online in 1-2 minuti.</li>
+  </ol>
+
+  <h2>5. Pagamenti</h2>
+  <ul>
+    <li>I pagamenti avvengono con carta tramite <b>Stripe</b>. Nerodoro Studio non vede e non conserva i dati della tua carta.</li>
+    <li>Il canone è di <span class="js-price-line">Base 20 € al mese, Plus 30 € al mese</span> e resta uguale per tutta la durata del vincolo.</li>
+    <li>Il canone si paga in anticipo: ogni addebito copre il mese che inizia quel giorno.</li>
+    <li>Se la carta scade o un pagamento non va a buon fine, ti avvisiamo e devi aggiornare la carta o pagare il canone in altro modo.</li>
+  </ul>
+
+  <h2>6. Rimborsi</h2>
+  <ul>
+    <li><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate (canoni ed eventuale attivazione) non sono rimborsabili: neanche se il sito non ti piace, se non lo usi o se chiudi l'abbonamento prima della fine del mese.</li>
+    <li><b>Unica eccezione:</b> se il sito non ti viene consegnato, ti restituiamo quello che hai pagato.</li>
+    <li>Se contesti un addebito con la tua banca senza averci scritto prima, il sito può essere sospeso e le somme restano dovute.</li>
+  </ul>
+
+  <h2>7. Il tuo pannello e i tuoi contenuti</h2>
+  <ul>
+    <li>Tieni riservati PIN e token: chi li ha può modificare il sito. Se li perdi o pensi che qualcuno li conosca, scrivici.</li>
+    <li>I contenuti che pubblichi (testi, foto, prezzi, orari, recensioni) sono una tua responsabilità: devono essere corretti e devi avere il diritto di usarli.</li>
+    <li>Non puoi pubblicare contenuti illegali o offensivi. Se succede possiamo toglierli o sospendere il sito.</li>
+    <li>I tuoi contenuti restano tuoi.</li>
+  </ul>
+
+  <h2>8. Mancato pagamento, sospensione e fine</h2>
+  <ul>
     <li><b>Mancato pagamento.</b> Se un canone non viene pagato, ti avvisiamo. Dopo 15 giorni senza pagamento il sito può essere sospeso finché la situazione non viene regolarizzata; i canoni non pagati restano dovuti.</li>
     <li><b>Fine dell'abbonamento.</b> Quando l'abbonamento finisce, il sito viene messo offline. I tuoi contenuti (testi, foto, menu) restano tuoi e, se li chiedi, te li mandiamo.</li>
     <li><b>Plus.</b> Il dominio (www.tuonome.it) è incluso finché l'abbonamento è attivo.</li>
-  </ol>
+  </ul>
 
-  <h2>2. Pagamenti</h2>
-  <p>I pagamenti avvengono con carta tramite Stripe. Nerodoro Studio non vede né conserva i dati della tua carta.</p>
-  <p><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate (canoni ed eventuale attivazione) non sono rimborsabili, neanche se il sito non ti piace. L'unico caso in cui ti restituiamo i soldi è se il sito non ti viene consegnato.</p>
-  <p><b>Assistenza.</b> Non forniamo assistenza.</p>
+  <h2>9. Dati personali</h2>
+  <p>Per gestire l'ordine conserviamo il nome dell'attività, il numero WhatsApp, i dati dell'ordine e la data e l'indirizzo IP con cui hai accettato queste condizioni. I dati della carta li gestisce solo Stripe.</p>
 
-  <h2>3. Contatti</h2>
-  <p>Per domande o disdette scrivici su <a class="js-wa" href="https://wa.me/27710933377" style="color:var(--gold-2)">WhatsApp</a>.</p>
+  <h2>10. Condizioni valide per te</h2>
+  <p>Per il tuo abbonamento valgono le condizioni che hai accettato al momento del pagamento, compreso il vincolo scritto qui sotto.</p>
+
+  <h2>11. Contatti</h2>
+  <p>Per domande o disdette scrivici su <a class="js-wa" href="https://wa.me/27710933377">WhatsApp</a>.</p>
+
+  <h2>12. Vincolo minimo e disdetta</h2>
+  <div class="terms-vincolo">
+    <p>L'abbonamento ha un <b>vincolo minimo di <span class="js-months">8 anni e 4 mesi</span></b> (<span class="js-months-n">100</span> mesi) dal primo pagamento.</p>
+    <p>Totale da pagare per tutto il vincolo: <b class="js-total">Base 2.000 €, Plus 3.000 €</b>.</p>
+  </div>
+  <ul>
+    <li><b>Perché c'è il vincolo.</b> Serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
+    <li><b>Disdetta anticipata.</b> Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano fino alla fine del vincolo. Si possono pagare in un'unica volta.</li>
+    <li><b>Dopo il vincolo.</b> L'abbonamento continua mese per mese e puoi disdirlo quando vuoi, con un messaggio su WhatsApp o per email. La disdetta vale dalla fine del mese già pagato.</li>
+  </ul>
+  </div>
 </main>
 
 <script src="/common.js"></script>
@@ -62,17 +133,9 @@
   // Aperte dal riepilogo di un ordine (?mesi=100): vale il vincolo di quell'ordine
   const mesiOrdine = parseInt(new URLSearchParams(location.search).get('mesi'), 10);
   const mesiOk = mesiOrdine >= 1 && mesiOrdine <= 600 ? mesiOrdine : 0;
-  if (mesiOk) document.querySelectorAll('.js-months').forEach(el => el.textContent = durata(mesiOk));
   fetch('/api/config').then(r => r.json()).then(c => {
-    const subs = Object.values(c.packages || {}).filter(p => p.recurring).map(p => mesiOk ? { ...p, months: mesiOk } : p);
-    if (subs.length) {
-      document.querySelectorAll('.js-months').forEach(el => el.textContent = durata(subs[0].months));
-      document.querySelector('.js-prices-short').textContent = subs.map(p => `${p.name} ${formatMoney(p.monthly, c.currency)}`).join(', ');
-      document.querySelector('.js-prices').textContent = ' Prezzi attuali: ' + subs.map(p =>
-        `${p.name}: ${formatMoney(p.monthly, c.currency)} al mese` + (p.price ? ` + ${formatMoney(p.price, c.currency)} di attivazione` : '') +
-        `, totale del vincolo ${formatMoney(p.price + p.monthly * p.months, c.currency)}`).join(' · ') + '.';
-    }
-    if (c.whatsapp) document.querySelectorAll('.js-wa').forEach(a => a.href = 'https://wa.me/' + c.whatsapp);
+    const plans = Object.values(c.packages || {}).filter(p => p.recurring);
+    if (plans.length) fillTerms(document, { months: mesiOk || plans[0].months, plans, currency: c.currency, whatsapp: c.whatsapp });
   }).catch(() => {});
 </script>
 </body>

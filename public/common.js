@@ -18,6 +18,17 @@ function durata(mesi) {
   const pa = a ? (a === 1 ? '1 anno' : a + ' anni') : '', pm = m ? (m === 1 ? '1 mese' : m + ' mesi') : '';
   return [pa, pm].filter(Boolean).join(' e ') || '0 mesi';
 }
+// Condizioni: mette vincolo, canone e totale al posto dei valori di esempio.
+// plans = [{ name, monthly, price }] in centesimi; con un solo piano il nome non si ripete
+function fillTerms(root, t) {
+  const set = (sel, txt) => root.querySelectorAll(sel).forEach(el => el.textContent = txt);
+  const name = p => t.plans.length > 1 ? p.name + ' ' : '';
+  set('.js-months', durata(t.months));
+  set('.js-months-n', t.months);
+  set('.js-price-line', t.plans.map(p => name(p) + formatMoney(p.monthly, t.currency) + ' al mese' + (p.price ? ` + ${formatMoney(p.price, t.currency)} di attivazione` : '')).join(', '));
+  set('.js-total', t.plans.map(p => name(p) + formatMoney(p.price + p.monthly * t.months, t.currency)).join(', '));
+  if (t.whatsapp) root.querySelectorAll('.js-wa').forEach(a => a.href = 'https://wa.me/' + t.whatsapp);
+}
 function formatMoney(cents, currency = 'eur') {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
 }
