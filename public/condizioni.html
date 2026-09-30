@@ -31,33 +31,29 @@
   <h1>Condizioni del servizio</h1>
   <p class="muted">Valide per tutti gli ordini di siti web di Nerodoro Studio. Il servizio è rivolto ad attività e professionisti.</p>
 
-  <h2>1. Pacchetti a pagamento unico (Base e Premium)</h2>
-  <ul>
-    <li>Paghi una volta sola: nessun canone e nessun rinnovo automatico.</li>
-    <li>Nel Premium il dominio (www.tuonome.it) è incluso per il primo anno; dal secondo anno il rinnovo del dominio è a carico del cliente.</li>
-  </ul>
-
-  <h2>2. Pacchetti in abbonamento (Base mensile e Premium mensile)</h2>
+  <h2>1. Abbonamento (Base e Plus)</h2>
   <div class="box">
-    <b>In breve:</b> paghi un'<b>attivazione</b> e poi un <b>canone ogni mese</b>. L'abbonamento ha un <b>vincolo minimo di <span class="js-months">12</span> mesi</b>:
+    <b>In breve:</b> paghi un <b>canone fisso ogni mese</b> (<span class="js-prices-short">Base 20 €, Plus 30 €</span>).
+    L'abbonamento ha un <b>vincolo minimo di <span class="js-months">2 anni</span></b>:
     se lo chiudi prima, i mesi che mancano alla fine del vincolo vanno pagati comunque.
   </div>
   <ol>
-    <li><b>Costi.</b> Il giorno dell'attivazione paghi l'attivazione più il primo mese. Poi il canone viene addebitato ogni mese sulla stessa carta, in automatico, tramite Stripe.
+    <li><b>Costi.</b> Il primo giorno paghi il primo mese (più l'eventuale attivazione, se indicata nel riepilogo dell'ordine). Poi il canone, sempre uguale, viene addebitato ogni mese sulla stessa carta, in automatico, tramite Stripe.
       <span class="js-prices"></span></li>
-    <li><b>Vincolo minimo.</b> L'abbonamento dura almeno <span class="js-months">12</span> mesi dal primo pagamento. Il vincolo serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
+    <li><b>Vincolo minimo.</b> L'abbonamento dura almeno <span class="js-months">2 anni</span> dal primo pagamento. Il vincolo serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
     <li><b>Disdetta anticipata.</b> Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano fino alla fine del vincolo. Si possono pagare in un'unica volta.</li>
     <li><b>Dopo il vincolo.</b> L'abbonamento continua mese per mese e puoi disdirlo quando vuoi, con un messaggio su WhatsApp o per email. La disdetta vale dalla fine del mese già pagato.</li>
     <li><b>Mancato pagamento.</b> Se un canone non viene pagato, ti avvisiamo. Dopo 15 giorni senza pagamento il sito può essere sospeso finché la situazione non viene regolarizzata; i canoni non pagati restano dovuti.</li>
     <li><b>Fine dell'abbonamento.</b> Quando l'abbonamento finisce, il sito viene messo offline. I tuoi contenuti (testi, foto, menu) restano tuoi e, se li chiedi, te li mandiamo.</li>
+    <li><b>Plus.</b> Il dominio (www.tuonome.it) è incluso finché l'abbonamento è attivo.</li>
   </ol>
 
-  <h2>3. Pagamenti</h2>
+  <h2>2. Pagamenti</h2>
   <p>I pagamenti avvengono con carta tramite Stripe. Nerodoro Studio non vede né conserva i dati della tua carta.</p>
-  <p><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate (pagamento unico, attivazione e canoni) non sono rimborsabili, neanche se il sito non ti piace. L'unico caso in cui ti restituiamo i soldi è se il sito non ti viene consegnato.</p>
+  <p><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate (canoni ed eventuale attivazione) non sono rimborsabili, neanche se il sito non ti piace. L'unico caso in cui ti restituiamo i soldi è se il sito non ti viene consegnato.</p>
   <p><b>Assistenza.</b> Non forniamo assistenza.</p>
 
-  <h2>4. Contatti</h2>
+  <h2>3. Contatti</h2>
   <p>Per domande o disdette scrivici su <a class="js-wa" href="https://wa.me/27710933377" style="color:var(--gold-2)">WhatsApp</a>.</p>
 </main>
 
@@ -66,9 +62,11 @@
   fetch('/api/config').then(r => r.json()).then(c => {
     const subs = Object.values(c.packages || {}).filter(p => p.recurring);
     if (subs.length) {
-      document.querySelectorAll('.js-months').forEach(el => el.textContent = subs[0].months);
+      document.querySelectorAll('.js-months').forEach(el => el.textContent = durata(subs[0].months));
+      document.querySelector('.js-prices-short').textContent = subs.map(p => `${p.name} ${formatMoney(p.monthly, c.currency)}`).join(', ');
       document.querySelector('.js-prices').textContent = ' Prezzi attuali: ' + subs.map(p =>
-        `${p.name}: ${formatMoney(p.price, c.currency)} di attivazione + ${formatMoney(p.monthly, c.currency)} al mese`).join(' · ') + '.';
+        `${p.name}: ${formatMoney(p.monthly, c.currency)} al mese` + (p.price ? ` + ${formatMoney(p.price, c.currency)} di attivazione` : '') +
+        `, totale del vincolo ${formatMoney(p.price + p.monthly * p.months, c.currency)}`).join(' · ') + '.';
     }
     if (c.whatsapp) document.querySelectorAll('.js-wa').forEach(a => a.href = 'https://wa.me/' + c.whatsapp);
   }).catch(() => {});

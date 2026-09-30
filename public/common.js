@@ -12,6 +12,12 @@ function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Durata leggibile: 100 -> "8 anni e 4 mesi", 24 -> "2 anni", 6 -> "6 mesi"
+function durata(mesi) {
+  const a = Math.floor(mesi / 12), m = mesi % 12;
+  const pa = a ? (a === 1 ? '1 anno' : a + ' anni') : '', pm = m ? (m === 1 ? '1 mese' : m + ' mesi') : '';
+  return [pa, pm].filter(Boolean).join(' e ') || '0 mesi';
+}
 function formatMoney(cents, currency = 'eur') {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100);
 }

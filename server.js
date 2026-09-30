@@ -19,41 +19,29 @@ const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività';
 // Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
-const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').replace(',', '.')) || 1490;
-// Pacchetti in abbonamento: attivazione + canone mensile, con vincolo minimo di mesi
-const eur = (v, d) => parseFloat(String(v ?? d).replace(',', '.')) || d;
-const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 12)));
+// Pacchetti (solo abbonamento): canone mensile fisso, vincolo minimo di mesi, attivazione facoltativa
+const eur = (v, d) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : d; };
+const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 24)));
 const SUB = {
-  base: { activation: eur(process.env.ATTIVAZIONE_BASE, 290), monthly: eur(process.env.CANONE_BASE, 39) },
-  premium: { activation: eur(process.env.ATTIVAZIONE_PREMIUM, 390), monthly: eur(process.env.CANONE_PREMIUM, 59) },
+  base: { activation: eur(process.env.ATTIVAZIONE_BASE, 0), monthly: eur(process.env.CANONE_BASE, 20) },
+  plus: { activation: eur(process.env.ATTIVAZIONE_PLUS, 0), monthly: eur(process.env.CANONE_PLUS, 30) },
 };
 const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
-// I due pacchetti mostrati sul sito e scelti nell'admin
+const durata = m => [Math.floor(m / 12) ? (Math.floor(m / 12) === 1 ? '1 anno' : Math.floor(m / 12) + ' anni') : '', m % 12 ? (m % 12 === 1 ? '1 mese' : m % 12 + ' mesi') : ''].filter(Boolean).join(' e ');
+const subPackage = (id, name, sub, what, features) => ({
+  id, name, recurring: true, months: MIN_MONTHS,
+  price: Math.round(sub.activation * 100), monthly: Math.round(sub.monthly * 100),
+  description: `${what}: ${euro(sub.monthly)} al mese${sub.activation ? ` + ${euro(sub.activation)} di attivazione` : ''}. Vincolo minimo ${durata(MIN_MONTHS)} (totale ${euro(sub.activation + sub.monthly * MIN_MONTHS)}).`,
+  features: [...features, `Vincolo minimo ${durata(MIN_MONTHS)}`],
+});
+// I pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
-  base: {
-    id: 'base', name: 'Base', price: Math.round(PRICE * 100),
-    description: DEFAULT_DESCRIPTION,
-    features: ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni'],
-  },
-  premium: {
-    id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
-    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code',
-    features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
-  },
-  base_mensile: {
-    id: 'base_mensile', name: 'Base mensile', recurring: true, months: MIN_MONTHS,
-    price: Math.round(SUB.base.activation * 100), monthly: Math.round(SUB.base.monthly * 100),
-    description: `Sito web professionale in abbonamento: ${euro(SUB.base.activation)} di attivazione + ${euro(SUB.base.monthly)} al mese. Vincolo minimo ${MIN_MONTHS} mesi.`,
-    features: ['Sito web completo per la tua attività', 'Perfetto da smartphone', 'Pannello per modificare menu, foto e prezzi dal telefono', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
-  },
-  premium_mensile: {
-    id: 'premium_mensile', name: 'Premium mensile', recurring: true, months: MIN_MONTHS,
-    price: Math.round(SUB.premium.activation * 100), monthly: Math.round(SUB.premium.monthly * 100),
-    description: `Sito web professionale + dominio personalizzato + QR code in abbonamento: ${euro(SUB.premium.activation)} di attivazione + ${euro(SUB.premium.monthly)} al mese. Vincolo minimo ${MIN_MONTHS} mesi.`,
-    features: ['Tutto quello che c\'è nel Base mensile', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
-  },
+  base: subPackage('base', 'Base', SUB.base, 'Sito web professionale in abbonamento',
+    ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni']),
+  plus: subPackage('plus', 'Plus', SUB.plus, 'Sito web professionale + dominio personalizzato + QR code in abbonamento',
+    ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)']),
 };
-const isPremium = pkg => String(pkg || '').startsWith('premium');
+const isPremium = pkg => /^(premium|plus)/.test(String(pkg || ''));
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -257,7 +245,9 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   const { restaurant, description, amount, siteUrl, phone } = req.body || {};
   const pkg = PACKAGES[req.body && req.body.package] ? req.body.package : 'base';
   if (!restaurant || !String(restaurant).trim()) return res.status(400).json({ error: 'Nome dell\'attività obbligatorio' });
-  const cents = parseAmount(amount);
+  const recurring = !!PACKAGES[pkg].recurring;
+  // Nell'abbonamento l'attivazione può essere 0 (si paga solo il canone)
+  const cents = recurring && !parseFloat(String(amount || '0').replace(',', '.')) ? 0 : parseAmount(amount);
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
   const url = cleanUrl(siteUrl);
   if (url === null) return res.status(400).json({ error: 'Link del sito non valido' });
@@ -381,9 +371,9 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
             recurring: { interval: 'month' },
             product_data: { name: `Abbonamento sito web — ${o.restaurant}` },
           },
-        }, oneOff],
-        subscription_data: { metadata: { orderId: o.id }, description: `Vincolo minimo ${o.months} mesi (codice ${formatCode(o.id)})` },
-        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${o.months} mesi. Condizioni: ${BASE_URL}/condizioni` } },
+        }, ...(o.amount > 0 ? [oneOff] : [])],
+        subscription_data: { metadata: { orderId: o.id }, description: `Vincolo minimo ${durata(o.months)} (codice ${formatCode(o.id)})` },
+        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${durata(o.months)} (totale ${euro((o.amount + o.monthly * o.months) / 100)}). Se lo chiudi prima, paghi i mesi rimanenti. Condizioni: ${BASE_URL}/condizioni` } },
       } : { mode: 'payment', line_items: [oneOff] }),
       metadata: { orderId: o.id },
       client_reference_id: o.id,

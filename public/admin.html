@@ -234,9 +234,9 @@
       <div class="order" data-id="${o.id}">
         <div class="order-top">
           <div>
-            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${/^(premium|plus)/.test(String(o.package)) ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">' + (o.package === 'plus' ? 'Plus' : 'Premium') + '</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
-            ${o.monthly ? `<div class="meta">💳 Abbonamento${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} · vincolo ${o.months} mesi${o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : ''}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
+            ${o.monthly ? `<div class="meta">💳 Abbonamento${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} · vincolo ${durata(o.months)}${o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : ''}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
         </div>

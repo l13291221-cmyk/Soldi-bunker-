@@ -22,6 +22,10 @@
     .badge.ok { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
     .success-ic { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); color: var(--green); font-size: 2rem; }
     .site-link { display: block; margin: 18px 0; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px dashed var(--gold); color: var(--gold-2); word-break: break-all; text-decoration: none; font-weight: 500; }
+    .sumbox { display: grid; gap: 4px; margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
+    .sumbox b { color: var(--text); font-weight: 600; }
+    .warn-read { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: rgba(214,177,106,.1); border: 1px solid rgba(214,177,106,.35); font-size: .92rem; }
+    .warn-read a { color: var(--gold-2); font-weight: 600; }
     .note { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .9rem; color: var(--muted); margin-bottom: 18px; }
     @media (max-width: 640px) {
       .pay-wrap { padding: 20px 12px 32px; align-items: start; min-height: 0; }
@@ -66,8 +70,8 @@
       <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Inserisci di nuovo il codice</a>`;
   }
 
-  const PKG_NAMES = { base: 'Base', premium: 'Premium', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
-  const isPremium = o => String(o.package || '').startsWith('premium');
+  const PKG_NAMES = { base: 'Base', plus: 'Plus', premium: 'Premium', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
+  const isPremium = o => /^(premium|plus)/.test(String(o.package || ''));
   function renderUnpaid(o) {
     const sub = o.monthly > 0;
     card.innerHTML = `
@@ -81,22 +85,25 @@
         <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
         ${isPremium(o) ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
         ${sub ? `
-        <div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>
-        <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
-        <div class="row"><span class="muted">Vincolo minimo</span><span>${o.months} mesi</span></div>
-        <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
-        <p class="muted small" style="margin:6px 0 0">Attivazione + primo mese. Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
+        <div class="row" style="align-items:center"><span class="muted">Oggi paghi<br><small>${new Date().toLocaleDateString('it-IT')}</small></span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
+        <div class="sumbox">
+          <b>Riepilogo abbonamento</b>
+          <span>${formatMoney(o.monthly, o.currency)} al mese, addebitati in automatico sulla stessa carta${o.amount ? ` (oggi anche ${formatMoney(o.amount, o.currency)} di attivazione)` : ''}</span>
+          <span>Vincolo minimo ${durata(o.months)}: se lo chiudi prima, paghi i mesi rimanenti</span>
+          <span>Totale del vincolo: ${formatMoney(o.amount + o.monthly * o.months, o.currency)}</span>
+        </div>`
         : `
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
       </div>
       ${sub ? `
+      <p class="warn-read">⚠️ Leggi le <a href="/condizioni" target="_blank" rel="noopener">condizioni</a> prima di pagare</p>
       <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.92rem;cursor:pointer">
         <input type="checkbox" id="accept" style="width:20px;height:20px;margin-top:2px;flex:none">
         <span>Ho letto e accetto le <a href="/condizioni" target="_blank" rel="noopener" style="color:var(--gold-2)">condizioni dell'abbonamento</a>:
-        vincolo minimo di <b>${o.months} mesi</b>. Se disdico prima, pago comunque i mesi che mancano alla fine del vincolo.</span>
+        vincolo minimo di ${durata(o.months)}; se disdico prima, pago comunque i mesi che mancano.</span>
       </label>` : ''}
-      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? 'Attiva abbonamento con carta' : 'Paga ora con carta'}</button>
+      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? `Paga ${formatMoney(o.amount + o.monthly, o.currency)} con carta` : 'Paga ora con carta'}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
       <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. Subito dopo il pagamento riceverai il link del tuo sito.</p>`;
     const acc = document.getElementById('accept');

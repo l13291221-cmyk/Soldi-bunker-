@@ -62,21 +62,17 @@ Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: ap
 personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
 (IT, EN, FR, ES, DE) e 3 versioni che si alternano. Il limite di messaggi al giorno si sceglie (30, 50, 75 o 100, predefinito 100); ogni 30 messaggi in un'ora consiglia una pausa.
 
-## Pacchetti
-- **Base** (`PREZZO`, default 990 €): sito web completo (assistenza non inclusa).
-- **Premium** (`PREZZO_PREMIUM`, default 1490 €): Base + dominio personalizzato + QR code.
-Nell'admin scegli il pacchetto quando crei l'ordine. Per il Premium il cliente, dopo aver pagato, vede e scarica il QR code del suo sito; dall'admin il pulsante 🔳 QR code lo genera per qualsiasi ordine con un link.
-
-## Pacchetti in abbonamento
-Oltre a Base e Premium (pagamento unico) ci sono **Base mensile** e **Premium mensile**: attivazione + canone mensile,
-con **vincolo minimo** (predefinito 12 mesi). Prezzi e vincolo si cambiano su Render: `ATTIVAZIONE_BASE`, `CANONE_BASE`,
-`ATTIVAZIONE_PREMIUM`, `CANONE_PREMIUM`, `VINCOLO_MESI`.
-- Nell'admin scegli il pacchetto mensile: il prezzo diventa l'attivazione e compare il campo del canone.
-- Il cliente, prima di pagare, deve spuntare l'accettazione delle **condizioni** (`/condizioni`): data e IP restano salvati nell'ordine.
-- Il primo pagamento è attivazione + primo mese; poi Stripe addebita il canone ogni mese.
-- Nel webhook Stripe attiva anche gli eventi `invoice.paid`, `invoice.payment_failed` e `customer.subscription.deleted`:
-  nell'admin vedi lo stato dell'abbonamento (attivo / insoluto / chiuso) e la fine del vincolo.
-- Disdette e rimborsi si gestiscono dalla dashboard di Stripe (Abbonamenti).
+## Pacchetti (solo abbonamento)
+- **Base**: 20 € al mese (`CANONE_BASE`).
+- **Plus**: 30 € al mese (`CANONE_PLUS`): Base + dominio personalizzato + QR code.
+- Vincolo minimo uguale per tutti (`VINCOLO_MESI`, predefinito 24 mesi = 2 anni). Attivazione facoltativa: `ATTIVAZIONE_BASE`, `ATTIVAZIONE_PLUS` (predefinita 0).
+- La schermata di pagamento mostra in grande quanto si paga oggi e sotto il riepilogo: canone, vincolo (in anni) e totale del vincolo.
+- Prima di pagare il cliente deve spuntare l'accettazione delle **condizioni** (`/condizioni`): data e IP restano salvati nell'ordine.
+  Se chiude l'abbonamento prima della fine del vincolo, paga i mesi rimanenti.
+- Nel webhook Stripe attiva anche `invoice.paid`, `invoice.payment_failed` e `customer.subscription.deleted`: nell'admin vedi lo stato
+  dell'abbonamento (attivo / insoluto / chiuso) e la fine del vincolo. Disdette e rimborsi dalla dashboard di Stripe (Abbonamenti).
+- Per il Plus il cliente, dopo aver pagato, vede e scarica il QR code del suo sito; dall'admin il pulsante 🔳 QR code lo genera per qualsiasi ordine con un link.
+- Nell'admin c'è il **🧮 Calcolatore abbonamenti** per provare prezzi, vincolo e incasso entro una data.
 
 ## Guida nuovo cliente
 Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la copia del sito di ogni cliente dal modello

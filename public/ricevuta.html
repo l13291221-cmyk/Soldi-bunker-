@@ -105,7 +105,8 @@
   const dateIt = d => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   function render() {
-    const gross = order.amount;
+    // Abbonamento: la ricevuta è del primo pagamento (eventuale attivazione + primo mese)
+    const gross = order.amount + (order.monthly || 0);
     const rit = cl.ritenuta ? Math.round(gross * 0.2) : 0;
     const net = gross - rit;
     const bollo = gross > 7747;
