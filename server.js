@@ -20,6 +20,14 @@ const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 ann
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
 const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').replace(',', '.')) || 1490;
+// Pacchetti in abbonamento: attivazione + canone mensile, con vincolo minimo di mesi
+const eur = (v, d) => parseFloat(String(v ?? d).replace(',', '.')) || d;
+const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 12)));
+const SUB = {
+  base: { activation: eur(process.env.ATTIVAZIONE_BASE, 290), monthly: eur(process.env.CANONE_BASE, 39) },
+  premium: { activation: eur(process.env.ATTIVAZIONE_PREMIUM, 390), monthly: eur(process.env.CANONE_PREMIUM, 59) },
+};
+const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
   base: {
@@ -32,7 +40,20 @@ const PACKAGES = {
     description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code + 3 anni di assistenza gratuita',
     features: ['Tutto quello che c\'è nel Base', '3 anni di assistenza gratuita (invece di 1)', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
   },
+  base_mensile: {
+    id: 'base_mensile', name: 'Base mensile', recurring: true, months: MIN_MONTHS,
+    price: Math.round(SUB.base.activation * 100), monthly: Math.round(SUB.base.monthly * 100),
+    description: `Sito web professionale in abbonamento: ${euro(SUB.base.activation)} di attivazione + ${euro(SUB.base.monthly)} al mese, assistenza inclusa. Vincolo minimo ${MIN_MONTHS} mesi.`,
+    features: ['Sito web completo per la tua attività', 'Assistenza inclusa per tutto l\'abbonamento', 'Pannello per modificare menu, foto e prezzi dal telefono', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
+  },
+  premium_mensile: {
+    id: 'premium_mensile', name: 'Premium mensile', recurring: true, months: MIN_MONTHS,
+    price: Math.round(SUB.premium.activation * 100), monthly: Math.round(SUB.premium.monthly * 100),
+    description: `Sito web professionale + dominio personalizzato + QR code in abbonamento: ${euro(SUB.premium.activation)} di attivazione + ${euro(SUB.premium.monthly)} al mese, assistenza inclusa. Vincolo minimo ${MIN_MONTHS} mesi.`,
+    features: ['Tutto quello che c\'è nel Base mensile', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
+  },
 };
+const isPremium = pkg => String(pkg || '').startsWith('premium');
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -78,6 +99,8 @@ function publicOrder(o) {
     amount: o.amount,
     currency: CURRENCY,
     package: o.package || 'base',
+    monthly: o.monthly || 0,
+    months: o.months || 0,
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
@@ -85,13 +108,27 @@ function publicOrder(o) {
     siteToken: o.paid ? (o.siteToken || SITE_TOKEN || null) : null,
   };
 }
-function markPaid(orderId, sessionId) {
+function markPaid(orderId, session) {
   const o = orders[orderId];
   if (!o || o.paid) return;
   o.paid = true;
   o.paidAt = new Date().toISOString();
-  o.stripeSessionId = sessionId;
+  o.stripeSessionId = session.id;
+  if (session.subscription) {
+    o.subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+    o.subStatus = 'attivo';
+    const end = new Date(); end.setMonth(end.getMonth() + (o.months || MIN_MONTHS));
+    o.commitmentEnd = end.toISOString();
+  }
   saveOrders();
+}
+// Stato dell'abbonamento aggiornato dagli eventi Stripe (rinnovi, pagamenti falliti, disdette)
+function orderBySubscription(subId) {
+  return subId ? Object.values(orders).find(o => o.subscriptionId === subId) : null;
+}
+function invoiceSubscription(inv) {
+  const s = inv.subscription || (inv.parent && inv.parent.subscription_details && inv.parent.subscription_details.subscription);
+  return typeof s === 'string' ? s : s && s.id;
 }
 
 // ---------- Sessioni admin (cookie httpOnly) ----------
@@ -153,7 +190,17 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), (req,
   }
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const s = event.data.object;
-    if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId) markPaid(s.metadata.orderId, s.id);
+    if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId) markPaid(s.metadata.orderId, s);
+  } else if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
+    const o = orderBySubscription(invoiceSubscription(event.data.object));
+    if (o) {
+      o.subStatus = event.type === 'invoice.paid' ? 'attivo' : 'insoluto';
+      if (event.type === 'invoice.paid') o.lastPaidAt = new Date().toISOString();
+      saveOrders();
+    }
+  } else if (event.type === 'customer.subscription.deleted') {
+    const o = orderBySubscription(event.data.object.id);
+    if (o) { o.subStatus = 'chiuso'; saveOrders(); }
   }
   res.json({ received: true });
 });
@@ -214,6 +261,11 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
   const url = cleanUrl(siteUrl);
   if (url === null) return res.status(400).json({ error: 'Link del sito non valido' });
+  let monthly = 0;
+  if (PACKAGES[pkg].recurring) {
+    monthly = req.body.monthly !== undefined && String(req.body.monthly).trim() !== '' ? parseAmount(req.body.monthly) : PACKAGES[pkg].monthly;
+    if (monthly === null) return res.status(400).json({ error: 'Canone mensile non valido' });
+  }
   const id = newCode();
   orders[id] = {
     id,
@@ -221,6 +273,7 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
     description: String(description || PACKAGES[pkg].description).trim().slice(0, 300),
     package: pkg,
     amount: cents,
+    ...(monthly && { monthly, months: MIN_MONTHS }),
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
     paid: false,
@@ -296,17 +349,42 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   const o = req.order;
   if (o.paid) return res.status(400).json({ error: 'Ordine già pagato' });
   if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
+  // Abbonamento: il cliente deve aver accettato le condizioni (vincolo minimo) prima di pagare
+  if (o.monthly && !(req.body && req.body.accept === true)) {
+    return res.status(400).json({ error: 'Per l\'abbonamento devi accettare le condizioni.' });
+  }
+  const oneOff = {
+    quantity: 1,
+    price_data: {
+      currency: CURRENCY,
+      unit_amount: o.amount,
+      product_data: {
+        name: o.monthly ? `Attivazione sito web — ${o.restaurant}` : `Sito web — ${o.restaurant}`,
+        description: `${o.description} (codice ${formatCode(o.id)})`,
+      },
+    },
+  };
   try {
+    if (o.monthly) {
+      o.termsAcceptedAt = new Date().toISOString();
+      o.termsAcceptedIp = req.ip;
+      saveOrders();
+    }
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items: [{
-        quantity: 1,
-        price_data: {
-          currency: CURRENCY,
-          unit_amount: o.amount,
-          product_data: { name: `Sito web — ${o.restaurant}`, description: `${o.description} (codice ${formatCode(o.id)})` },
-        },
-      }],
+      ...(o.monthly ? {
+        mode: 'subscription',
+        line_items: [{
+          quantity: 1,
+          price_data: {
+            currency: CURRENCY,
+            unit_amount: o.monthly,
+            recurring: { interval: 'month' },
+            product_data: { name: `Abbonamento sito web — ${o.restaurant}` },
+          },
+        }, oneOff],
+        subscription_data: { metadata: { orderId: o.id }, description: `Vincolo minimo ${o.months} mesi (codice ${formatCode(o.id)})` },
+        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${o.months} mesi. Condizioni: ${BASE_URL}/condizioni` } },
+      } : { mode: 'payment', line_items: [oneOff] }),
       metadata: { orderId: o.id },
       client_reference_id: o.id,
       success_url: `${BASE_URL}/paga/${o.id}?session_id={CHECKOUT_SESSION_ID}`,
@@ -326,7 +404,7 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
   if (!o.paid && stripe && sessionId) {
     try {
       const s = await stripe.checkout.sessions.retrieve(String(sessionId));
-      if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId === o.id) markPaid(o.id, s.id);
+      if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId === o.id) markPaid(o.id, s);
     } catch (err) {
       console.error('Verify error:', err.message);
     }
@@ -336,7 +414,7 @@ app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
 
 app.get('/api/orders/:id/qr', loadPublicOrder, async (req, res) => {
   const o = req.order;
-  if (!o.paid || !o.siteUrl || o.package !== 'premium') return res.status(404).send('QR non disponibile');
+  if (!o.paid || !o.siteUrl || !isPremium(o.package)) return res.status(404).send('QR non disponibile');
   await sendQr(res, o.siteUrl, o.restaurant);
 });
 

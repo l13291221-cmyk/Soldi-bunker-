@@ -123,8 +123,8 @@
     <div class="wrap">
       <div class="section-head">
         <span class="kicker">Prezzi</span>
-        <h2>Due pacchetti, <em>pagamento unico</em>.</h2>
-        <p>Nessun abbonamento: paghi una volta e l'assistenza è già inclusa (1 anno nel Base, 3 anni nel Premium).</p>
+        <h2>Paghi <em>una volta</em>, oppure al mese.</h2>
+        <p>Pagamento unico con l'assistenza già inclusa (1 anno nel Base, 3 anni nel Premium), oppure in abbonamento con una piccola attivazione e un canone mensile.</p>
       </div>
       <div class="plans">
         <div class="plan">
@@ -154,6 +154,25 @@
           <a href="https://wa.me/27710933377?text=Ciao%20Nerodoro%20Studio%21%20Mi%20interessa%20il%20pacchetto%20Premium%20per%20il%20sito%20web%20della%20mia%20attivit%C3%A0." class="btn btn-gold js-wa js-plan" data-plan="Premium" target="_blank" rel="noopener">Scegli Premium</a>
         </div>
       </div>
+
+      <h3 class="plans-sub">Oppure in abbonamento mensile</h3>
+      <div class="plans">
+        <div class="plan">
+          <div class="plan-name">Base mensile</div>
+          <div class="plan-price" data-price="base_mensile">39 €<small>/mese</small></div>
+          <p class="muted small" style="margin:0" data-activation="base_mensile">+ 290 € di attivazione · vincolo 12 mesi</p>
+          <ul class="checks" data-features="base_mensile"></ul>
+          <a href="https://wa.me/27710933377" class="btn btn-ghost js-wa js-plan" data-plan="Base mensile" target="_blank" rel="noopener">Scegli Base mensile</a>
+        </div>
+        <div class="plan">
+          <div class="plan-name">Premium mensile</div>
+          <div class="plan-price" data-price="premium_mensile">59 €<small>/mese</small></div>
+          <p class="muted small" style="margin:0" data-activation="premium_mensile">+ 390 € di attivazione · vincolo 12 mesi</p>
+          <ul class="checks" data-features="premium_mensile"></ul>
+          <a href="https://wa.me/27710933377" class="btn btn-ghost js-wa js-plan" data-plan="Premium mensile" target="_blank" rel="noopener">Scegli Premium mensile</a>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:14px">Abbonamento: vincolo minimo di 12 mesi, poi disdici quando vuoi. <a href="/condizioni" style="color:var(--gold-2)">Leggi le condizioni</a>.</p>
     </div>
   </section>
 
@@ -195,7 +214,7 @@
       <details><summary>Posso modificare il sito da solo?</summary><p>Sì: dal pannello riservato cambi menu, prezzi, foto e orari dal telefono, senza sapere nulla di programmazione. Se ti blocchi, ci scrivi su WhatsApp e ti aiutiamo.</p></details>
       <details><summary>Cosa comprende l'assistenza gratuita?</summary><p>Per 1 anno con il Base, e per 3 anni con il Premium, ti aiutiamo per qualsiasi dubbio o problema con il sito e ti spieghiamo come usare il pannello. Menu, foto, prezzi e orari li cambi tu quando vuoi, direttamente dal telefono, in pochi secondi.</p></details>
       <details><summary>Cosa cambia con il Premium?</summary><p>Hai 3 anni di assistenza gratuita invece di 1, e il tuo sito avrà un indirizzo tutto tuo, tipo www.nomeattivita.it (dominio incluso per il primo anno), e ricevi un QR code in alta qualità da stampare su menu, vetrina e biglietti da visita: i clienti lo inquadrano e aprono subito il sito.</p></details>
-      <details><summary>Ci sono costi mensili?</summary><p>No. Paghi una volta sola e l'assistenza è già inclusa nel prezzo (1 anno nel Base, 3 anni nel Premium).</p></details>
+      <details><summary>Ci sono costi mensili?</summary><p>Con Base e Premium no: paghi una volta sola e l'assistenza è già inclusa. Se preferisci spendere poco all'inizio, ci sono le versioni in abbonamento: una piccola attivazione e poi un canone mensile, con vincolo minimo di 12 mesi.</p></details>
       <details><summary>Quando ricevo il link del sito?</summary><p>Appena il pagamento va a buon fine, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
     </div>
   </section>
@@ -228,7 +247,10 @@
     // Prezzi e contenuti dei pacchetti presi dal server (si cambiano da Render: PREZZO e PREZZO_PREMIUM)
     for (const [k, p] of Object.entries(c.packages || {})) {
       const el = document.querySelector(`[data-price="${k}"]`);
-      if (el) el.textContent = formatMoney(p.price, c.currency);
+      if (el && p.recurring) el.innerHTML = escapeHtml(formatMoney(p.monthly, c.currency)) + '<small>/mese</small>';
+      else if (el) el.textContent = formatMoney(p.price, c.currency);
+      const act = document.querySelector(`[data-activation="${k}"]`);
+      if (act) act.textContent = `+ ${formatMoney(p.price, c.currency)} di attivazione · vincolo ${p.months} mesi`;
       const ul = document.querySelector(`[data-features="${k}"]`);
       if (ul) ul.innerHTML = p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
     }

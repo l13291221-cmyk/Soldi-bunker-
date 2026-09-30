@@ -106,7 +106,8 @@
         <select name="package" id="pkgSel" style="width:100%;padding:13px 14px;border-radius:11px;border:1px solid var(--line);background:var(--bg-2);color:var(--text);font:400 16px var(--sans)">
           <option value="base">Base</option><option value="premium">Premium (dominio + QR code)</option>
         </select></div>
-      <div class="field"><label>Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="990"></div>
+      <div class="field"><label id="amountLbl">Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="990"></div>
+      <div class="field" id="monthlyField" hidden><label>Canone mensile (€) · vincolo minimo nelle condizioni</label><input name="monthly" inputmode="decimal" placeholder="39"></div>
       <div class="field"><label>Link del sito (lo vede solo dopo aver pagato)</label><input name="siteUrl" placeholder="https://..."></div>
       <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
       <div class="field"><label>Descrizione</label><textarea name="description" rows="3" placeholder="Sito web professionale per la tua attività + 1 anno di assistenza gratuita"></textarea></div>
@@ -165,8 +166,9 @@
       <div class="order" data-id="${o.id}">
         <div class="order-top">
           <div>
-            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)} ${o.package === 'premium' ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
+            ${o.monthly ? `<div class="meta">💳 Abbonamento${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} · vincolo ${o.months} mesi${o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : ''}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
         </div>
@@ -259,12 +261,16 @@
   function applyPackage() {
     const p = PKGS[pkgSel.value]; if (!p) return;
     document.querySelector('[name=amount]').value = String(p.price / 100).replace('.', ',');
+    // Abbonamento: il prezzo è l'attivazione, più il canone mensile
+    document.getElementById('monthlyField').hidden = !p.recurring;
+    document.getElementById('amountLbl').textContent = p.recurring ? 'Attivazione (€) *' : 'Prezzo (€) *';
+    document.querySelector('[name=monthly]').value = p.recurring ? String(p.monthly / 100).replace('.', ',') : '';
     document.querySelector('[name=description]').placeholder = p.description;
   }
   pkgSel.addEventListener('change', applyPackage);
   fetch('/api/config').then(r => r.json()).then(c => {
     PKGS = c.packages || {};
-    pkgSel.innerHTML = Object.values(PKGS).map(p => `<option value="${p.id}">${escapeHtml(p.name)} · ${formatMoney(p.price, c.currency)}</option>`).join('');
+    pkgSel.innerHTML = Object.values(PKGS).map(p => `<option value="${p.id}">${escapeHtml(p.name)} · ${formatMoney(p.price, c.currency)}${p.recurring ? ' + ' + formatMoney(p.monthly, c.currency) + '/mese' : ''}</option>`).join('');
     applyPackage();
   }).catch(() => {});
 
