@@ -301,13 +301,3 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .plan-name { font: 600 .82rem var(--sans); letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
 .plan-price { font-family: var(--serif); font-size: 2.4rem; line-height: 1.1; }
 .plan-badge { position: absolute; top: -12px; right: 20px; background: var(--gold); color: #1a1408; font: 700 .72rem var(--sans); padding: 5px 12px; border-radius: 999px; letter-spacing: .5px; }
-
-/* ---------- Testo delle condizioni (pagina /condizioni e foglio prima di pagare) ---------- */
-.terms-body h2 { font-size: 1.2rem; margin: 28px 0 8px; }
-.terms-body p, .terms-body li { color: var(--text); line-height: 1.65; }
-.terms-body ol, .terms-body ul { padding-left: 22px; }
-.terms-body li + li { margin-top: 6px; }
-.terms-body a { color: var(--gold-2); }
-.terms-vincolo { background: rgba(214,177,106,.1); border: 1px solid rgba(214,177,106,.45); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
-.terms-vincolo p { margin: 0; }
-.terms-vincolo p + p { margin-top: 8px; }

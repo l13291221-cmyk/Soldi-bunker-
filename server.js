@@ -19,42 +19,32 @@ const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività';
 // Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
-// Pacchetti (solo abbonamento): canone mensile fisso, vincolo minimo di mesi, attivazione facoltativa
+const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').replace(',', '.')) || 1490;
+// Assistenza facoltativa: canone mensile, senza vincolo (si disdice quando si vuole)
 const eur = (v, d) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : d; };
-const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 100)));
-const SUB = {
-  base: { activation: eur(process.env.ATTIVAZIONE_BASE, 0), monthly: eur(process.env.CANONE_BASE, 20) },
-  plus: { activation: eur(process.env.ATTIVAZIONE_PLUS, 0), monthly: eur(process.env.CANONE_PLUS, 30) },
-};
+const MIN_MONTHS = 1;
+const ASSIST_MONTHLY = eur(process.env.CANONE_ASSISTENZA, 20);
 const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
-const durata = m => [Math.floor(m / 12) ? (Math.floor(m / 12) === 1 ? '1 anno' : Math.floor(m / 12) + ' anni') : '', m % 12 ? (m % 12 === 1 ? '1 mese' : m % 12 + ' mesi') : ''].filter(Boolean).join(' e ');
-const subPackage = (id, name, sub, what, features) => ({
-  id, name, recurring: true, months: MIN_MONTHS, what,
-  price: Math.round(sub.activation * 100), monthly: Math.round(sub.monthly * 100),
-  description: subDescription(what, Math.round(sub.activation * 100), Math.round(sub.monthly * 100), MIN_MONTHS),
-  features: [...features, `Vincolo minimo ${durata(MIN_MONTHS)}`],
-});
-// Testo del riepilogo con canone, vincolo e totale (importi in centesimi)
-function subDescription(what, activation, monthly, months) {
-  return `${what}: ${euro(monthly / 100)} al mese${activation ? ` + ${euro(activation / 100)} di attivazione` : ''}. Vincolo minimo ${durata(months)} (totale ${euro((activation + monthly * months) / 100)}).`;
-}
-// Vincolo scelto nell'admin: anni + mesi (vuoti = vincolo predefinito). null = non valido
-const MAX_MONTHS = 600;
-function parseMonths(years, months) {
-  const y = String(years ?? '').trim(), m = String(months ?? '').trim();
-  if (!y && !m) return MIN_MONTHS;
-  if (!/^\d*$/.test(y) || !/^\d*$/.test(m)) return null;
-  const tot = (parseInt(y, 10) || 0) * 12 + (parseInt(m, 10) || 0);
-  return tot >= 1 && tot <= MAX_MONTHS ? tot : null;
-}
-// I pacchetti mostrati sul sito e scelti nell'admin
+// I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
-  base: subPackage('base', 'Base', SUB.base, 'Sito web professionale in abbonamento',
-    ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni']),
-  plus: subPackage('plus', 'Plus', SUB.plus, 'Sito web professionale + dominio personalizzato + QR code in abbonamento',
-    ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)']),
+  base: {
+    id: 'base', name: 'Base', price: Math.round(PRICE * 100),
+    description: DEFAULT_DESCRIPTION,
+    features: ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni'],
+  },
+  premium: {
+    id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
+    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code',
+    features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
+  },
+  assistenza: {
+    id: 'assistenza', name: 'Assistenza', recurring: true, months: MIN_MONTHS,
+    price: 0, monthly: Math.round(ASSIST_MONTHLY * 100),
+    description: `Assistenza per il tuo sito: ${euro(ASSIST_MONTHLY)} al mese, disdici quando vuoi.`,
+    features: ['Ti aiutiamo per dubbi e problemi con il sito', 'Ti spieghiamo come usare il pannello', 'Disdici quando vuoi'],
+  },
 };
-const isPremium = pkg => /^(premium|plus)/.test(String(pkg || ''));
+const isPremium = pkg => String(pkg || '').startsWith('premium');
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 if (!ADMIN_PIN) console.warn('⚠️  ADMIN_PIN non impostato: l\'area admin è disattivata.');
@@ -89,8 +79,7 @@ function findOrder(raw) {
   return orders[s] || orders[s.toUpperCase().replace(/[^A-Z0-9]/g, '')] || null;
 }
 function adminOrder(o) {
-  const acceptance = o.acceptance && { ...o.acceptance, termsText: undefined };
-  return { ...o, acceptance, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
+  return { ...o, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
 }
 function publicOrder(o) {
   return {
@@ -108,7 +97,6 @@ function publicOrder(o) {
     siteUrl: o.paid ? o.siteUrl || null : null,
     panelPin: o.paid ? (o.panelPin || SITE_PIN || null) : null,
     siteToken: o.paid ? (o.siteToken || SITE_TOKEN || null) : null,
-    approvalText: o.monthly && !o.paid ? approvalText(o) : null,
   };
 }
 function markPaid(orderId, session) {
@@ -123,68 +111,7 @@ function markPaid(orderId, session) {
     const end = new Date(); end.setMonth(end.getMonth() + (o.months || MIN_MONTHS));
     o.commitmentEnd = end.toISOString();
   }
-  const cd = session.customer_details || {};
-  o.payer = {
-    name: cd.name || null,
-    email: cd.email || null,
-    phone: cd.phone || null,
-    address: cd.address || null,
-    taxIds: (cd.tax_ids || []).map(t => ({ type: t.type, value: t.value })),
-    stripeCustomerId: typeof session.customer === 'string' ? session.customer : (session.customer && session.customer.id) || null,
-    amountPaid: session.amount_total ?? null,
-  };
   saveOrders();
-  saveCard(o, session).catch(err => console.error('Dati carta non letti:', err.message));
-}
-// Tipo di carta, ultime 4 cifre, scadenza e paese (Stripe non dà mai il numero completo)
-async function saveCard(o, session) {
-  if (!stripe) return;
-  let pm = null;
-  if (o.subscriptionId) pm = (await stripe.subscriptions.retrieve(o.subscriptionId, { expand: ['default_payment_method'] })).default_payment_method;
-  else if (session.payment_intent) pm = (await stripe.paymentIntents.retrieve(String(session.payment_intent), { expand: ['payment_method'] })).payment_method;
-  if (!pm || typeof pm !== 'object' || !pm.card) return;
-  const c = pm.card;
-  o.payer = { ...o.payer, card: { brand: c.brand, last4: c.last4, expMonth: c.exp_month, expYear: c.exp_year, country: c.country, funding: c.funding } };
-  saveOrders();
-}
-
-// ---------- Prova di accettazione delle condizioni ----------
-// Testo delle condizioni (public/condizioni.html) con vincolo e importi dell'ordine, in chiaro
-const TERMS_HTML = (() => {
-  try {
-    const html = fs.readFileSync(path.join(__dirname, 'public', 'condizioni.html'), 'utf8');
-    const m = html.match(/<div id="termsBody"[^>]*>([\s\S]*?)<\/main>/);
-    return m ? m[1] : '';
-  } catch { return ''; }
-})();
-function termsTextFor(o) {
-  const put = (cls, val) => h => h.replace(new RegExp(`(<(\\w+) class="${cls}">)[^<]*(</\\2>)`, 'g'), `$1${val}$3`);
-  let h = TERMS_HTML;
-  h = put('js-months', durata(o.months))(h);
-  h = put('js-months-n', String(o.months))(h);
-  h = put('js-price-line', `${euro(o.monthly / 100)} al mese${o.amount ? ` + ${euro(o.amount / 100)} di attivazione` : ''}`)(h);
-  h = put('js-total', euro((o.amount + o.monthly * o.months) / 100))(h);
-  return h
-    .replace(/<li[^>]*>/g, '- ').replace(/<\/(p|li|h2|div|ul|ol)>|<br\s*\/?>/g, '\n').replace(/<h2[^>]*>/g, '\n')
-    .replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"')
-    .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
-}
-// Seconda casella: approvazione specifica delle clausole pesanti (artt. 1341 e 1342 c.c.)
-function approvalText(o) {
-  return `Ai sensi degli artt. 1341 e 1342 del Codice Civile approvo specificamente i punti 6 (Rimborsi: nessun rimborso), 7 (rimozione dei contenuti e sospensione del sito), 8 (Mancato pagamento, sospensione e fine) e 12 (vincolo minimo di ${durata(o.months)}, pagamento dei mesi rimanenti in caso di disdetta anticipata e rinnovo mese per mese dopo il vincolo).`;
-}
-function acceptanceFor(o, req) {
-  const termsText = termsTextFor(o);
-  return {
-    at: new Date().toISOString(),
-    ip: req.ip,
-    userAgent: String(req.get('user-agent') || '').slice(0, 400),
-    language: String(req.get('accept-language') || '').slice(0, 120),
-    months: o.months, monthly: o.monthly, activation: o.amount, currency: CURRENCY,
-    termsHash: crypto.createHash('sha256').update(termsText).digest('hex'),
-    specificApproval: approvalText(o),
-    termsText,
-  };
 }
 // Stato dell'abbonamento aggiornato dagli eventi Stripe (rinnovi, pagamenti falliti, disdette)
 function orderBySubscription(subId) {
@@ -321,9 +248,8 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
   const { restaurant, description, amount, siteUrl, phone } = req.body || {};
   const pkg = PACKAGES[req.body && req.body.package] ? req.body.package : 'base';
   if (!restaurant || !String(restaurant).trim()) return res.status(400).json({ error: 'Nome dell\'attività obbligatorio' });
-  const recurring = !!PACKAGES[pkg].recurring;
-  // Nell'abbonamento l'attivazione può essere 0 (si paga solo il canone)
-  const cents = recurring && !parseFloat(String(amount || '0').replace(',', '.')) ? 0 : parseAmount(amount);
+  // Assistenza: niente prezzo iniziale, solo il canone mensile
+  const cents = PACKAGES[pkg].recurring && !parseFloat(String(amount || '0').replace(',', '.')) ? 0 : parseAmount(amount);
   if (cents === null) return res.status(400).json({ error: 'Prezzo non valido (minimo 0,50)' });
   const url = cleanUrl(siteUrl);
   if (url === null) return res.status(400).json({ error: 'Link del sito non valido' });
@@ -332,16 +258,14 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
     monthly = req.body.monthly !== undefined && String(req.body.monthly).trim() !== '' ? parseAmount(req.body.monthly) : PACKAGES[pkg].monthly;
     if (monthly === null) return res.status(400).json({ error: 'Canone mensile non valido' });
   }
-  const months = monthly ? parseMonths(req.body.vincoloAnni, req.body.vincoloMesi) : 0;
-  if (months === null) return res.status(400).json({ error: `Vincolo non valido (da 1 mese a ${MAX_MONTHS / 12} anni)` });
   const id = newCode();
   orders[id] = {
     id,
     restaurant: String(restaurant).trim().slice(0, 120),
-    description: String(description || (monthly ? subDescription(PACKAGES[pkg].what, cents, monthly, months) : PACKAGES[pkg].description)).trim().slice(0, 300),
+    description: String(description || PACKAGES[pkg].description).trim().slice(0, 300),
     package: pkg,
     amount: cents,
-    ...(monthly && { monthly, months }),
+    ...(monthly && { monthly, months: MIN_MONTHS }),
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
     paid: false,
@@ -369,86 +293,8 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
     if (cents === null) return res.status(400).json({ error: 'Prezzo non valido' });
     o.amount = cents;
   }
-  if ((b.vincoloAnni !== undefined || b.vincoloMesi !== undefined) && o.monthly && !o.paid) {
-    const months = parseMonths(b.vincoloAnni, b.vincoloMesi);
-    if (months === null) return res.status(400).json({ error: `Vincolo non valido (da 1 mese a ${MAX_MONTHS / 12} anni)` });
-    o.months = months;
-    // aggiorna anche il riepilogo che vede il cliente
-    o.description = String(o.description || '').replace(/Vincolo minimo [^(]+\(totale [^)]+\)/,
-      `Vincolo minimo ${durata(months)} (totale ${euro((o.amount + o.monthly * months) / 100)})`);
-  }
   saveOrders();
   res.json({ order: adminOrder(o) });
-});
-
-// Ricevute: tutti i pagamenti ricevuti (primo pagamento e canoni di ogni mese), letti da Stripe
-app.get('/api/admin/receipts', requireAdmin, async (req, res) => {
-  const paid = Object.values(orders).filter(o => o.paid && (!req.query.order || o.id === req.query.order));
-  const base = o => ({ orderId: o.id, code: formatCode(o.id), restaurant: o.restaurant, currency: CURRENCY });
-  const firstOnly = o => ({ ...base(o), id: 'primo', first: true, paidAt: o.paidAt, amount: o.amount + (o.monthly || 0), stripeUrl: null, pdfUrl: null });
-  const receipts = [], errors = [];
-  await Promise.all(paid.map(async o => {
-    if (!stripe || !o.stripeSessionId) { receipts.push(firstOnly(o)); return; }
-    try {
-      if (o.subscriptionId) {
-        const invs = await stripe.invoices.list({ subscription: o.subscriptionId, status: 'paid', limit: 100 }).autoPagingToArray({ limit: 1000 });
-        const mine = invs.filter(inv => inv.amount_paid > 0).map(inv => {
-          const period = inv.lines && inv.lines.data && inv.lines.data[0] && inv.lines.data[0].period;
-          return {
-            ...base(o), id: inv.id, number: inv.number, first: inv.billing_reason === 'subscription_create',
-            paidAt: new Date(((inv.status_transitions && inv.status_transitions.paid_at) || inv.created) * 1000).toISOString(),
-            amount: inv.amount_paid, currency: inv.currency || CURRENCY,
-            periodStart: period ? new Date(period.start * 1000).toISOString() : null,
-            periodEnd: period ? new Date(period.end * 1000).toISOString() : null,
-            stripeUrl: inv.hosted_invoice_url || null, pdfUrl: inv.invoice_pdf || null,
-          };
-        });
-        receipts.push(...(mine.length ? mine : [firstOnly(o)]));
-      } else {
-        const s = await stripe.checkout.sessions.retrieve(o.stripeSessionId, { expand: ['payment_intent.latest_charge'] });
-        const ch = s.payment_intent && s.payment_intent.latest_charge;
-        receipts.push({ ...firstOnly(o), amount: s.amount_total ?? o.amount, stripeUrl: (ch && ch.receipt_url) || null });
-      }
-    } catch (err) {
-      errors.push(`${o.restaurant}: ${err.message}`);
-      receipts.push(firstOnly(o));
-    }
-  }));
-  receipts.sort((a, b) => String(b.paidAt).localeCompare(String(a.paidAt)));
-  res.json({ receipts, currency: CURRENCY, errors });
-});
-
-// Prova di accettazione in un file di testo: dati del cliente, IP, dispositivo e condizioni accettate
-app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
-  const o = orders[req.params.id];
-  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
-  const a = o.acceptance || {}, p = o.payer || {}, c = p.card || {};
-  const when = iso => iso ? `${new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} (ora italiana) · ${iso}` : '—';
-  const addr = p.address ? [p.address.line1, p.address.line2, [p.address.postal_code, p.address.city, p.address.state].filter(Boolean).join(' '), p.address.country].filter(Boolean).join(', ') : '';
-  const months = a.months || o.months;
-  const lines = [
-    'PROVA DI ACCETTAZIONE DELLE CONDIZIONI — Nerodoro Studio', '',
-    `Ordine: ${formatCode(o.id)}`, `Attività: ${o.restaurant}`, `WhatsApp (dall'ordine): ${o.phone || '—'}`, `Pacchetto: ${o.package || 'base'}`, '',
-    'ACCETTAZIONE',
-    `Data e ora: ${when(a.at || o.termsAcceptedAt)}`,
-    `Indirizzo IP: ${a.ip || o.termsAcceptedIp || '—'}`,
-    `Browser e dispositivo: ${a.userAgent || '—'}`,
-    `Lingua del browser: ${a.language || '—'}`,
-    `Vincolo accettato: ${months ? `${durata(months)} (${months} mesi)` : '—'}`,
-    ...(o.monthly ? [`Canone: ${euro((a.monthly ?? o.monthly) / 100)} al mese · Attivazione: ${euro((a.activation ?? o.amount) / 100)} · Totale del vincolo: ${euro(((a.activation ?? o.amount) + (a.monthly ?? o.monthly) * months) / 100)}`] : []),
-    `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`,
-    `Seconda casella spuntata (approvazione specifica): ${a.specificApproval || '—'}`, '',
-    'PAGAMENTO (dati inseriti dal cliente su Stripe)',
-    `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
-    `Nome: ${p.name || '—'}`, `Email: ${p.email || '—'}`, `Telefono: ${p.phone || '—'}`, `Indirizzo di fatturazione: ${addr || '—'}`,
-    `Partita IVA / codici: ${(p.taxIds || []).map(t => `${t.value} (${t.type})`).join(', ') || '—'}`,
-    `Carta: ${c.last4 ? `${c.brand} •••• ${c.last4}, scadenza ${String(c.expMonth).padStart(2, '0')}/${c.expYear}, paese ${c.country || '—'}, tipo ${c.funding || '—'}` : '—'}`,
-    `Cliente Stripe: ${p.stripeCustomerId || '—'}`, `Abbonamento Stripe: ${o.subscriptionId || '—'}`, `Sessione di pagamento Stripe: ${o.stripeSessionId || '—'}`, '',
-    'TESTO DELLE CONDIZIONI ACCETTATE', a.termsText || '(non salvato: ordine accettato prima di questa funzione)',
-  ];
-  res.set('Content-Type', 'text/plain; charset=utf-8');
-  res.set('Content-Disposition', `attachment; filename="prova-${formatCode(o.id)}.txt"`);
-  res.send(lines.join('\n') + '\n');
 });
 
 app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
@@ -499,25 +345,21 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   if (o.monthly && !(req.body && req.body.accept === true)) {
     return res.status(400).json({ error: 'Per l\'abbonamento devi accettare le condizioni.' });
   }
-  if (o.monthly && req.body.approve !== true) {
-    return res.status(400).json({ error: 'Per pagare spunta anche l\'approvazione dei punti 6, 7, 8 e 12.' });
-  }
   const oneOff = {
     quantity: 1,
     price_data: {
       currency: CURRENCY,
       unit_amount: o.amount,
       product_data: {
-        name: o.monthly ? `Attivazione sito web — ${o.restaurant}` : `Sito web — ${o.restaurant}`,
+        name: `Sito web — ${o.restaurant}`,
         description: `${o.description} (codice ${formatCode(o.id)})`,
       },
     },
   };
   try {
     if (o.monthly) {
-      o.acceptance = acceptanceFor(o, req);
-      o.termsAcceptedAt = o.acceptance.at;
-      o.termsAcceptedIp = o.acceptance.ip;
+      o.termsAcceptedAt = new Date().toISOString();
+      o.termsAcceptedIp = req.ip;
       saveOrders();
     }
     const session = await stripe.checkout.sessions.create({
@@ -529,14 +371,11 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
             currency: CURRENCY,
             unit_amount: o.monthly,
             recurring: { interval: 'month' },
-            product_data: { name: `Abbonamento sito web — ${o.restaurant}` },
+            product_data: { name: `Assistenza sito web — ${o.restaurant}` },
           },
         }, ...(o.amount > 0 ? [oneOff] : [])],
-        billing_address_collection: 'required',
-        phone_number_collection: { enabled: true },
-        tax_id_collection: { enabled: true },
-        subscription_data: { metadata: { orderId: o.id, vincoloMesi: String(o.months) }, description: `Vincolo minimo ${durata(o.months)} (codice ${formatCode(o.id)})` },
-        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${durata(o.months)} (totale ${euro((o.amount + o.monthly * o.months) / 100)}). Se lo chiudi prima, paghi i mesi rimanenti. Condizioni: ${BASE_URL}/condizioni?mesi=${o.months}` } },
+        subscription_data: { metadata: { orderId: o.id }, description: `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
+        custom_text: { submit: { message: `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
       } : { mode: 'payment', line_items: [oneOff] }),
       metadata: { orderId: o.id },
       client_reference_id: o.id,

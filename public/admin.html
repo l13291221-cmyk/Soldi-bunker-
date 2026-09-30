@@ -36,12 +36,6 @@
     .pill.paid { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
     .pill.wait { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
     .linkbox { display: flex; gap: 8px; margin-top: 12px; }
-    .rc { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-    .rc:last-child { border-bottom: 0; }
-    .rc-act { display: flex; gap: 6px; flex-wrap: wrap; }
-    .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 10px 0 12px; font-size: .85rem; }
-    .kv span { color: var(--muted); }
-    .kv b { font-weight: 500; overflow-wrap: anywhere; }
     .linkbox input { font-size: .85rem; padding: 10px 12px; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .btn-wa { background: #25d366; color: #fff; }
@@ -104,10 +98,7 @@
 </header>
 
 <main class="wrap admin">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-    <h1 style="font-size:2rem;margin:0">Ordini</h1>
-    <a href="#ricevute" class="btn btn-ghost btn-sm">🧾 Ricevute</a>
-  </div>
+  <h1 style="font-size:2rem;margin:0">Ordini</h1>
   <div id="tokWarn" class="panel" style="margin-top:14px;border-color:var(--red);color:var(--red);padding:14px 16px" hidden></div>
   <div class="stats">
     <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
@@ -124,13 +115,7 @@
           <option value="base">Base</option><option value="premium">Premium (dominio + QR code)</option>
         </select></div>
       <div class="field"><label id="amountLbl">Prezzo (€) *</label><input name="amount" required inputmode="decimal" placeholder="990"></div>
-      <div class="field" id="monthlyField" hidden><label>Canone mensile (€)</label><input name="monthly" inputmode="decimal" placeholder="39"></div>
-      <div class="field" id="vincoloField" hidden><label>Vincolo minimo (lo vede il cliente e va su Stripe)</label>
-        <div style="display:flex;gap:10px;align-items:center">
-          <input name="vincoloAnni" inputmode="numeric" placeholder="8" style="flex:1;min-width:0"><span class="muted small">anni</span>
-          <input name="vincoloMesi" inputmode="numeric" placeholder="4" style="flex:1;min-width:0"><span class="muted small">mesi</span>
-        </div>
-        <p class="muted small" id="vincoloInfo" style="margin:6px 0 0"></p></div>
+      <div class="field" id="monthlyField" hidden><label>Canone mensile (€) · vincolo minimo nelle condizioni</label><input name="monthly" inputmode="decimal" placeholder="39"></div>
       <div class="field"><label>Link del sito (lo vede solo dopo aver pagato)</label><input name="siteUrl" placeholder="https://..."></div>
       <div class="field"><label>WhatsApp cliente (con prefisso)</label><input name="phone" inputmode="tel" placeholder="+39 333 1234567"></div>
       <div class="field"><label>Descrizione</label><textarea name="description" rows="3" placeholder="Sito web professionale per la tua attività"></textarea></div>
@@ -143,13 +128,6 @@
       <div id="list"><div class="spinner"></div></div>
     </div>
   </div>
-
-  <section id="ricevute" class="panel" style="margin-top:22px;padding:24px">
-    <h3 style="margin-bottom:4px">🧾 Ricevute</h3>
-    <p class="muted small" style="margin:0 0 14px">Tutti i pagamenti ricevuti, anche i canoni di ogni mese, presi da Stripe. Per ognuno: la tua ricevuta da stampare e la ricevuta di Stripe.</p>
-    <div class="stats" id="rcStats" style="margin:0 0 14px"></div>
-    <div id="rcList"><div class="spinner"></div></div>
-  </section>
 
   <section id="calcolo" class="panel" style="margin-top:22px;padding:24px">
     <h3 style="margin-bottom:4px">🧮 Calcolatore abbonamenti</h3>
@@ -244,28 +222,6 @@
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }
 
-  // Prova di accettazione: chi ha accettato, quando, da dove e con quali dati ha pagato
-  function proof(o) {
-    const a = o.acceptance || {}, p = o.payer || {}, c = p.card || {};
-    if (!a.at && !o.termsAcceptedAt && !o.payer) return '';
-    const ad = p.address ? [p.address.line1, p.address.line2, [p.address.postal_code, p.address.city].filter(Boolean).join(' '), p.address.country].filter(Boolean).join(', ') : '';
-    const rows = [
-      ['Accettate il', (a.at || o.termsAcceptedAt) && new Date(a.at || o.termsAcceptedAt).toLocaleString('it-IT')],
-      ['IP', a.ip || o.termsAcceptedIp],
-      ['Dispositivo', a.userAgent],
-      ['Lingua', a.language],
-      ['Vincolo accettato', a.months && durata(a.months)],
-      ['Seconda casella', a.specificApproval && 'Punti 6, 7, 8 e 12 approvati'],
-      ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
-      ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
-      ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],
-    ].filter(r => r[1]);
-    return `<details class="more"><summary>🧾 Prova di accettazione e dati del cliente</summary>
-      <div class="kv">${rows.map(r => `<span>${r[0]}</span><b>${escapeHtml(r[1])}</b>`).join('')}</div>
-      <a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">⬇️ Scarica la prova completa (.txt)</a>
-    </details>`;
-  }
-
   function render(orders) {
     const paid = orders.filter(o => o.paid);
     document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount, 0), currency);
@@ -278,9 +234,9 @@
       <div class="order" data-id="${o.id}">
         <div class="order-top">
           <div>
-            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${/^(premium|plus)/.test(String(o.package)) ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">' + (o.package === 'plus' ? 'Plus' : 'Premium') + '</span>' : ''}</h4>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
-            ${o.monthly ? `<div class="meta">💳 Abbonamento${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} · vincolo ${durata(o.months)}${o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : ''}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
+            ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
         </div>
@@ -288,9 +244,6 @@
           <div><small>Codice da mandare al cliente</small><span class="code">${escapeHtml(o.code)}</span></div>
           <button class="btn btn-gold btn-sm" data-copy="${escapeHtml(o.code)}" data-msg="Codice copiato">Copia codice</button>
         </div>
-        ${o.monthly && !o.paid ? `
-        <label style="margin-top:12px">Vincolo minimo (modificabile finché non paga)</label>
-        <div class="linkbox"><input class="vy" inputmode="numeric" style="flex:1;min-width:0" value="${Math.floor(o.months / 12)}" aria-label="Anni"><span class="muted small" style="align-self:center">anni</span><input class="vm" inputmode="numeric" style="flex:1;min-width:0" value="${o.months % 12}" aria-label="Mesi"><span class="muted small" style="align-self:center">mesi</span><button class="btn btn-ghost btn-sm" data-savev>Salva</button></div>` : ''}
         <label style="margin-top:12px">Link sito del cliente (lo vede solo dopo aver pagato)</label>
         <div class="linkbox"><input class="site" value="${escapeHtml(o.siteUrl || '')}" placeholder="https://..."><button class="btn btn-ghost btn-sm" data-save>Salva</button></div>
         <details class="more"><summary>PIN e token solo per questo cliente (facoltativo)</summary>
@@ -298,7 +251,6 @@
           <div class="linkbox"><input class="pin" inputmode="numeric" value="${escapeHtml(o.panelPin || '')}" placeholder="PIN pannello (6 cifre)"></div>
           <div class="linkbox"><input class="tok" type="password" autocomplete="off" value="${escapeHtml(o.siteToken || '')}" placeholder="Token GitHub del suo sito"><button class="btn btn-ghost btn-sm" data-savex>Salva</button></div>
         </details>
-        ${proof(o)}
         <div class="actions">
           <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>
@@ -382,52 +334,13 @@
     document.getElementById('amountLbl').textContent = p.recurring ? 'Attivazione (€) *' : 'Prezzo (€) *';
     document.querySelector('[name=monthly]').value = p.recurring ? String(p.monthly / 100).replace('.', ',') : '';
     document.querySelector('[name=description]').placeholder = p.description;
-    document.getElementById('vincoloField').hidden = !p.recurring;
-    document.querySelector('[name=vincoloAnni]').value = p.recurring ? Math.floor(p.months / 12) : '';
-    document.querySelector('[name=vincoloMesi]').value = p.recurring ? p.months % 12 : '';
-    vincoloInfo();
   }
-  // Sotto il vincolo: durata in parole e totale che il cliente pagherà
-  function vincoloInfo() {
-    const num = n => parseFloat(String(n || '0').replace(',', '.')) || 0;
-    const mesi = (parseInt(document.querySelector('[name=vincoloAnni]').value, 10) || 0) * 12 + (parseInt(document.querySelector('[name=vincoloMesi]').value, 10) || 0);
-    const tot = Math.round((num(document.querySelector('[name=amount]').value) + num(document.querySelector('[name=monthly]').value) * mesi) * 100);
-    document.getElementById('vincoloInfo').textContent = mesi ? `${durata(mesi)} = ${mesi} mesi · totale ${formatMoney(tot, currency)}` : '';
-  }
-  ['vincoloAnni', 'vincoloMesi', 'monthly', 'amount'].forEach(n => document.querySelector(`[name=${n}]`).addEventListener('input', vincoloInfo));
   pkgSel.addEventListener('change', applyPackage);
   fetch('/api/config').then(r => r.json()).then(c => {
     PKGS = c.packages || {};
     pkgSel.innerHTML = Object.values(PKGS).map(p => `<option value="${p.id}">${escapeHtml(p.name)} · ${formatMoney(p.price, c.currency)}${p.recurring ? ' + ' + formatMoney(p.monthly, c.currency) + '/mese' : ''}</option>`).join('');
     applyPackage();
   }).catch(() => {});
-
-  // Ricevute: elenco di tutti i pagamenti, dal più recente
-  async function loadReceipts() {
-    const box = document.getElementById('rcList');
-    try {
-      const d = await api('/api/admin/receipts');
-      const rs = d.receipts || [], cur = d.currency || currency;
-      const day = s => s ? new Date(s).toLocaleDateString('it-IT') : '—';
-      const now = new Date(), thisMonth = rs.filter(r => { const t = new Date(r.paidAt); return t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth(); });
-      const sum = a => a.reduce((s, r) => s + r.amount, 0);
-      document.getElementById('rcStats').innerHTML = `
-        <div class="stat"><span class="muted small">Totale incassato</span><b>${formatMoney(sum(rs), cur)}</b></div>
-        <div class="stat"><span class="muted small">Questo mese</span><b>${formatMoney(sum(thisMonth), cur)}</b></div>
-        <div class="stat"><span class="muted small">Pagamenti</span><b>${rs.length}</b></div>`;
-      box.innerHTML = (d.errors && d.errors.length ? `<p class="err">Stripe non ha risposto per: ${d.errors.map(escapeHtml).join(' · ')}</p>` : '') +
-        (rs.length ? rs.map(r => `
-        <div class="rc">
-          <div><b>${escapeHtml(r.restaurant)}</b> · ${formatMoney(r.amount, r.currency || cur)}<br>
-            <span class="muted small">${day(r.paidAt)} · ${r.first ? 'Primo pagamento' : `Canone ${r.periodStart ? day(r.periodStart) + ' – ' + day(r.periodEnd) : 'mensile'}`}${r.number ? ' · n. Stripe ' + escapeHtml(r.number) : ''} · ${escapeHtml(r.code)}</span></div>
-          <div class="rc-act">
-            <a class="btn btn-gold btn-sm" href="/ricevuta?id=${encodeURIComponent(r.orderId)}${r.first ? '' : '&inv=' + encodeURIComponent(r.id)}">🧾 Ricevuta</a>
-            ${r.stripeUrl ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(r.stripeUrl)}" target="_blank" rel="noopener">Stripe</a>` : ''}
-            ${r.pdfUrl ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(r.pdfUrl)}" target="_blank" rel="noopener">PDF</a>` : ''}
-          </div>
-        </div>`).join('') : '<div class="empty">Nessun pagamento ancora. Qui compariranno tutti i pagamenti, anche i canoni di ogni mese.</div>');
-    } catch (err) { if (err.message !== '401') box.innerHTML = `<p class="err">${escapeHtml(err.message)}</p>`; }
-  }
 
   async function refresh() {
     const d = await api('/api/admin/orders');
@@ -448,9 +361,6 @@
       } else if (b.hasAttribute('data-savex')) {
         await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ panelPin: box.querySelector('.pin').value, siteToken: box.querySelector('.tok').value }) });
         toast('PIN e token salvati'); refresh();
-      } else if (b.hasAttribute('data-savev')) {
-        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ vincoloAnni: box.querySelector('.vy').value, vincoloMesi: box.querySelector('.vm').value }) });
-        toast('Vincolo salvato'); refresh();
       } else if (b.hasAttribute('data-del')) {
         if (!confirm('Eliminare questo ordine? Il link di pagamento smetterà di funzionare.')) return;
         await api(`/api/admin/orders/${id}`, { method: 'DELETE' });
@@ -497,9 +407,7 @@
     }
     refresh();
     refreshMonitors();
-    loadReceipts();
     setInterval(() => { refresh(); refreshMonitors(); }, 15000);
-    setInterval(loadReceipts, 5 * 60000); // Stripe: basta ogni 5 minuti
   });
 </script>
 </body>

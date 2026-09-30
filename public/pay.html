@@ -22,8 +22,6 @@
     .badge.ok { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
     .success-ic { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); color: var(--green); font-size: 2rem; }
     .site-link { display: block; margin: 18px 0; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px dashed var(--gold); color: var(--gold-2); word-break: break-all; text-decoration: none; font-weight: 500; }
-    .sumbox { display: grid; gap: 4px; margin: 12px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line); font-size: .9rem; color: var(--muted); }
-    .sumbox b { color: var(--text); font-weight: 600; }
     .note { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .9rem; color: var(--muted); margin-bottom: 18px; }
     @media (max-width: 640px) {
       .pay-wrap { padding: 20px 12px 32px; align-items: start; min-height: 0; }
@@ -31,21 +29,6 @@
       .total { font-size: 1.8rem; }
       .row { padding: 12px 0; font-size: .95rem; }
     }
-    /* Foglio delle condizioni: si apre dal basso a metà schermo e si scorre */
-    .sheet-bg { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.6); opacity: 0; transition: opacity .25s; }
-    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; margin: 0 auto; width: min(640px, 100%); height: 62vh; height: 62dvh;
-      display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0;
-      box-shadow: 0 -20px 60px -20px #000; transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
-    .sheet-open .sheet-bg { opacity: 1; }
-    .sheet-open .sheet { transform: none; }
-    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--line); position: relative; }
-    .sheet-head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: var(--line); }
-    .sheet-head h2 { font-size: 1.25rem; margin: 0; }
-    .sheet-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 1.2rem; cursor: pointer; }
-    .sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 20px 24px; }
-    .sheet-body .terms-body > p.muted:first-child { margin-top: 14px; }
-    .sheet-pay { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
-    body.sheet-lock { overflow: hidden; }
     .guide { text-align: left; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
     .guide h3 { font: 600 1.05rem var(--sans); margin: 0 0 10px; letter-spacing: 0; }
     .guide ol { padding-left: 20px; margin: 0; display: grid; gap: 12px; font-size: .93rem; }
@@ -83,115 +66,52 @@
       <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Inserisci di nuovo il codice</a>`;
   }
 
-  const PKG_NAMES = { base: 'Base', plus: 'Plus', premium: 'Premium', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
-  const isPremium = o => /^(premium|plus)/.test(String(o.package || ''));
+  const PKG_NAMES = { base: 'Base', premium: 'Premium', assistenza: 'Assistenza', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
+  const isPremium = o => String(o.package || '').startsWith('premium');
   function renderUnpaid(o) {
     const sub = o.monthly > 0;
     card.innerHTML = `
       ${cancelled ? '<div class="note">Pagamento annullato. Nessun addebito effettuato: puoi riprovare quando vuoi.</div>' : ''}
       <span class="kicker">Riepilogo ordine</span>
       <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
-      <p class="muted" style="margin-top:0">${escapeHtml(String(o.description || '').replace(/\s*Vincolo minimo [^(]+\(totale [^)]+\)\.?/, ''))}</p>
+      <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
       <div style="margin:18px 0">
         <div class="row"><span class="muted">Codice ordine</span><span style="font-family:ui-monospace,monospace;letter-spacing:2px;color:var(--gold-2)">${escapeHtml(o.code)}</span></div>
         <div class="row"><span class="muted">Pacchetto</span><span>${escapeHtml(PKG_NAMES[o.package] || 'Base')}</span></div>
-        <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
+        <div class="row"><span class="muted">Servizio</span><span>${o.package === 'assistenza' ? 'Assistenza per il sito' : 'Sito web professionale'}</span></div>
         ${isPremium(o) ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
         ${sub ? `
-        <div class="row" style="align-items:center"><span class="muted">Oggi paghi<br><small>${new Date().toLocaleDateString('it-IT')}</small></span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>`
+        ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
+        <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
+        <div class="row"><span class="muted">Durata</span><span>${o.months > 1 ? 'Vincolo minimo ' + o.months + ' mesi' : 'Disdici quando vuoi'}</span></div>
+        <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
+        <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
         : `
         <div class="row"><span class="muted">Pagamento</span><span>Unico</span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
       </div>
       ${sub ? `
-      <label class="accept" style="display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:.95rem;cursor:pointer">
-        <input type="checkbox" id="accept" style="width:20px;height:20px;flex:none"><span>Accetto le condizioni</span>
+      <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.92rem;cursor:pointer">
+        <input type="checkbox" id="accept" style="width:20px;height:20px;margin-top:2px;flex:none">
+        <span>Ho letto e accetto le <a href="/condizioni" target="_blank" rel="noopener" style="color:var(--gold-2)">condizioni</a>${o.months > 1 ? `: vincolo minimo di <b>${o.months} mesi</b>. Se disdico prima, pago comunque i mesi che mancano alla fine del vincolo.` : ': addebito mensile automatico, disdetta quando voglio.'}</span>
       </label>` : ''}
-      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? `Paga ${formatMoney(o.amount + o.monthly, o.currency)} con carta` : 'Paga ora con carta'}</button>
+      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? 'Attiva con carta' : 'Paga ora con carta'}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
-      <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. Subito dopo il pagamento riceverai il link del tuo sito.</p>`;
+      <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. ${o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.'}</p>`;
     const acc = document.getElementById('accept');
     if (acc) acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
-    // Abbonamento: prima le condizioni (con il vincolo in fondo), poi il pagamento
-    document.getElementById('payBtn').addEventListener('click', e => sub ? openTerms(o) : checkout(e.currentTarget, false, document.getElementById('payErr')));
+    document.getElementById('payBtn').addEventListener('click', async e => {
+      const b = e.currentTarget, label = b.textContent;
+      b.disabled = true; b.textContent = 'Reindirizzamento…';
+      const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept: !!(acc && acc.checked) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d.url) { location.href = d.url; return; }
+      document.getElementById('payErr').textContent = d.error || 'Errore, riprova.';
+      b.disabled = false; b.textContent = label;
+    });
   }
-
-  async function checkout(b, accept, errEl, approve = false) {
-    const label = b.textContent;
-    b.disabled = true; b.textContent = 'Reindirizzamento…';
-    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept, approve }),
-    }).catch(() => null);
-    const d = r ? await r.json().catch(() => ({})) : {};
-    if (d.url) { location.href = d.url; return; }
-    errEl.textContent = d.error || 'Errore di connessione, riprova.';
-    b.disabled = false; b.textContent = label;
-  }
-
-  // Foglio a metà schermo con tutte le condizioni (prese da /condizioni), il vincolo e il tasto «Paga»
-  let termsHtml = null;
-  async function openTerms(o) {
-    const opener = document.activeElement;
-    const total = formatMoney(o.amount + o.monthly, o.currency);
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `
-      <div class="sheet-bg" data-close></div>
-      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1">
-        <div class="sheet-head"><h2 id="sheetTitle">Condizioni del servizio</h2><button class="sheet-x" data-close aria-label="Chiudi">✕</button></div>
-        <div class="sheet-body">
-          <div class="terms-slot"><div class="spinner"></div></div>
-          <div class="sheet-pay">
-            <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.9rem;cursor:pointer">
-              <input type="checkbox" id="approve" style="width:20px;height:20px;margin-top:2px;flex:none"><span>${escapeHtml(o.approvalText || '')}</span>
-            </label>
-            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>Paga ${total} con carta</button>
-            <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
-            <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe per pagare in sicurezza.</p>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(wrap);
-    document.body.classList.add('sheet-lock');
-    const sheet = wrap.querySelector('.sheet');
-    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('sheet-open')));
-    sheet.focus({ preventScroll: true });
-
-    const close = () => {
-      wrap.classList.remove('sheet-open');
-      document.body.classList.remove('sheet-lock');
-      document.removeEventListener('keydown', onKey);
-      setTimeout(() => wrap.remove(), 300);
-      if (opener && opener.focus) opener.focus();
-    };
-    const onKey = e => { if (e.key === 'Escape') close(); };
-    document.addEventListener('keydown', onKey);
-    wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
-    // le condizioni sono già state accettate con la casella del riepilogo
-    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve');
-    approve.addEventListener('change', () => { pay.disabled = !approve.checked; });
-    pay.addEventListener('click', () => checkout(pay, document.getElementById('accept').checked, wrap.querySelector('#sheetErr'), approve.checked));
-
-    // Testo completo delle condizioni, con vincolo, canone e totale di questo ordine
-    const slot = wrap.querySelector('.terms-slot');
-    try {
-      if (termsHtml === null) {
-        const html = await fetch('/condizioni').then(r => { if (!r.ok) throw new Error(); return r.text(); });
-        const body = new DOMParser().parseFromString(html, 'text/html').getElementById('termsBody');
-        if (!body) throw new Error();
-        termsHtml = body.outerHTML;
-      }
-      slot.innerHTML = termsHtml;
-    } catch {
-      slot.innerHTML = `<div class="terms-body"><p class="muted" style="margin-top:14px">Non riesco a caricare il testo completo: puoi leggerlo <a href="/condizioni?mesi=${o.months}" target="_blank" rel="noopener">qui</a>.</p>
-        <h2>Vincolo minimo e disdetta</h2>
-        <div class="terms-vincolo"><p>L'abbonamento ha un <b>vincolo minimo di <span class="js-months"></span></b> (<span class="js-months-n"></span> mesi) dal primo pagamento.</p>
-        <p>Totale da pagare per tutto il vincolo: <b class="js-total"></b>.</p></div>
-        <p>Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano.</p></div>`;
-    }
-    fillTerms(slot, { months: o.months, plans: [{ name: PKG_NAMES[o.package] || 'Base', monthly: o.monthly, price: o.amount }], currency: o.currency, whatsapp: WA });
-  }
-  let WA = '';
-  fetch('/api/config').then(r => r.json()).then(c => { WA = c.whatsapp || ''; }).catch(() => {});
 
   // Istruzioni per gestire il sito dal telefono, con PIN e token da copiare
   function guide(o) {
