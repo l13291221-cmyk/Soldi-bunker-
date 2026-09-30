@@ -311,3 +311,5 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .terms-vincolo { background: rgba(214,177,106,.1); border: 1px solid rgba(214,177,106,.45); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
 .terms-vincolo p { margin: 0; }
 .terms-vincolo p + p { margin-top: 8px; }
+.terms-final { margin: 22px 0 0; font-size: 1.2rem; }
+.terms-final b { font-weight: 700; }

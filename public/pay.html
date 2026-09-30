@@ -182,7 +182,8 @@
         <h2>Vincolo minimo e disdetta</h2>
         <div class="terms-vincolo"><p>L'abbonamento ha un <b>vincolo minimo di <span class="js-months"></span></b> (<span class="js-months-n"></span> mesi) dal primo pagamento.</p>
         <p>Totale da pagare per tutto il vincolo: <b class="js-total"></b>.</p></div>
-        <p>Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano.</p></div>`;
+        <p>Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano.</p>
+        <p class="terms-final"><b>Vincolo: <span class="js-months"></span></b></p></div>`;
     }
     fillTerms(slot, { months: o.months, plans: [{ name: PKG_NAMES[o.package] || 'Base', monthly: o.monthly, price: o.amount }], currency: o.currency, whatsapp: WA });
   }
