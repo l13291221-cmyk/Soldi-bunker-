@@ -255,6 +255,7 @@
       ['Dispositivo', a.userAgent],
       ['Lingua', a.language],
       ['Vincolo accettato', a.months && durata(a.months)],
+      ['Seconda casella', a.specificApproval && 'Punti 6, 7, 8 e 12 approvati'],
       ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
       ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
       ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],

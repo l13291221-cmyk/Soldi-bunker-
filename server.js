@@ -108,6 +108,7 @@ function publicOrder(o) {
     siteUrl: o.paid ? o.siteUrl || null : null,
     panelPin: o.paid ? (o.panelPin || SITE_PIN || null) : null,
     siteToken: o.paid ? (o.siteToken || SITE_TOKEN || null) : null,
+    approvalText: o.monthly && !o.paid ? approvalText(o) : null,
   };
 }
 function markPaid(orderId, session) {
@@ -168,6 +169,10 @@ function termsTextFor(o) {
     .replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"')
     .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
 }
+// Seconda casella: approvazione specifica delle clausole pesanti (artt. 1341 e 1342 c.c.)
+function approvalText(o) {
+  return `Ai sensi degli artt. 1341 e 1342 del Codice Civile approvo specificamente i punti 6 (Rimborsi: nessun rimborso), 7 (rimozione dei contenuti e sospensione del sito), 8 (Mancato pagamento, sospensione e fine) e 12 (vincolo minimo di ${durata(o.months)}, pagamento dei mesi rimanenti in caso di disdetta anticipata e rinnovo mese per mese dopo il vincolo).`;
+}
 function acceptanceFor(o, req) {
   const termsText = termsTextFor(o);
   return {
@@ -177,6 +182,7 @@ function acceptanceFor(o, req) {
     language: String(req.get('accept-language') || '').slice(0, 120),
     months: o.months, monthly: o.monthly, activation: o.amount, currency: CURRENCY,
     termsHash: crypto.createHash('sha256').update(termsText).digest('hex'),
+    specificApproval: approvalText(o),
     termsText,
   };
 }
@@ -430,7 +436,8 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
     `Lingua del browser: ${a.language || '—'}`,
     `Vincolo accettato: ${months ? `${durata(months)} (${months} mesi)` : '—'}`,
     ...(o.monthly ? [`Canone: ${euro((a.monthly ?? o.monthly) / 100)} al mese · Attivazione: ${euro((a.activation ?? o.amount) / 100)} · Totale del vincolo: ${euro(((a.activation ?? o.amount) + (a.monthly ?? o.monthly) * months) / 100)}`] : []),
-    `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`, '',
+    `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`,
+    `Seconda casella spuntata (approvazione specifica): ${a.specificApproval || '—'}`, '',
     'PAGAMENTO (dati inseriti dal cliente su Stripe)',
     `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
     `Nome: ${p.name || '—'}`, `Email: ${p.email || '—'}`, `Telefono: ${p.phone || '—'}`, `Indirizzo di fatturazione: ${addr || '—'}`,
@@ -491,6 +498,9 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   // Abbonamento: il cliente deve aver accettato le condizioni (vincolo minimo) prima di pagare
   if (o.monthly && !(req.body && req.body.accept === true)) {
     return res.status(400).json({ error: 'Per l\'abbonamento devi accettare le condizioni.' });
+  }
+  if (o.monthly && req.body.approve !== true) {
+    return res.status(400).json({ error: 'Per pagare spunta anche l\'approvazione dei punti 6, 7, 8 e 12.' });
   }
   const oneOff = {
     quantity: 1,

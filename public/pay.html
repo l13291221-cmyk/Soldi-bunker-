@@ -116,11 +116,11 @@
     document.getElementById('payBtn').addEventListener('click', e => sub ? openTerms(o) : checkout(e.currentTarget, false, document.getElementById('payErr')));
   }
 
-  async function checkout(b, accept, errEl) {
+  async function checkout(b, accept, errEl, approve = false) {
     const label = b.textContent;
     b.disabled = true; b.textContent = 'Reindirizzamento…';
     const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept, approve }),
     }).catch(() => null);
     const d = r ? await r.json().catch(() => ({})) : {};
     if (d.url) { location.href = d.url; return; }
@@ -141,7 +141,10 @@
         <div class="sheet-body">
           <div class="terms-slot"><div class="spinner"></div></div>
           <div class="sheet-pay">
-            <button class="btn btn-gold" id="sheetPay" style="width:100%">Paga ${total} con carta</button>
+            <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.9rem;cursor:pointer">
+              <input type="checkbox" id="approve" style="width:20px;height:20px;margin-top:2px;flex:none"><span>${escapeHtml(o.approvalText || '')}</span>
+            </label>
+            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>Paga ${total} con carta</button>
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
             <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe per pagare in sicurezza.</p>
           </div>
@@ -164,8 +167,9 @@
     document.addEventListener('keydown', onKey);
     wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
     // le condizioni sono già state accettate con la casella del riepilogo
-    const pay = wrap.querySelector('#sheetPay');
-    pay.addEventListener('click', () => checkout(pay, document.getElementById('accept').checked, wrap.querySelector('#sheetErr')));
+    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve');
+    approve.addEventListener('change', () => { pay.disabled = !approve.checked; });
+    pay.addEventListener('click', () => checkout(pay, document.getElementById('accept').checked, wrap.querySelector('#sheetErr'), approve.checked));
 
     // Testo completo delle condizioni, con vincolo, canone e totale di questo ordine
     const slot = wrap.querySelector('.terms-slot');
