@@ -80,7 +80,6 @@
         <div class="row"><span class="muted">Pacchetto</span><span>${escapeHtml(PKG_NAMES[o.package] || 'Base')}</span></div>
         <div class="row"><span class="muted">Servizio</span><span>Sito web professionale</span></div>
         ${isPremium(o) ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
-        <div class="row"><span class="muted">Assistenza</span><span>${sub ? 'Inclusa per tutto l\'abbonamento' : isPremium(o) ? '3 anni gratuita' : '1 anno gratuita'}</span></div>
         ${sub ? `
         <div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>
         <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
@@ -132,7 +131,6 @@
           <li><b>Cambia il PIN</b> (consigliato): scheda «Sicurezza» → PIN attuale → nuovo PIN di 6 cifre due volte → poi «Pubblica» → «Pubblica ora».</li>
           <li>Modifica menu, prezzi, foto e orari, poi <b>«Pubblica» → «Pubblica ora»</b>: in 1-2 minuti è online per tutti.</li>
         </ol>
-        <p class="muted small" style="margin:10px 0 0">Per qualsiasi dubbio scrivici su WhatsApp: l'assistenza è inclusa.</p>
       </div>`;
   }
 

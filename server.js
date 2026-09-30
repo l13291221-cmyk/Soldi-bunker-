@@ -14,7 +14,7 @@ const CURRENCY = (process.env.CURRENCY || 'eur').toLowerCase();
 const PRICE = parseFloat(String(process.env.PREZZO || '990').replace(',', '.')) || 990;
 // Numero WhatsApp Business (solo cifre, con prefisso internazionale)
 const WHATSAPP = String(process.env.WHATSAPP ?? '27710933377').replace(/\D/g, '');
-const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività + 1 anno di assistenza gratuita';
+const DEFAULT_DESCRIPTION = 'Sito web professionale per la tua attività';
 // Dati per il pannello del sito del cliente, mostrati SOLO dopo il pagamento.
 // Si impostano su Render (restano segreti, non finiscono mai nel codice pubblico).
 const SITE_TOKEN = process.env.TOKEN_SITO || '';
@@ -33,23 +33,23 @@ const PACKAGES = {
   base: {
     id: 'base', name: 'Base', price: Math.round(PRICE * 100),
     description: DEFAULT_DESCRIPTION,
-    features: ['Sito web completo per la tua attività', '1 anno di assistenza gratuita', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone'],
+    features: ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni'],
   },
   premium: {
     id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
-    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code + 3 anni di assistenza gratuita',
-    features: ['Tutto quello che c\'è nel Base', '3 anni di assistenza gratuita (invece di 1)', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
+    description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code',
+    features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
   },
   base_mensile: {
     id: 'base_mensile', name: 'Base mensile', recurring: true, months: MIN_MONTHS,
     price: Math.round(SUB.base.activation * 100), monthly: Math.round(SUB.base.monthly * 100),
-    description: `Sito web professionale in abbonamento: ${euro(SUB.base.activation)} di attivazione + ${euro(SUB.base.monthly)} al mese, assistenza inclusa. Vincolo minimo ${MIN_MONTHS} mesi.`,
-    features: ['Sito web completo per la tua attività', 'Assistenza inclusa per tutto l\'abbonamento', 'Pannello per modificare menu, foto e prezzi dal telefono', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
+    description: `Sito web professionale in abbonamento: ${euro(SUB.base.activation)} di attivazione + ${euro(SUB.base.monthly)} al mese. Vincolo minimo ${MIN_MONTHS} mesi.`,
+    features: ['Sito web completo per la tua attività', 'Perfetto da smartphone', 'Pannello per modificare menu, foto e prezzi dal telefono', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
   },
   premium_mensile: {
     id: 'premium_mensile', name: 'Premium mensile', recurring: true, months: MIN_MONTHS,
     price: Math.round(SUB.premium.activation * 100), monthly: Math.round(SUB.premium.monthly * 100),
-    description: `Sito web professionale + dominio personalizzato + QR code in abbonamento: ${euro(SUB.premium.activation)} di attivazione + ${euro(SUB.premium.monthly)} al mese, assistenza inclusa. Vincolo minimo ${MIN_MONTHS} mesi.`,
+    description: `Sito web professionale + dominio personalizzato + QR code in abbonamento: ${euro(SUB.premium.activation)} di attivazione + ${euro(SUB.premium.monthly)} al mese. Vincolo minimo ${MIN_MONTHS} mesi.`,
     features: ['Tutto quello che c\'è nel Base mensile', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare', `Vincolo minimo ${MIN_MONTHS} mesi, poi disdici quando vuoi`],
   },
 };

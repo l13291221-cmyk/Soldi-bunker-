@@ -63,7 +63,7 @@ personalizzato con il nome dell'attività e il suo problema (senza sito, solo so
 (IT, EN, FR, ES, DE) e 3 versioni che si alternano. Il limite di messaggi al giorno si sceglie (30, 50, 75 o 100, predefinito 100); ogni 30 messaggi in un'ora consiglia una pausa.
 
 ## Pacchetti
-- **Base** (`PREZZO`, default 990 €): sito + 1 anno di assistenza.
+- **Base** (`PREZZO`, default 990 €): sito web completo (assistenza non inclusa).
 - **Premium** (`PREZZO_PREMIUM`, default 1490 €): Base + dominio personalizzato + QR code.
 Nell'admin scegli il pacchetto quando crei l'ordine. Per il Premium il cliente, dopo aver pagato, vede e scarica il QR code del suo sito; dall'admin il pulsante 🔳 QR code lo genera per qualsiasi ordine con un link.
 
