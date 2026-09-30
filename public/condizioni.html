@@ -34,13 +34,13 @@
   <h2>1. Abbonamento (Base e Plus)</h2>
   <div class="box">
     <b>In breve:</b> paghi un <b>canone fisso ogni mese</b> (<span class="js-prices-short">Base 20 €, Plus 30 €</span>).
-    L'abbonamento ha un <b>vincolo minimo di <span class="js-months">2 anni</span></b>:
+    L'abbonamento ha un <b>vincolo minimo di <span class="js-months">8 anni e 4 mesi</span></b>:
     se lo chiudi prima, i mesi che mancano alla fine del vincolo vanno pagati comunque.
   </div>
   <ol>
     <li><b>Costi.</b> Il primo giorno paghi il primo mese (più l'eventuale attivazione, se indicata nel riepilogo dell'ordine). Poi il canone, sempre uguale, viene addebitato ogni mese sulla stessa carta, in automatico, tramite Stripe.
       <span class="js-prices"></span></li>
-    <li><b>Vincolo minimo.</b> L'abbonamento dura almeno <span class="js-months">2 anni</span> dal primo pagamento. Il vincolo serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
+    <li><b>Vincolo minimo.</b> L'abbonamento dura almeno <span class="js-months">8 anni e 4 mesi</span> dal primo pagamento. Il vincolo serve a coprire il lavoro di creazione del sito, che è quasi tutto all'inizio.</li>
     <li><b>Disdetta anticipata.</b> Se chiedi di chiudere l'abbonamento prima della fine del vincolo, sono comunque dovuti i canoni dei mesi che mancano fino alla fine del vincolo. Si possono pagare in un'unica volta.</li>
     <li><b>Dopo il vincolo.</b> L'abbonamento continua mese per mese e puoi disdirlo quando vuoi, con un messaggio su WhatsApp o per email. La disdetta vale dalla fine del mese già pagato.</li>
     <li><b>Mancato pagamento.</b> Se un canone non viene pagato, ti avvisiamo. Dopo 15 giorni senza pagamento il sito può essere sospeso finché la situazione non viene regolarizzata; i canoni non pagati restano dovuti.</li>
@@ -59,8 +59,12 @@
 
 <script src="/common.js"></script>
 <script>
+  // Aperte dal riepilogo di un ordine (?mesi=100): vale il vincolo di quell'ordine
+  const mesiOrdine = parseInt(new URLSearchParams(location.search).get('mesi'), 10);
+  const mesiOk = mesiOrdine >= 1 && mesiOrdine <= 600 ? mesiOrdine : 0;
+  if (mesiOk) document.querySelectorAll('.js-months').forEach(el => el.textContent = durata(mesiOk));
   fetch('/api/config').then(r => r.json()).then(c => {
-    const subs = Object.values(c.packages || {}).filter(p => p.recurring);
+    const subs = Object.values(c.packages || {}).filter(p => p.recurring).map(p => mesiOk ? { ...p, months: mesiOk } : p);
     if (subs.length) {
       document.querySelectorAll('.js-months').forEach(el => el.textContent = durata(subs[0].months));
       document.querySelector('.js-prices-short').textContent = subs.map(p => `${p.name} ${formatMoney(p.monthly, c.currency)}`).join(', ');

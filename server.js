@@ -21,7 +21,7 @@ const SITE_TOKEN = process.env.TOKEN_SITO || '';
 const SITE_PIN = process.env.PIN_SITO || '';
 // Pacchetti (solo abbonamento): canone mensile fisso, vincolo minimo di mesi, attivazione facoltativa
 const eur = (v, d) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : d; };
-const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 24)));
+const MIN_MONTHS = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 100)));
 const SUB = {
   base: { activation: eur(process.env.ATTIVAZIONE_BASE, 0), monthly: eur(process.env.CANONE_BASE, 20) },
   plus: { activation: eur(process.env.ATTIVAZIONE_PLUS, 0), monthly: eur(process.env.CANONE_PLUS, 30) },
@@ -29,11 +29,24 @@ const SUB = {
 const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
 const durata = m => [Math.floor(m / 12) ? (Math.floor(m / 12) === 1 ? '1 anno' : Math.floor(m / 12) + ' anni') : '', m % 12 ? (m % 12 === 1 ? '1 mese' : m % 12 + ' mesi') : ''].filter(Boolean).join(' e ');
 const subPackage = (id, name, sub, what, features) => ({
-  id, name, recurring: true, months: MIN_MONTHS,
+  id, name, recurring: true, months: MIN_MONTHS, what,
   price: Math.round(sub.activation * 100), monthly: Math.round(sub.monthly * 100),
-  description: `${what}: ${euro(sub.monthly)} al mese${sub.activation ? ` + ${euro(sub.activation)} di attivazione` : ''}. Vincolo minimo ${durata(MIN_MONTHS)} (totale ${euro(sub.activation + sub.monthly * MIN_MONTHS)}).`,
+  description: subDescription(what, Math.round(sub.activation * 100), Math.round(sub.monthly * 100), MIN_MONTHS),
   features: [...features, `Vincolo minimo ${durata(MIN_MONTHS)}`],
 });
+// Testo del riepilogo con canone, vincolo e totale (importi in centesimi)
+function subDescription(what, activation, monthly, months) {
+  return `${what}: ${euro(monthly / 100)} al mese${activation ? ` + ${euro(activation / 100)} di attivazione` : ''}. Vincolo minimo ${durata(months)} (totale ${euro((activation + monthly * months) / 100)}).`;
+}
+// Vincolo scelto nell'admin: anni + mesi (vuoti = vincolo predefinito). null = non valido
+const MAX_MONTHS = 600;
+function parseMonths(years, months) {
+  const y = String(years ?? '').trim(), m = String(months ?? '').trim();
+  if (!y && !m) return MIN_MONTHS;
+  if (!/^\d*$/.test(y) || !/^\d*$/.test(m)) return null;
+  const tot = (parseInt(y, 10) || 0) * 12 + (parseInt(m, 10) || 0);
+  return tot >= 1 && tot <= MAX_MONTHS ? tot : null;
+}
 // I pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
   base: subPackage('base', 'Base', SUB.base, 'Sito web professionale in abbonamento',
@@ -256,14 +269,16 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
     monthly = req.body.monthly !== undefined && String(req.body.monthly).trim() !== '' ? parseAmount(req.body.monthly) : PACKAGES[pkg].monthly;
     if (monthly === null) return res.status(400).json({ error: 'Canone mensile non valido' });
   }
+  const months = monthly ? parseMonths(req.body.vincoloAnni, req.body.vincoloMesi) : 0;
+  if (months === null) return res.status(400).json({ error: `Vincolo non valido (da 1 mese a ${MAX_MONTHS / 12} anni)` });
   const id = newCode();
   orders[id] = {
     id,
     restaurant: String(restaurant).trim().slice(0, 120),
-    description: String(description || PACKAGES[pkg].description).trim().slice(0, 300),
+    description: String(description || (monthly ? subDescription(PACKAGES[pkg].what, cents, monthly, months) : PACKAGES[pkg].description)).trim().slice(0, 300),
     package: pkg,
     amount: cents,
-    ...(monthly && { monthly, months: MIN_MONTHS }),
+    ...(monthly && { monthly, months }),
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
     paid: false,
@@ -290,6 +305,14 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
     const cents = parseAmount(b.amount);
     if (cents === null) return res.status(400).json({ error: 'Prezzo non valido' });
     o.amount = cents;
+  }
+  if ((b.vincoloAnni !== undefined || b.vincoloMesi !== undefined) && o.monthly && !o.paid) {
+    const months = parseMonths(b.vincoloAnni, b.vincoloMesi);
+    if (months === null) return res.status(400).json({ error: `Vincolo non valido (da 1 mese a ${MAX_MONTHS / 12} anni)` });
+    o.months = months;
+    // aggiorna anche il riepilogo che vede il cliente
+    o.description = String(o.description || '').replace(/Vincolo minimo [^(]+\(totale [^)]+\)/,
+      `Vincolo minimo ${durata(months)} (totale ${euro((o.amount + o.monthly * months) / 100)})`);
   }
   saveOrders();
   res.json({ order: adminOrder(o) });
@@ -372,8 +395,8 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
             product_data: { name: `Abbonamento sito web — ${o.restaurant}` },
           },
         }, ...(o.amount > 0 ? [oneOff] : [])],
-        subscription_data: { metadata: { orderId: o.id }, description: `Vincolo minimo ${durata(o.months)} (codice ${formatCode(o.id)})` },
-        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${durata(o.months)} (totale ${euro((o.amount + o.monthly * o.months) / 100)}). Se lo chiudi prima, paghi i mesi rimanenti. Condizioni: ${BASE_URL}/condizioni` } },
+        subscription_data: { metadata: { orderId: o.id, vincoloMesi: String(o.months) }, description: `Vincolo minimo ${durata(o.months)} (codice ${formatCode(o.id)})` },
+        custom_text: { submit: { message: `Abbonamento mensile con vincolo minimo di ${durata(o.months)} (totale ${euro((o.amount + o.monthly * o.months) / 100)}). Se lo chiudi prima, paghi i mesi rimanenti. Condizioni: ${BASE_URL}/condizioni?mesi=${o.months}` } },
       } : { mode: 'payment', line_items: [oneOff] }),
       metadata: { orderId: o.id },
       client_reference_id: o.id,

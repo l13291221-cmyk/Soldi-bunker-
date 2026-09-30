@@ -65,7 +65,7 @@ personalizzato con il nome dell'attività e il suo problema (senza sito, solo so
 ## Pacchetti (solo abbonamento)
 - **Base**: 20 € al mese (`CANONE_BASE`).
 - **Plus**: 30 € al mese (`CANONE_PLUS`): Base + dominio personalizzato + QR code.
-- Vincolo minimo uguale per tutti (`VINCOLO_MESI`, predefinito 24 mesi = 2 anni). Attivazione facoltativa: `ATTIVAZIONE_BASE`, `ATTIVAZIONE_PLUS` (predefinita 0).
+- Vincolo minimo uguale per tutti (`VINCOLO_MESI`, predefinito 100 mesi = 8 anni e 4 mesi; si può cambiare per ogni ordine dall'admin). Attivazione facoltativa: `ATTIVAZIONE_BASE`, `ATTIVAZIONE_PLUS` (predefinita 0).
 - La schermata di pagamento mostra in grande quanto si paga oggi e sotto il riepilogo: canone, vincolo (in anni) e totale del vincolo.
 - Prima di pagare il cliente deve spuntare l'accettazione delle **condizioni** (`/condizioni`): data e IP restano salvati nell'ordine.
   Se chiude l'abbonamento prima della fine del vincolo, paga i mesi rimanenti.

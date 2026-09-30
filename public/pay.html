@@ -91,10 +91,10 @@
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
       </div>
       ${sub ? `
-      <p class="warn-read">⚠️ Leggi le <a href="/condizioni" target="_blank" rel="noopener">condizioni</a> prima di pagare</p>
+      <p class="warn-read">⚠️ Leggi le <a href="/condizioni?mesi=${o.months}" target="_blank" rel="noopener">condizioni</a> prima di pagare</p>
       <label class="accept" style="display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;font-size:.92rem;cursor:pointer">
         <input type="checkbox" id="accept" style="width:20px;height:20px;margin-top:2px;flex:none">
-        <span>Ho letto e accetto le <a href="/condizioni" target="_blank" rel="noopener" style="color:var(--gold-2)">condizioni dell'abbonamento</a>:
+        <span>Ho letto e accetto le <a href="/condizioni?mesi=${o.months}" target="_blank" rel="noopener" style="color:var(--gold-2)">condizioni dell'abbonamento</a>:
         vincolo minimo di ${durata(o.months)}; se disdico prima, pago comunque i mesi che mancano.</span>
       </label>` : ''}
       <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? `Paga ${formatMoney(o.amount + o.monthly, o.currency)} con carta` : 'Paga ora con carta'}</button>
