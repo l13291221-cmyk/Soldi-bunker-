@@ -502,7 +502,76 @@ const NEED_TAGS = {
   all: [''],
 };
 
+// ---------- Trova clienti: Google Maps (Places API, serve la chiave GOOGLE_PLACES_KEY) ----------
+const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_KEY || '';
+const GOOGLE_QUERY = {
+  ristoranti: 'ristoranti e pizzerie', bar: 'bar e caffè', bellezza: 'parrucchieri ed estetiste', negozi: 'negozi',
+  alimentari: 'panetterie macellerie e alimentari', artigiani: 'artigiani e officine', alloggi: 'B&B e hotel', professionisti: 'studi professionali',
+};
+const isMobileIt = p => /^3\d{8,9}$/.test(p.replace(/\D/g, '').replace(/^39(?=3\d{8,9}$)/, ''));
+function leadFromGoogle(p) {
+  if (!p.displayName || p.businessStatus === 'CLOSED_PERMANENTLY') return null;
+  const phones = splitPhones(p.internationalPhoneNumber || p.nationalPhoneNumber || '');
+  const site = p.websiteUri || '';
+  const social = SOCIAL_RE.test(site) ? site : '';
+  return {
+    id: 'g' + p.id,
+    name: p.displayName.text,
+    kind: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
+    phones,
+    // Google non dice chi ha WhatsApp: un cellulare di un'attività quasi sempre ce l'ha
+    whatsapps: phones.filter(isMobileIt),
+    whatsapp: phones.find(isMobileIt) || '',
+    waGuess: true,
+    website: site && !social ? site : '',
+    social,
+    address: (p.formattedAddress || '').replace(/, Italia$/, ''),
+    maps: p.googleMapsUri || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.displayName.text),
+    source: 'google',
+  };
+}
+async function googleLeads(type, city) {
+  const fields = ['id', 'displayName', 'formattedAddress', 'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri',
+    'googleMapsUri', 'businessStatus', 'primaryTypeDisplayName'].map(f => 'places.' + f).join(',') + ',nextPageToken';
+  const out = [];
+  let pageToken = '';
+  // Google dà al massimo 60 risultati (3 pagine da 20) per ricerca
+  for (let page = 0; page < 3; page++) {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_PLACES_KEY, 'X-Goog-FieldMask': fields },
+      body: JSON.stringify({ textQuery: `${GOOGLE_QUERY[type]} a ${city}`, languageCode: 'it', regionCode: 'IT', pageSize: 20, ...(pageToken && { pageToken }) }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('Google ' + r.status + ': ' + ((d.error && d.error.message) || 'errore').slice(0, 200));
+    out.push(...(d.places || []));
+    if (!d.nextPageToken) break;
+    pageToken = d.nextPageToken;
+  }
+  return out.map(leadFromGoogle).filter(Boolean);
+}
+
 app.get('/api/admin/leads', requireAdmin, async (req, res) => {
+  if (req.query.source === 'google') {
+    if (!GOOGLE_PLACES_KEY) return res.status(400).json({ error: 'Google Maps non è attivo: manca la chiave GOOGLE_PLACES_KEY su Render.' });
+    const city = String(req.query.city || '').trim().slice(0, 60);
+    const type = GOOGLE_QUERY[req.query.type] ? req.query.type : 'ristoranti';
+    if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome della zona' });
+    const key = ['google', city.toLowerCase(), type].join('|');
+    const cached = leadCache.get(key);
+    if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type, source: 'google' });
+    try {
+      let leads = await googleLeads(type, city);
+      if (req.query.need === 'wa') leads = leads.filter(l => l.whatsapps.length);
+      else if (req.query.need !== 'all') leads = leads.filter(l => l.phones.length);
+      leadCache.set(key, { at: Date.now(), leads });
+      return res.json({ leads, city, type, source: 'google' });
+    } catch (err) {
+      console.error('Google Places error:', err.message);
+      return res.status(502).json({ error: 'Google Maps non risponde.', detail: err.message });
+    }
+  }
   const scope = SCOPES[req.query.scope] ? req.query.scope : 'comune';
   const city = scope === 'italia' ? 'Italia' : String(req.query.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
   const type = LEAD_TYPES[req.query.type] ? req.query.type : 'ristoranti';
@@ -558,6 +627,7 @@ const net = require('net');
 const siteCheckCache = new Map();
 const FREE_BUILDERS = /(\.wixsite\.com|\.altervista\.org|\.jimdo(site)?\.com|\.webnode\.|\.blogspot\.|\.wordpress\.com|\.business\.site|\.weebly\.com|\.site123\.me|\.godaddysites\.com|\.paginegialle\.it|\.sites\.google\.com)/i;
 const EMPTY_WORDS = /(sito in costruzione|in allestimento|under construction|coming soon|domain (is )?for sale|dominio in vendita|questo dominio|parked (free|domain)|default web page|index of \/|it works!)/i;
+const MODERN_SITE = /\/_next\/|__NEXT_DATA__|__NUXT__|id="__nuxt"|data-reactroot|id="root"><\/div>|id="app"><\/div>|astro-island|\/_astro\/|___gatsby|\/_app\/immutable\/|static\.parastorage\.com|squarespace-cdn\.com|assets\.website-files\.com|webflow\.com/i;
 function isPrivateIp(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -607,13 +677,16 @@ async function checkSite(rawUrl) {
   if (!/<meta[^>]+name=["']?viewport/i.test(html)) reasons.push('Non adatto al telefono');
   if (ms > 5000) reasons.push(`Lento (${(ms / 1000).toFixed(1)}s)`);
   const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/gi, ' ').replace(/\s+/g, ' ');
+  // Siti moderni (Next.js, React, Nuxt...) caricano i testi con JavaScript: l'HTML sembra
+  // vuoto ma il sito è pieno. Se è anche https e adatto al telefono, è fatto da un professionista.
+  const modern = MODERN_SITE.test(html) && finalUrl.protocol === 'https:' && !reasons.includes('Non adatto al telefono');
   if (EMPTY_WORDS.test(text)) reasons.push('In costruzione o vuoto');
-  else if (text.length < 400) reasons.push('Quasi vuoto');
+  else if (text.length < 400 && !modern) reasons.push('Quasi vuoto');
   if (/<(font|marquee|frameset|center)\b|\.swf\b/i.test(html)) reasons.push('Grafica vecchia');
   const years = [...text.matchAll(/(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?((?:19|20)\d{2})/gi)].map(m => +m[1]);
   const thisYear = new Date().getFullYear();
   if (years.length && Math.max(...years) <= thisYear - 4) reasons.push(`Fermo al ${Math.max(...years)}`);
-  return { bad: reasons.length > 0, reasons, ms };
+  return { bad: reasons.length > 0, reasons, ms, modern };
 }
 app.get('/api/admin/site-check', requireAdmin, async (req, res) => {
   const u = String(req.query.url || '').slice(0, 500);
@@ -641,7 +714,7 @@ app.get('/api/admin/leads-debug', requireAdmin, async (req, res) => {
   res.json(out);
 });
 app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
-  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })) });
+  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })), google: !!GOOGLE_PLACES_KEY });
 });
 
 // ---------- Sveglia siti: visita i link ogni 5 minuti (anti-spegnimento Render gratuito) ----------
