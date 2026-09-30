@@ -23,6 +23,12 @@
     .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
     .panel h3 { font-family: var(--sans); font-size: 1.05rem; margin-bottom: 16px; letter-spacing: 0; }
     .field { margin-bottom: 14px; }
+    .calc-in { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .calc-in label { font-size: .8rem; margin-bottom: 4px; }
+    .calc-out { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: .95rem; }
+    .calc-out td { padding: 10px 6px; border-bottom: 1px solid var(--line); }
+    .calc-out td:last-child { text-align: right; font-weight: 600; }
+    .calc-out tr.big td { font-size: 1.1rem; color: var(--gold-2); }
     .order { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg-2); margin-bottom: 12px; }
     .order-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
     .order-top h4 { margin: 0; font-size: 1.05rem; }
@@ -82,6 +88,7 @@
     <a href="/" class="brand"><span class="brand-mark">N</span>Admin</a>
     <nav class="nav">
       <a href="/clienti" class="btn btn-gold btn-sm">🔎 Trova clienti</a>
+      <a href="#calcolo" class="hide-sm">Calcolatore</a>
       <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>
       <button class="btn btn-ghost btn-sm" id="logout">Esci</button>
@@ -121,6 +128,23 @@
     </div>
   </div>
 
+  <section id="calcolo" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">🧮 Calcolatore abbonamenti</h3>
+    <p class="muted small" style="margin:0 0 16px">Quanto deve durare il vincolo per arrivare all'obiettivo, e quanti soldi arrivano davvero entro una data.</p>
+    <div class="calc-in" id="calcIn">
+      <div><label>Obiettivo totale (€)</label><input data-k="goal" inputmode="decimal" value="15000"></div>
+      <div><label>Numero di clienti</label><input data-k="clients" inputmode="numeric" value="10"></div>
+      <div><label>Attivazione a cliente (€)</label><input data-k="act" inputmode="decimal" value="0"></div>
+      <div><label>Prezzo lancio (€ al mese)</label><input data-k="intro" inputmode="decimal" value="20"></div>
+      <div><label>Mesi di lancio</label><input data-k="introM" inputmode="numeric" value="3"></div>
+      <div><label>Poi (€ a settimana)</label><input data-k="week" inputmode="decimal" value="9"></div>
+      <div><label>Nuovi clienti al mese</label><input data-k="pace" inputmode="decimal" value="2"></div>
+      <div><label>Soldi entro il</label><input data-k="until" type="date" value="2027-06-21"></div>
+    </div>
+    <table class="calc-out" id="calcOut"></table>
+    <p class="muted small" style="margin:10px 0 0">Tasse stimate con il regime forfettario per chi inizia (67% imponibile, INPS ~26%, imposta 5%): circa il 20%. Stima indicativa, per i conti veri chiedi a un commercialista.</p>
+  </section>
+
   <section id="sveglia" class="panel" style="margin-top:22px;padding:24px">
     <h3 style="margin-bottom:4px">⏰ Sveglia siti</h3>
     <p class="muted small" style="margin:0 0 16px">Ogni <span id="every">5</span> minuti un bot visita questi siti così Render non li spegne. Anche questo sito si visita da solo.</p>
@@ -137,6 +161,49 @@
 
 <script src="/common.js"></script>
 <script>
+  // ---- Calcolatore abbonamenti (tutto nel browser, niente viene salvato sul server) ----
+  (function () {
+    const box = document.getElementById('calcIn'), out = document.getElementById('calcOut');
+    const KEY = 'nerodoro-calc';
+    try { const saved = JSON.parse(localStorage.getItem(KEY) || '{}'); box.querySelectorAll('input').forEach(i => { if (saved[i.dataset.k] != null) i.value = saved[i.dataset.k]; }); } catch {}
+    const num = v => parseFloat(String(v).replace(',', '.')) || 0;
+    const eu = n => Math.round(n).toLocaleString('it-IT') + ' €';
+    const tax = g => { const imp = g * 0.67, inps = imp * 0.2607; return inps + Math.max(0, imp - inps) * 0.05; };
+    function calc() {
+      const v = {}; box.querySelectorAll('input').forEach(i => v[i.dataset.k] = i.type === 'date' ? i.value : num(i.value));
+      try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
+      const clients = Math.max(1, Math.round(v.clients));
+      const perClient = v.goal / clients;
+      const monthAfter = v.week * 52 / 12;
+      const introM = Math.max(0, Math.round(v.introM));
+      const introTotal = v.intro * introM;
+      // mesi di vincolo per incassare perClient da ogni cliente
+      const rest = perClient - v.act - introTotal;
+      const months = rest <= 0 ? Math.max(1, Math.ceil((perClient - v.act) / Math.max(v.intro, 0.01))) : introM + Math.ceil(rest / Math.max(monthAfter, 0.01));
+      const paidIn = m => { let t = v.act; for (let i = 0; i < Math.min(m, months); i++) t += i < introM ? v.intro : monthAfter; return m > 0 ? t : 0; };
+      // Incasso entro la data: i clienti arrivano "pace" al mese a partire da oggi
+      const monthsLeft = Math.max(0, (new Date(v.until) - new Date()) / (30.44 * 864e5));
+      let byDate = 0;
+      for (let k = 0; k < clients; k++) {
+        const start = v.pace > 0 ? k / v.pace : 0;
+        if (start < monthsLeft) byDate += paidIn(Math.floor(monthsLeft - start) + 1);
+      }
+      const total = clients * paidIn(months);
+      const rows = [
+        ['A testa, per tutto il vincolo', eu(perClient)],
+        ['Poi al mese (' + String(v.week).replace('.', ',') + ' € a settimana)', eu(monthAfter)],
+        ['Vincolo necessario', months + ' mesi (' + (months / 12).toFixed(1).replace('.', ',') + ' anni)'],
+        ['Totale di tutti i clienti a fine vincolo', eu(total)],
+        ['Netto dopo le tasse (stima ~20%)', eu(total - tax(total))],
+        ['Incassato davvero entro il ' + (v.until ? new Date(v.until).toLocaleDateString('it-IT') : '—'), eu(byDate)],
+        ['… netto dopo le tasse (stima)', eu(byDate - tax(byDate))],
+      ];
+      out.innerHTML = rows.map((r, i) => `<tr class="${i === 3 || i === 5 ? 'big' : ''}"><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td></tr>`).join('');
+    }
+    box.addEventListener('input', calc);
+    calc();
+  })();
+
   let currency = 'eur';
 
   async function api(url, opts = {}) {
