@@ -118,9 +118,9 @@
         ${sub ? `
         ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
         <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
-        <div class="row"><span class="muted">Durata</span><span>${o.months > 1 ? 'Vincolo ' + o.months + ' mesi' : 'Disdici quando vuoi'}</span></div>
+        ${o.months > 1 ? '' : '<div class="row"><span class="muted">Durata</span><span>Disdici quando vuoi</span></div>'}
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
-        <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.${o.months > 1 ? ` Se disdici prima della fine del vincolo ti vengono addebitati subito i mesi che mancano.` : ''}</p>`
+        ${o.months > 1 ? '' : `<p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`}`
         : `
         <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Noleggio per ${o.rateMonths} mesi</small></span></div>`}
       </div>
@@ -129,7 +129,7 @@
       </label>
       <button class="btn btn-gold" id="payBtn" style="width:100%" disabled>${payLabel(o)}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
-      <p class="muted small" style="text-align:center;margin:0">Prima di pagare leggi le condizioni: in fondo c'è il dettaglio del pagamento. ${sub ? 'Poi verrai reindirizzato su Stripe. ' + (o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.') : 'Poi lasci i dati della tua attività: ti contattiamo per firmare il contratto di noleggio. Appena è approvato ricevi il link del tuo sito.'}</p>`;
+      <p class="muted small" style="text-align:center;margin:0">${sub ? 'Prima di pagare leggi le condizioni.' : 'Prima di pagare leggi le condizioni: in fondo c\'è il dettaglio del pagamento. Poi lasci i dati della tua attività: ti contattiamo per firmare il contratto di noleggio. Appena è approvato ricevi il link del tuo sito.'}</p>`;
     const acc = document.getElementById('accept');
     acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
     // Prima le condizioni complete (con il dettaglio del pagamento in fondo) e la seconda casella, poi Stripe
