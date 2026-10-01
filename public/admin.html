@@ -53,6 +53,10 @@
     .led { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #555; }
     .led.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
     .led.ko { background: var(--red); box-shadow: 0 0 10px var(--red); }
+    .how { margin: 10px 0 0; padding-left: 20px; font-size: .9rem; line-height: 1.6; }
+    .how li { margin-bottom: 8px; } .how ul { padding-left: 18px; margin: 4px 0; }
+    .how code, .hn { color: var(--gold-2); }
+    .hl { color: var(--gold-2); text-decoration: underline; word-break: break-all; }
     .pool-add { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 10px; }
     .pool-add label { font-size: .8rem; margin-bottom: 4px; display: block; }
     .pool-add input { width: 100%; }
@@ -158,7 +162,27 @@
     <h3 style="margin-bottom:4px">🌐 Siti pronti</h3>
     <p class="muted small" style="margin:0 0 14px">Copie del sito già online. Quando un cliente paga riceve <b>da solo</b> il primo sito libero (link, PIN e token) e qui risulta usato.
       Il token il cliente lo trova nella sua pagina e lo incolla nel pannello del sito. Come crearle: <a href="/guida" style="color:var(--gold-2)">guida</a>.</p>
-    <div id="poolInfo" class="meta" style="margin-bottom:10px"></div>
+    <details class="more" id="poolHow" open>
+      <summary>Come creare una copia nuova (circa 5 minuti)</summary>
+      <div style="margin-top:10px">
+        <label for="poolName">Nome della copia</label>
+        <input id="poolName" value="sito-01" autocomplete="off" autocapitalize="none" spellcheck="false" style="max-width:260px">
+        <ol class="how">
+          <li><b>Copia il sito.</b> <a class="hl" id="hNew" target="_blank" rel="noopener">Apri «Crea copia»</a> → controlla che il nome sia <code class="hn"></code>, lascia <b>Public</b> → <b>Create repository</b>.</li>
+          <li><b>Mettilo online.</b> <a class="hl" id="hPages" target="_blank" rel="noopener">Apri «Pages» della copia</a> → <b>Source: Deploy from a branch</b> → Branch <b>main</b>, cartella <b>/ (root)</b> → <b>Save</b>. Dopo 1-2 minuti il sito è su <a class="hl" id="hSite" target="_blank" rel="noopener"></a>.</li>
+          <li><b>Crea il token.</b> <a class="hl" id="hTok" target="_blank" rel="noopener">Apri «Nuovo token»</a> e controlla:
+            <ul>
+              <li>Token name: <code class="hn"></code> · Expiration: la più lunga possibile</li>
+              <li>Repository access: <b>Only select repositories</b> → scegli <code class="hn"></code> (<b>solo quello</b>, mai «All repositories»)</li>
+              <li>Permissions → Repository permissions: <b>Contents</b> = Read and write, <b>Pages</b> = Read and write</li>
+              <li><b>Generate token</b> e copialo subito: inizia con <code>github_pat_</code> e si vede una volta sola.</li>
+            </ul></li>
+          <li><b>Aggiungilo qui sotto:</b> il link è già compilato, il PIN resta 123456, incolla il token → <b>+ Aggiungi sito</b>.</li>
+        </ol>
+        <p class="muted small" style="margin:6px 0 0">Il sito demo da cui partono le copie è <a class="hl" href="https://github.com/l13291221-cmyk/Ristorante-" target="_blank" rel="noopener">Ristorante-</a>: non modificarlo. Se «Crea copia» non funziona, nelle sue Settings spunta una volta «Template repository».</p>
+      </div>
+    </details>
+    <div id="poolInfo" class="meta" style="margin:12px 0 10px"></div>
     <div id="poolList"></div>
     <form id="poolForm" style="margin-top:14px">
       <div class="pool-add">
@@ -360,8 +384,30 @@
         ${self ? '' : '<button class="btn btn-ghost btn-sm" data-ping>Pinga ora</button><button class="btn btn-danger btn-sm" data-rm>✕</button>'}
       </div>`;
   }
+  // Link della guida rapida compilati con il nome della copia
+  const GH_USER = 'l13291221-cmyk', GH_TEMPLATE = 'Ristorante-';
+  const poolName = document.getElementById('poolName');
+  let poolNameTouched = false;
+  function howLinks() {
+    const n = poolName.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'sito-01';
+    const site = `https://${GH_USER}.github.io/${n}/`, q = encodeURIComponent;
+    document.getElementById('hNew').href = `https://github.com/new?template_owner=${GH_USER}&template_name=${GH_TEMPLATE}&owner=${GH_USER}&name=${q(n)}&visibility=public`;
+    document.getElementById('hPages').href = `https://github.com/${GH_USER}/${n}/settings/pages`;
+    const hs = document.getElementById('hSite'); hs.href = site; hs.textContent = site;
+    document.getElementById('hTok').href = `https://github.com/settings/personal-access-tokens/new?name=${q(n)}&description=${q('Pannello del sito ' + n)}&target_name=${GH_USER}&contents=write&pages=write`;
+    document.querySelectorAll('.hn').forEach(el => el.textContent = n);
+    document.querySelector('#poolForm [name=url]').value = site;
+  }
+  poolName.addEventListener('input', () => { poolNameTouched = true; howLinks(); });
+  howLinks();
   async function refreshPool(data) {
     const { sites } = data || await api('/api/admin/siti-pronti');
+    // Nome proposto: il primo sito-NN non ancora usato
+    if (!poolNameTouched) {
+      let k = 1; while (sites.some(x => x.url.includes(`/sito-${String(k).padStart(2, '0')}/`))) k++;
+      const next = `sito-${String(k).padStart(2, '0')}`;
+      if (poolName.value !== next) { poolName.value = next; howLinks(); }
+    }
     const free = sites.filter(x => !x.usedBy).length;
     const info = document.getElementById('poolInfo');
     info.innerHTML = `Liberi: <b style="color:${free < 3 ? 'var(--red)' : 'var(--green)'}">${free}</b> · Usati: <b>${sites.length - free}</b>${free < 3 ? ' · <b style="color:var(--red)">Crea altre copie: quando finiscono il cliente che paga non riceve il link da solo.</b>' : ''}`;
@@ -383,7 +429,7 @@
       if (f.pin.value.trim() && !/^\d{6}$/.test(f.pin.value.trim())) { err.textContent = 'Il PIN deve avere 6 cifre'; return; }
       const d = await api('/api/admin/siti-pronti', { method: 'POST', body: JSON.stringify({ url: f.url.value, pin: f.pin.value, token: f.token.value }) });
       if (!d.added) { err.textContent = 'Questo link è già nella lista o è già di un cliente.'; return; }
-      f.url.value = ''; f.token.value = ''; f.url.focus();
+      f.token.value = ''; poolNameTouched = false;
       toast('Sito aggiunto ✓');
       refreshPool(d);
     } catch (x) { if (x.message !== '401') err.textContent = x.message; }
