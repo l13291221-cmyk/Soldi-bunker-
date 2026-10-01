@@ -553,6 +553,8 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       ...(o.monthly ? {
         mode: 'subscription',
+        // Solo carta (Apple Pay e Google Pay compresi): serve per addebitare i mesi che mancano se disdice prima del vincolo
+        payment_method_types: ['card'],
         line_items: [{
           quantity: 1,
           price_data: {
