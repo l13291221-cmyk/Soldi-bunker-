@@ -81,7 +81,7 @@ e i link si compilano da soli; le spunte restano salvate sul telefono.
 
 ## Abbonamento con vincolo (Base e Premium)
 Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `VINCOLO_MESI` mesi (predefinito 24).
-- Canoni: `CANONE_BASE` (predefinito 29) e `CANONE_PREMIUM` (predefinito 39), in euro al mese.
+- Canoni: `CANONE_BASE` (predefinito 60) e `CANONE_PREMIUM` (predefinito 99), in euro al mese.
 - Il cliente vede canone, «Vincolo 24 mesi» e «Oggi paghi»; nelle condizioni (punto 12) c'è il totale del vincolo e cosa
   succede se disdice prima, e lo approva con la seconda casella.
 - **Disdetta**: dalla pagina del suo ordine (codice + email usata per pagare). Prima della fine del vincolo vede l'importo
