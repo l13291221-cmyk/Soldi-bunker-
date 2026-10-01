@@ -67,13 +67,22 @@ Se il bot WhatsApp ha già scritto a un'attività, nella scheda compare «🤖 �
 Nell'admin, pulsante **🤖 Bot** (`/bot`): il sito scrive **da solo** dal vostro WhatsApp Business alle attività senza sito,
 con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle fasce orarie**, tutti i giorni, finché è acceso.
 
-**Come si attiva (una volta sola)**
-1. Apri `/bot` → scrivi il numero del WhatsApp Business con il prefisso (es. `39 333 1234567`) → **Collega con codice**.
+**Come si attiva**
+1. Apri `/bot` → nella tabella **📱 Numeri WhatsApp** scrivi il numero del WhatsApp Business (es. `39 333 1234567`,
+   o anche solo `333 1234567`) → **Aggiungi e collega**.
 2. Sul telefono: WhatsApp Business → ⋮ / Impostazioni → **Dispositivi collegati** → **Collega un dispositivo** →
-   **Collega con il numero di telefono** → scrivi il codice che vedi sulla pagina. (Oppure inquadra il QR da un altro schermo.)
+   **Collega con il numero di telefono** → scrivi il codice che compare sotto il numero. (Oppure **QR** e inquadralo da un altro schermo.)
 3. Controlla le impostazioni (zone, tipi di attività, fasce orarie, il tuo nome) e premi **Salva**.
-4. Premi **Manda prova** con un tuo numero personale per vedere come arriva il messaggio.
+4. Premi **Prova** sulla riga del numero e scrivi un tuo numero personale per vedere come arriva il messaggio.
 5. Accendi l'interruttore in alto. Fine: il bot lavora da solo, anche a pagina chiusa.
+
+**Cambiare numero**: aggiungi il numero nuovo nella tabella (con «Scrive solo questo numero» spunta, il vecchio si spegne da solo)
+e collegalo. Ogni riga ha:
+- **Scrive** (acceso/spento): solo i numeri accesi mandano i primi messaggi, ognuno con i suoi messaggi al giorno.
+  I numeri spenti ma collegati restano in ascolto: le risposte dei clienti arrivano lo stesso nella pagina.
+- **Collega / QR / Riprova / Prova / Scollega / Elimina**. Eliminare un numero lo scollega anche da WhatsApp.
+- Stato, messaggi di oggi e in tutto, e la partenza graduale: **ogni numero nuovo riparte da 10 messaggi al giorno**.
+Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altri. Massimo 10 numeri.
 
 **Cosa fa**
 - Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
@@ -85,7 +94,7 @@ con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle 
 - **A ognuno scrive una volta sola**, mai due. Chi risponde compare in **📬 Risposte** (e nell'app, dove rispondete voi);
   chi scrive «no», «non ci interessa», «stop»… viene segnato come non interessato.
 - Facoltativo: **risposta automatica a chi dice «sì»** (es. il link a un esempio), una volta sola e solo se nessuno ha già risposto dal telefono.
-- Ogni giorno sceglie a caso quanti messaggi mandare (tra «da» e «a», predefinito 25-30) e li sparge a caso nelle fasce orarie
+- Ogni giorno, per ogni numero acceso, sceglie a caso quanti messaggi mandare (tra «da» e «a», predefinito 25-30) e li sparge a caso nelle fasce orarie
   (predefinito 9:30-12:30 e 15:00-19:30, ora italiana, dal lunedì al sabato), con almeno 4 minuti tra uno e l'altro.
 - **Partenza graduale**: i primi 4 giorni manda 10, 15, 20, 25 messaggi. Se WhatsApp avvisa o limita le chat nuove,
   il bot dimezza o si mette in pausa da solo fino a quando WhatsApp lo permette di nuovo.
@@ -99,7 +108,7 @@ con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle 
   pubblicato il WhatsApp come contatto dell'attività, una volta sola e smettendo al primo «no», riduce il problema ma non lo elimina.
 - Su Render gratuito il server deve restare sveglio: ci pensa già la «Sveglia siti» (auto-ping ogni 5 minuti).
 
-**Backup del bot**: il collegamento a WhatsApp e l'elenco di chi ha già ricevuto il messaggio sono salvati (cifrati come gli altri
+**Backup del bot**: il collegamento di ogni numero a WhatsApp e l'elenco di chi ha già ricevuto il messaggio sono salvati (cifrati come gli altri
 backup) dall'azione **Backup dati** sul ramo **`backup-bot`**, che tiene **solo l'ultima copia** (cambiano a ogni messaggio:
 con la cronologia il repository crescerebbe di continuo). Dopo un deploy o un riavvio il sito li riprende e il bot riparte da solo.
 L'azione con l'orario funziona solo dal ramo **main**: copiate su main il file `.github/workflows/backup.yml` di questo ramo,

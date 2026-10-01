@@ -1,8 +1,9 @@
-// Bot WhatsApp: scrive da solo, dal WhatsApp Business collegato, alle attività trovate come in «Trova clienti»
-// (senza sito, solo social o con il sito brutto). Manda 20-30 messaggi al giorno sparsi nelle fasce orarie scelte,
-// un solo messaggio per numero, e segna chi risponde (chi dice «no» non viene più contattato).
-// Il WhatsApp si collega come «dispositivo collegato» (come WhatsApp Web) con un codice o con il QR.
+// Bot WhatsApp: scrive da solo, dai numeri WhatsApp Business della tabella, alle attività trovate come in
+// «Trova clienti» (senza sito, solo social o con il sito brutto). Ogni numero acceso manda 20-30 messaggi al giorno
+// sparsi nelle fasce orarie scelte; a ogni attività si scrive una volta sola e chi dice «no» non viene più contattato.
+// Ogni numero si collega come «dispositivo collegato» (come WhatsApp Web) con un codice o con il QR.
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const QRCode = require('qrcode');
 
@@ -55,6 +56,13 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (a, b) => Math.floor(rand(a, b + 1));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const digitsOf = n => String(n || '').replace(/\D/g, '');
+// Numero scritto a mano → cifre con il prefisso: «333 123 4567» → 393331234567, «06…» → 3906…, «+39…» e «0039…» → 39…
+function normPhone(raw) {
+  let d = digitsOf(raw).replace(/^00/, '');
+  if (/^3\d{8,9}$/.test(d) || /^0[1-9]\d{4,10}$/.test(d)) d = '39' + d; // cellulare o fisso italiano senza prefisso
+  return d;
+}
+const jidUser = jid => digitsOf(String(jid || '').split('@')[0].split(':')[0]);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 // Ora italiana (il server di Render è in UTC)
@@ -95,52 +103,84 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     fs.renameSync(f + '.tmp', f);
   };
 
-  // D = { config, state, queue, contacted, sent, replies, searched, jids }
+  // D = { config, state, numbers, queue, contacted, sent, replies, searched, jids }
+  //   numbers = la tabella: [{ id, phone, label, enabled, addedAt, st: { day, sent, target, nextAt, days, total, … } }]
+  // A = { accounts: { id: { creds, keys, t } } } = le chiavi di WhatsApp di ogni numero
   // Finché il backup non è ripreso non si tocca nulla: un disco appena svuotato non deve coprire i dati buoni
   let D = readJson(BOT_FILE);
-  let auth = readJson(AUTH_FILE, reviver); // { creds, keys: { tipo: { id: valore } }, t: { id sessione: ultimo uso } }
+  let A = readJson(AUTH_FILE, reviver);
   const cfg = () => ({ ...DEFAULTS, ...(D.config || {}) });
   const S = () => (D.state ||= {});
   const queue = () => (D.queue ||= []);
   const contacted = () => (D.contacted ||= {});
+  const numbers = () => (D.numbers ||= []);
+  const rowOf = id => numbers().find(n => n.id === id);
+  const accounts = () => (A.accounts ||= {});
+  const authOf = id => (accounts()[id] ||= {});
+  const newId = () => crypto.randomBytes(4).toString('hex');
   let saveTimer = null, authTimer = null;
   const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => writeJson(BOT_FILE, D), 1000); };
-  const saveAuth = () => { clearTimeout(authTimer); authTimer = setTimeout(() => writeJson(AUTH_FILE, auth, replacer), 1000); };
+  const saveAuth = () => { clearTimeout(authTimer); authTimer = setTimeout(() => writeJson(AUTH_FILE, A, replacer), 1000); };
 
-  // ---------- Chiavi di WhatsApp ----------
-  const keyStore = {
-    get: async (type, ids) => {
-      const t = (auth.keys && auth.keys[type]) || {};
-      const out = {};
-      for (const id of ids) {
-        let v = t[id];
-        if (v && type === 'app-state-sync-key') v = B.proto.Message.AppStateSyncKeyData.fromObject(v);
-        if (v !== undefined) out[id] = v;
-      }
-      return out;
-    },
-    set: async data => {
-      auth.keys ||= {}; auth.t ||= {};
-      for (const type in data) {
-        const t = (auth.keys[type] ||= {});
-        for (const id in data[type]) {
-          const v = data[type][id];
-          if (v) t[id] = v; else delete t[id];
-          if (type === 'session') { if (v) auth.t[id] = Date.now(); else delete auth.t[id]; }
-        }
-      }
-      // Tengo le sessioni usate più di recente: le altre WhatsApp le ricrea quando servono
-      const sessions = Object.keys(auth.keys.session || {});
-      if (sessions.length > MAX_SESSIONS) {
-        sessions.sort((a, b) => (auth.t[a] || 0) - (auth.t[b] || 0)).slice(0, sessions.length - MAX_SESSIONS * 0.9)
-          .forEach(id => { delete auth.keys.session[id]; delete auth.t[id]; });
+  // La prima versione aveva un solo WhatsApp: le sue chiavi e i contatori di oggi diventano una riga della tabella
+  const DAY_KEYS = ['day', 'sent', 'target', 'nextAt', 'days', 'lastDay', 'pauseUntil', 'pauseWhy', 'warned', 'lastError'];
+  function migrate() {
+    const st = S();
+    if (A.creds) {
+      const old = { creds: A.creds, keys: A.keys || {}, t: A.t || {} };
+      const me = old.creds.me ? jidUser(old.creds.me.id) : '';
+      A = { accounts: { ...(A.accounts || {}) } };
+      if (!numbers().some(n => n.phone === me && linked(n.id))) {
+        const id = newId();
+        A.accounts[id] = old;
+        numbers().push({ id, phone: me, label: '', enabled: true, addedAt: Date.now(), st: Object.fromEntries(DAY_KEYS.map(k => [k, st[k]])) });
       }
       saveAuth();
-    },
-  };
-  function wipeAuth() { auth = {}; saveAuth(); }
+    }
+    if (DAY_KEYS.some(k => k in st)) { DAY_KEYS.forEach(k => delete st[k]); save(); }
+    // chiavi di numeri tolti dalla tabella
+    for (const id of Object.keys(accounts())) if (!rowOf(id)) { delete accounts()[id]; saveAuth(); }
+  }
+
+  // ---------- Chiavi di WhatsApp (una cassetta per numero) ----------
+  function keyStore(id) {
+    return {
+      get: async (type, ids) => {
+        const a = accounts()[id] || {};
+        const t = (a.keys && a.keys[type]) || {};
+        const out = {};
+        for (const k of ids) {
+          let v = t[k];
+          if (v && type === 'app-state-sync-key') v = B.proto.Message.AppStateSyncKeyData.fromObject(v);
+          if (v !== undefined) out[k] = v;
+        }
+        return out;
+      },
+      set: async data => {
+        if (!rowOf(id)) return; // numero eliminato nel frattempo
+        const a = authOf(id);
+        a.keys ||= {}; a.t ||= {};
+        for (const type in data) {
+          const t = (a.keys[type] ||= {});
+          for (const k in data[type]) {
+            const v = data[type][k];
+            if (v) t[k] = v; else delete t[k];
+            if (type === 'session') { if (v) a.t[k] = Date.now(); else delete a.t[k]; }
+          }
+        }
+        // Tengo le sessioni usate più di recente: le altre WhatsApp le ricrea quando servono
+        const sessions = Object.keys(a.keys.session || {});
+        if (sessions.length > MAX_SESSIONS) {
+          sessions.sort((x, y) => (a.t[x] || 0) - (a.t[y] || 0)).slice(0, sessions.length - MAX_SESSIONS * 0.9)
+            .forEach(k => { delete a.keys.session[k]; delete a.t[k]; });
+        }
+        saveAuth();
+      },
+    };
+  }
+  function wipe(id) { accounts()[id] = {}; saveAuth(); }
   // «account» arriva solo a collegamento riuscito (con il codice «me» c'è già prima)
-  const linked = () => !!(auth.creds && auth.creds.me && auth.creds.account);
+  const linked = id => { const a = accounts()[id]; return !!(a && a.creds && a.creds.me && a.creds.account); };
 
   // ---------- Collegamento a WhatsApp ----------
   let B = null; // libreria Baileys (si carica solo quando serve)
@@ -161,24 +201,31 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     return version || undefined;
   }
 
-  let sock = null, reconnectTimer = null;
-  const W = { status: 'off', qr: null, code: null, phone: '', error: null, linking: false, linkUntil: 0, retries: 0, lock: null, cap: null, limitsAt: 0 };
+  // Una connessione per numero: tutti i numeri collegati restano in ascolto delle risposte,
+  // mandano i primi messaggi solo quelli con «Manda» acceso
+  const conns = new Map();
+  function conn(id) {
+    let c = conns.get(id);
+    if (!c) conns.set(id, c = { id, sock: null, timer: null, sending: false, failures: 0, status: 'off', qr: null, code: null, error: null, info: null, linking: false, linkUntil: 0, useCode: false, retries: 0, lock: null, cap: null, limitsAt: 0 });
+    return c;
+  }
   const botMsgIds = new Set(); // messaggi mandati dal bot (per capire se un «fromMe» l'ha scritto una persona)
 
-  async function connect() {
-    clearTimeout(reconnectTimer);
-    if (sock) { const old = sock; sock = null; try { old.end(undefined); } catch {} }
+  async function connect(c) {
+    clearTimeout(c.timer);
+    if (c.sock) { const old = c.sock; c.sock = null; try { old.end(undefined); } catch {} }
     await lib();
     if (!agent && process.env.WA_PROXY) {
       try { const { HttpsProxyAgent } = await import('https-proxy-agent'); agent = new HttpsProxyAgent(process.env.WA_PROXY); }
       catch { console.warn('WA_PROXY impostato ma manca il pacchetto https-proxy-agent'); }
     }
-    auth.creds ||= B.initAuthCreds();
-    W.status = W.linking ? 'linking' : 'connecting';
+    const a = authOf(c.id);
+    a.creds ||= B.initAuthCreds();
+    c.status = c.linking ? 'linking' : 'connecting';
     const v = await waVersion();
     const s = B.makeWASocket({
       ...(v && { version: v }),
-      auth: { creds: auth.creds, keys: B.makeCacheableSignalKeyStore(keyStore, logger) },
+      auth: { creds: a.creds, keys: B.makeCacheableSignalKeyStore(keyStore(c.id), logger) },
       logger,
       browser: B.Browsers.ubuntu('Chrome'), // con «macOS Desktop» WhatsApp rifiuta il collegamento
       countryCode: 'IT',
@@ -192,95 +239,135 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       },
       ...(agent && { agent }),
     });
-    sock = s;
+    c.sock = s;
     let asked = false;
     s.ev.on('creds.update', saveAuth);
     s.ev.on('connection.update', async u => {
-      if (s !== sock) return;
+      if (s !== c.sock) return;
       if (u.qr) {
         // Non collegato e nessuno sta collegando dalla pagina: chiudo, non serve tenere aperto
-        if (!W.linking || Date.now() > W.linkUntil) { stopLinking('Tempo scaduto: premi di nuovo «Collega WhatsApp».'); return; }
-        W.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 300 }).catch(() => null);
-        if (W.phone && !asked) {
+        if (!c.linking || Date.now() > c.linkUntil) { stopLinking(c, 'Tempo scaduto: premi di nuovo «Collega».'); return; }
+        c.qr = await QRCode.toDataURL(u.qr, { margin: 1, width: 300 }).catch(() => null);
+        const row = rowOf(c.id);
+        if (c.useCode && !asked && row && s === c.sock) {
           asked = true;
-          try { W.code = await s.requestPairingCode(W.phone); }
-          catch (err) { W.error = 'Non riesco a chiedere il codice: ' + err.message + '. Prova con il QR.'; }
+          try { c.code = await s.requestPairingCode(row.phone); }
+          catch (err) { c.error = 'Non riesco a chiedere il codice: ' + err.message + '. Prova con il QR.'; }
         }
       }
-      if (u.connection === 'open') {
-        Object.assign(W, { status: 'open', linking: false, qr: null, code: null, error: null, retries: 0 });
-        const st = S();
-        if (!st.linkedAt) { st.linkedAt = new Date().toISOString(); save(); }
-        console.log('Bot WhatsApp collegato come', (s.user && s.user.id) || '?');
-        checkLimits(true);
-      }
-      if (u.connection === 'close') onClose(u.lastDisconnect && u.lastDisconnect.error);
+      if (u.connection === 'open') onOpen(c, s);
+      if (u.connection === 'close') onClose(c, u.lastDisconnect && u.lastDisconnect.error);
     });
-    s.ev.on('messages.upsert', ev => onMessages(ev).catch(err => console.error('Bot: messaggio ricevuto non letto:', err.message)));
+    s.ev.on('messages.upsert', ev => onMessages(c, ev).catch(err => console.error('Bot: messaggio ricevuto non letto:', err.message)));
   }
-  function stopLinking(msg) {
-    const s = sock; sock = null;
+  function endSock(c) {
+    clearTimeout(c.timer);
+    const s = c.sock; c.sock = null;
     try { s && s.end(undefined); } catch {}
-    if (!linked()) wipeAuth();
-    Object.assign(W, { status: 'off', linking: false, qr: null, code: null, error: msg || null });
+    return s;
   }
-  function onClose(err) {
-    sock = null;
-    if (!B) { W.status = 'off'; return; } // libreria non caricata: niente da ricollegare
+  function onOpen(c, s) {
+    const row = rowOf(c.id);
+    if (!row) { endSock(c); return; }
+    const me = jidUser(s.user && s.user.id);
+    // Lo stesso WhatsApp è già in un'altra riga: tengo quella e scollego questo
+    const dup = me && numbers().find(n => n.id !== c.id && n.phone === me);
+    if (dup) {
+      endSock(c);
+      s.logout().catch(() => {});
+      wipe(c.id);
+      Object.assign(c, { status: 'off', linking: false, qr: null, code: null, info: null, error: `Hai collegato +${me}, che è già in un'altra riga della tabella.` });
+      return;
+    }
+    c.info = me && row.phone !== me ? `Hai collegato +${me} invece di +${row.phone}: ho corretto il numero.` : null;
+    if (me) row.phone = me;
+    row.linkedAt ||= Date.now();
+    save();
+    Object.assign(c, { status: 'open', linking: false, qr: null, code: null, error: null, retries: 0 });
+    console.log('Bot WhatsApp collegato:', '+' + me);
+    checkLimits(c, true);
+  }
+  function stopLinking(c, msg) {
+    endSock(c);
+    if (!linked(c.id)) wipe(c.id);
+    Object.assign(c, { status: 'off', linking: false, qr: null, code: null, error: msg || null });
+  }
+  function onClose(c, err) {
+    c.sock = null;
+    if (!B || !rowOf(c.id)) { c.status = 'off'; return; } // libreria non caricata o numero eliminato
     const code = err && err.output && err.output.statusCode;
     const R = B.DisconnectReason;
     if (code === R.loggedOut) {
-      wipeAuth();
-      Object.assign(W, { status: 'off', linking: false, qr: null, code: null, error: 'WhatsApp è stato scollegato (dal telefono o da WhatsApp). Ricollegalo per far ripartire il bot.' });
-      console.warn('Bot WhatsApp: scollegato');
+      wipe(c.id);
+      Object.assign(c, { status: 'off', linking: false, qr: null, code: null, error: 'WhatsApp è stato scollegato (dal telefono o da WhatsApp). Ricollegalo per farlo ripartire.' });
+      console.warn('Bot WhatsApp: scollegato', '+' + rowOf(c.id).phone);
       return;
     }
     if (code === R.forbidden) {
-      Object.assign(W, { status: 'off', linking: false, error: 'WhatsApp ha rifiutato il collegamento (403): il numero potrebbe essere limitato o bloccato. Controlla l\'app WhatsApp Business.' });
+      Object.assign(c, { status: 'off', linking: false, error: 'WhatsApp ha rifiutato il collegamento (403): il numero potrebbe essere limitato o bloccato. Controlla l\'app WhatsApp Business.' });
       return;
     }
-    if (W.linking && !linked() && code !== R.restartRequired) {
-      stopLinking(code === R.timedOut ? 'Tempo scaduto: premi di nuovo «Collega WhatsApp».' : 'Collegamento non riuscito, riprova.');
+    if (c.linking && !linked(c.id) && code !== R.restartRequired) {
+      stopLinking(c, code === R.timedOut ? 'Tempo scaduto: premi di nuovo «Collega».' : 'Collegamento non riuscito, riprova.');
       return;
     }
-    if (!linked() && !W.linking) { W.status = 'off'; return; }
+    if (!linked(c.id) && !c.linking) { c.status = 'off'; return; }
     // Dopo il collegamento WhatsApp chiede sempre di riconnettersi (515): lo faccio subito
-    const delay = code === R.restartRequired ? 500 : code === R.connectionReplaced ? 60000 : Math.min(120000, 5000 * 2 ** W.retries++);
-    W.status = 'connecting';
-    if (code === R.connectionReplaced) W.error = 'Il bot era aperto anche da un\'altra parte (es. durante un deploy): riprovo tra un minuto.';
-    reconnectTimer = setTimeout(() => connect().catch(e => { W.error = e.message; onClose(); }), delay);
+    const delay = code === R.restartRequired ? 500 : code === R.connectionReplaced ? 60000 : Math.min(120000, 5000 * 2 ** c.retries++);
+    c.status = 'connecting';
+    if (code === R.connectionReplaced) c.error = 'Il bot era aperto anche da un\'altra parte (es. durante un deploy): riprovo tra un minuto.';
+    c.timer = setTimeout(() => connect(c).catch(e => { c.error = e.message; onClose(c); }), delay);
+  }
+  async function startLink(row, { qr = false } = {}) {
+    const c = conn(row.id);
+    if (linked(row.id)) {
+      if (c.status === 'open') throw new Error('Questo numero è già collegato');
+      Object.assign(c, { linking: false, error: null, retries: 0 });
+      return connect(c);
+    }
+    wipe(row.id);
+    Object.assign(c, { linking: true, linkUntil: Date.now() + 4 * 60e3, useCode: !qr, qr: null, code: null, error: null, info: null, retries: 0 });
+    try { await connect(c); }
+    catch (err) { Object.assign(c, { linking: false, status: 'off', error: 'Non riesco a contattare WhatsApp: ' + err.message }); }
+  }
+  async function unlink(row) {
+    const c = conn(row.id);
+    const s = endSock(c);
+    if (s) { try { await s.logout(); } catch {} }
+    wipe(row.id);
+    Object.assign(c, { status: 'off', linking: false, qr: null, code: null, error: null, info: null });
   }
 
-  // Limiti di WhatsApp per i messaggi a persone nuove: se avvisa o blocca, il bot rallenta o si ferma da solo
-  async function checkLimits(force) {
-    if (!sock || W.status !== 'open' || (!force && Date.now() - W.limitsAt < 30 * 60e3)) return;
-    W.limitsAt = Date.now();
-    try { W.lock = await sock.fetchAccountReachoutTimelock(); } catch { W.lock = null; }
-    try { W.cap = await sock.fetchNewChatMessageCap(); } catch { W.cap = null; }
+  // Limiti di WhatsApp per i messaggi a persone nuove: se avvisa o blocca, il numero rallenta o si ferma da solo
+  async function checkLimits(c, force) {
+    if (!c.sock || c.status !== 'open' || (!force && Date.now() - c.limitsAt < 30 * 60e3)) return;
+    c.limitsAt = Date.now();
+    try { c.lock = await c.sock.fetchAccountReachoutTimelock(); } catch { c.lock = null; }
+    try { c.cap = await c.sock.fetchNewChatMessageCap(); } catch { c.cap = null; }
   }
-  function limitPause() {
+  function limitPause(c) {
     const now = Date.now();
-    if (W.lock && W.lock.isActive) {
-      const until = W.lock.timeEnforcementEnds ? new Date(W.lock.timeEnforcementEnds).getTime() : now + 24 * 3600e3;
+    if (c.lock && c.lock.isActive) {
+      const until = c.lock.timeEnforcementEnds ? new Date(c.lock.timeEnforcementEnds).getTime() : now + 24 * 3600e3;
       return { until, why: 'WhatsApp ha limitato i messaggi a persone nuove' };
     }
-    const c = W.cap;
-    if (c && (c.capping_status === 'CAPPED' || (c.total_quota && c.used_quota >= c.total_quota))) {
-      const end = +c.cycle_end_timestamp;
+    const cap = c.cap;
+    if (cap && (cap.capping_status === 'CAPPED' || (cap.total_quota && cap.used_quota >= cap.total_quota))) {
+      const end = +cap.cycle_end_timestamp;
       return { until: end ? (end < 1e12 ? end * 1000 : end) : now + 24 * 3600e3, why: 'Raggiunto il limite di WhatsApp per le chat nuove' };
     }
     return null;
   }
 
   // ---------- Risposte dei clienti ----------
-  async function numberOf(k) {
-    for (const j of [k.remoteJid, k.remoteJidAlt, k.senderPn]) if (j && /@s\.whatsapp\.net$/.test(j)) return digitsOf(j.split('@')[0].split(':')[0]);
+  async function numberOf(c, k) {
+    for (const j of [k.remoteJid, k.remoteJidAlt, k.senderPn]) if (j && /@s\.whatsapp\.net$/.test(j)) return jidUser(j);
     const lid = k.remoteJid && k.remoteJid.endsWith('@lid') ? k.remoteJid : null;
     if (!lid) return null;
     if (D.jids && D.jids[lid]) return D.jids[lid];
     try {
-      const pn = await sock.signalRepository.lidMapping.getPNForLID(lid);
-      if (pn) return digitsOf(pn.split('@')[0].split(':')[0]);
+      const pn = await c.sock.signalRepository.lidMapping.getPNForLID(lid);
+      if (pn) return jidUser(pn);
     } catch {}
     return null;
   }
@@ -300,12 +387,12 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (m.buttonsResponseMessage) return m.buttonsResponseMessage.selectedDisplayText || '';
     return '';
   }
-  async function onMessages({ messages: list, type }) {
+  async function onMessages(c, { messages: list, type }) {
     for (const m of list || []) {
       const k = m.key || {};
       if (!k.remoteJid || /@(g\.us|broadcast|newsletter)$/.test(k.remoteJid)) continue;
       if (!k.fromMe && type !== 'notify') continue;
-      const num = await numberOf(k);
+      const num = await numberOf(c, k);
       const ct = num && contacted()[num];
       if (!ct || !['invio', 'inviato', 'risposto', 'no'].includes(ct.s)) continue; // solo chi ha scritto il bot
       if (k.fromMe) {
@@ -316,19 +403,20 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       const text = textOf(m.message).trim();
       if (!text) continue;
       const no = OPT_OUT.test(text);
+      const row = rowOf(c.id);
       ct.s = no ? 'no' : (ct.s === 'no' ? 'no' : 'risposto');
       ct.r = text.slice(0, 500); ct.rAt = Date.now();
-      (D.replies ||= []).unshift({ n: num, name: ct.n, text: text.slice(0, 500), at: Date.now(), no });
+      (D.replies ||= []).unshift({ n: num, name: ct.n, text: text.slice(0, 500), at: Date.now(), no, to: row && row.phone });
       D.replies = D.replies.slice(0, 300);
       save();
-      const c = cfg();
-      if (!no && c.autoReply.trim() && !ct.auto && !ct.human && text.length < 80 && YES.test(text)) {
+      const cf = cfg();
+      if (!no && cf.autoReply.trim() && !ct.auto && !ct.human && text.length < 80 && YES.test(text)) {
         ct.auto = Date.now(); save();
         const jid = k.remoteJid;
         setTimeout(async () => {
-          if (!sock || W.status !== 'open' || ct.human) return;
-          const reply = c.autoReply.replace(/\{sito\}/g, siteUrl).replace(/\{nome\}/g, ct.n || '').replace(/\{firma\}/g, c.firma);
-          try { await typing(jid, reply); const r = await sendText(jid, reply); logSent(num, ct.n, reply, r, 'risposta automatica'); }
+          if (!c.sock || c.status !== 'open' || ct.human) return;
+          const reply = cf.autoReply.replace(/\{sito\}/g, siteUrl).replace(/\{nome\}/g, ct.n || '').replace(/\{firma\}/g, cf.firma);
+          try { await typing(c, jid, reply); const r = await sendText(c, jid, reply); logSent(num, ct.n, reply, r, 'risposta automatica', row && row.phone); }
           catch (err) { console.error('Bot: risposta automatica non mandata:', err.message); }
         }, rand(40, 120) * 1000);
       }
@@ -362,11 +450,11 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     Object.assign(lastSearch, { at: new Date().toISOString(), label, found: 0, added: 0, error: null, running: true });
     try {
       const { leads } = await searchLeads(job);
-      const me = digitsOf(auth.creds && auth.creds.me && auth.creds.me.id.split(':')[0].split('@')[0]);
+      const mine = new Set(numbers().map(n => n.phone)); // ai nostri numeri non si scrive
       const queued = new Set(queue().map(l => l.wa));
       const cand = [];
       for (const l of leads) {
-        const wa = (l.whatsapps || []).map(digitsOf).find(n => n.length >= 9 && !contacted()[n] && !queued.has(n) && n !== me);
+        const wa = (l.whatsapps || []).map(digitsOf).find(n => n.length >= 9 && !contacted()[n] && !queued.has(n) && !mine.has(n));
         if (wa) { queued.add(wa); cand.push({ l, wa }); }
       }
       // Il sito lo controllo poco prima di scrivere (precheck): una ricerca su tutta Italia ne trova centinaia
@@ -431,20 +519,20 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   }
   // L'ID lo scelgo io e lo segno prima: WhatsApp rimanda subito il messaggio come «mio» e non deve
   // sembrare scritto a mano dal telefono (che spegne le risposte automatiche)
-  function sendText(jid, text) {
-    const messageId = B.generateMessageIDV2(sock.user && sock.user.id);
+  function sendText(c, jid, text) {
+    const messageId = B.generateMessageIDV2(c.sock.user && c.sock.user.id);
     botMsgIds.add(messageId);
-    return sock.sendMessage(jid, { text }, { messageId });
+    return c.sock.sendMessage(jid, { text }, { messageId });
   }
-  async function typing(jid, text) {
-    try { await sock.presenceSubscribe(jid); } catch {}
+  async function typing(c, jid, text) {
+    try { await c.sock.presenceSubscribe(jid); } catch {}
     await sleep(rand(1500, 4000));
-    try { await sock.sendPresenceUpdate('composing', jid); } catch {}
+    try { await c.sock.sendPresenceUpdate('composing', jid); } catch {}
     await sleep(Math.min(14000, 2500 + text.length * 45) * rand(0.8, 1.2));
-    try { await sock.sendPresenceUpdate('paused', jid); } catch {}
+    try { await c.sock.sendPresenceUpdate('paused', jid); } catch {}
   }
-  function logSent(num, name, text, r, kind) {
-    (D.sent ||= []).unshift({ n: num, name, text, id: r && r.key && r.key.id, at: Date.now(), kind });
+  function logSent(num, name, text, r, kind, from) {
+    (D.sent ||= []).unshift({ n: num, name, text, id: r && r.key && r.key.id, at: Date.now(), kind, from });
     D.sent = D.sent.slice(0, 500);
     save();
   }
@@ -453,12 +541,11 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     save();
   }
 
-  let sending = false, failures = 0;
-  // Manda il prossimo messaggio. Ritorna { ok, skipped, error, text }
-  async function sendNext() {
-    if (sending) return { error: 'Sto già mandando un messaggio' };
-    if (!sock || W.status !== 'open') return { error: 'WhatsApp non è collegato' };
-    sending = true;
+  // Manda il prossimo messaggio della coda dal numero «row». Ritorna { ok, skipped, error, text }
+  async function sendNext(c, row) {
+    if (c.sending) return { error: 'Questo numero sta già mandando un messaggio' };
+    if (!c.sock || c.status !== 'open') return { error: 'Il numero +' + row.phone + ' non è collegato' };
+    c.sending = true;
     try {
       const q = queue();
       let lead;
@@ -468,42 +555,54 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       if (lead.website && !lead.checked && !(await checkLead(lead))) { dropOk(lead); save(); return { skipped: true }; }
       let jid;
       try {
-        const [r] = (await sock.onWhatsApp(lead.wa)) || [];
+        const [r] = (await c.sock.onWhatsApp(lead.wa)) || [];
         if (!r || !r.exists) { mark(lead.wa, lead, 'senza-wa'); return { skipped: true }; }
         jid = r.jid;
       } catch (err) {
         q.unshift(lead); save();
         return { error: 'Controllo WhatsApp non riuscito: ' + err.message };
       }
-      const st = S();
-      const text = buildText(lead, st.total || 0);
+      const text = buildText(lead, S().total || 0);
       // Segno prima di mandare: se il server si spegne a metà, meglio perdere un messaggio che mandarne due
-      mark(lead.wa, lead, 'invio');
+      mark(lead.wa, lead, 'invio', { from: row.phone });
       try {
-        await typing(jid, text);
-        const r = await sendText(jid, text);
+        await typing(c, jid, text);
+        const r = await sendText(c, jid, text);
         if (r && r.key && r.key.remoteJid && r.key.remoteJid !== jid) (D.jids ||= {})[r.key.remoteJid] = lead.wa;
         (D.jids ||= {})[jid] = lead.wa;
-        mark(lead.wa, lead, 'inviato');
-        logSent(lead.wa, lead.name, text, r);
-        failures = 0;
+        mark(lead.wa, lead, 'inviato', { from: row.phone });
+        logSent(lead.wa, lead.name, text, r, undefined, row.phone);
+        c.failures = 0;
         return { ok: true, text, lead };
       } catch (err) {
-        mark(lead.wa, lead, 'errore', { err: err.message.slice(0, 200) });
-        if (++failures >= 3) { st.pauseUntil = Date.now() + 3600e3; st.pauseWhy = 'Tre invii di fila non riusciti: riprovo tra un\'ora'; failures = 0; save(); }
+        mark(lead.wa, lead, 'errore', { from: row.phone, err: err.message.slice(0, 200) });
+        if (++c.failures >= 3) { Object.assign(row.st, { pauseUntil: Date.now() + 3600e3, pauseWhy: 'Tre invii di fila non riusciti: riprovo tra un\'ora' }); c.failures = 0; save(); }
         return { error: 'Invio non riuscito: ' + err.message };
       }
     } finally {
-      sending = false;
+      c.sending = false;
     }
   }
+  // Dopo un invio riuscito: contatori del numero e di tutto il bot
+  function counted(row) {
+    const st = row.st, g = S(), day = local().day;
+    st.sent = (st.sent || 0) + 1; st.total = (st.total || 0) + 1; g.total = (g.total || 0) + 1;
+    if (st.lastDay !== day) { st.days = (st.days || 0) + 1; st.lastDay = day; }
+    st.nextAt = planNext(st, false);
+    save();
+  }
 
-  // ---------- Orari ----------
-  function dayTarget() {
-    const c = cfg(), st = S();
+  // ---------- Orari (per ogni numero) ----------
+  // La partenza graduale vale per ogni numero: un numero nuovo riparte da 10 al giorno
+  function dayTarget(st) {
+    const c = cfg();
     let t = randInt(Math.min(c.min, c.max), Math.max(c.min, c.max));
     if (c.warmup && (st.days || 0) < WARMUP.length) t = Math.min(t, WARMUP[st.days || 0]);
     return t;
+  }
+  function rollDay(row, L) {
+    const st = (row.st ||= {});
+    if (st.day !== L.day) { Object.assign(st, { day: L.day, sent: 0, target: dayTarget(st), nextAt: null, warned: false }); save(); }
   }
   // Minuti di fascia oraria che restano oggi dopo «from» e l'ora (in minuti) dopo aver «consumato» n minuti di fascia
   function availAfter(from) { return parseHours(cfg().hours).reduce((s, [a, b]) => s + Math.max(0, b - Math.max(a, from)), 0); }
@@ -518,8 +617,8 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   }
   const inWindow = m => parseHours(cfg().hours).some(([a, b]) => m >= a && m < b);
   // Il prossimo invio: i messaggi che mancano sparsi a caso nel tempo di fascia che resta
-  function planNext(first) {
-    const st = S(), L = local();
+  function planNext(st, first) {
+    const L = local();
     const left = (st.target || 0) - (st.sent || 0);
     if (left <= 0) return null;
     const avail = availAfter(L.min);
@@ -530,39 +629,39 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (at == null) return null;
     return Date.now() + Math.max(first ? 30000 : MIN_GAP_MS, (at - L.min) * 60e3);
   }
+  const paused = st => st.pauseUntil && Date.now() < st.pauseUntil;
 
+  async function tickRow(row, L) {
+    const c = conns.get(row.id), st = row.st;
+    if (!c || c.status !== 'open') return;
+    await checkLimits(c);
+    if (st.sent >= st.target || paused(st)) return;
+    const lp = limitPause(c);
+    if (lp) { st.pauseUntil = lp.until; st.pauseWhy = lp.why; save(); return; }
+    // Primo avviso di WhatsApp sulle chat nuove: oggi la metà
+    if (c.cap && /WARNING/.test(c.cap.capping_status || '') && !st.warned) {
+      st.target = Math.min(st.target, st.sent + Math.ceil((st.target - st.sent) / 2)); st.warned = true; st.nextAt = null; save();
+    }
+    if (!st.nextAt || local(st.nextAt).day !== L.day) { st.nextAt = planNext(st, true); save(); return; }
+    if (Date.now() < st.nextAt) return;
+    const r = await sendNext(c, row);
+    if (r.ok) return counted(row);
+    if (r.skipped) st.nextAt = Date.now() + rand(20, 60) * 1000; // numero senza WhatsApp o sito ok: passo al prossimo
+    else { st.lastError = r.error; st.nextAt = Date.now() + 5 * 60e3; }
+    save();
+  }
   let ticking = false;
   async function tick() {
     if (ticking || !isReady()) return;
     ticking = true;
     try {
-      const st = S(), c = cfg(), L = local();
-      if (st.day !== L.day) { Object.assign(st, { day: L.day, sent: 0, target: dayTarget(), nextAt: null, warned: false }); save(); }
+      const g = S(), c = cfg(), L = local();
+      for (const row of numbers()) rollDay(row, L);
       precheck().catch(err => console.error('Bot: controllo siti:', err.message));
-      if (!st.enabled) return;
+      if (!g.enabled) return;
       if (queue().length < QUEUE_MIN) refill().catch(err => console.error('Bot: ricerca:', err.message));
-      if (W.status !== 'open') return;
-      await checkLimits();
-      if (!c.days.includes(L.wd) || !inWindow(L.min) || st.sent >= st.target) return;
-      if (st.pauseUntil && Date.now() < st.pauseUntil) return;
-      const lp = limitPause();
-      if (lp) { st.pauseUntil = lp.until; st.pauseWhy = lp.why; save(); return; }
-      // Primo avviso di WhatsApp sulle chat nuove: oggi la metà
-      const warn = W.cap && /WARNING/.test(W.cap.capping_status || '');
-      if (warn && !st.warned) { st.target = Math.min(st.target, st.sent + Math.ceil((st.target - st.sent) / 2)); st.warned = true; st.nextAt = null; save(); }
-      if (!st.nextAt || local(st.nextAt).day !== L.day) { st.nextAt = planNext(true); save(); return; }
-      if (Date.now() < st.nextAt) return;
-      const r = await sendNext();
-      if (r.ok) {
-        st.sent = (st.sent || 0) + 1; st.total = (st.total || 0) + 1;
-        if (st.lastDay !== L.day) { st.days = (st.days || 0) + 1; st.lastDay = L.day; }
-        st.nextAt = planNext(false);
-      } else if (r.skipped) {
-        st.nextAt = Date.now() + rand(20, 60) * 1000; // numero senza WhatsApp: passo al prossimo
-      } else {
-        st.lastError = r.error; st.nextAt = Date.now() + 5 * 60e3;
-      }
-      save();
+      if (!c.days.includes(L.wd) || !inWindow(L.min)) return;
+      for (const row of numbers()) if (row.enabled) await tickRow(row, L);
     } catch (err) {
       console.error('Bot WhatsApp:', err.message);
     } finally {
@@ -570,40 +669,69 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     }
   }
 
-  // Cosa sta facendo il bot, in una frase
+  // ---------- Cosa sta facendo, in una frase ----------
+  const at = t => new Date(t).toLocaleTimeString('it-IT', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+  const when = t => new Date(t).toLocaleString('it-IT', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  function rowNote(row) {
+    const c = conns.get(row.id) || {}, st = row.st || {};
+    if (c.status === 'linking') return 'In collegamento…';
+    if (!linked(row.id)) return 'Da collegare';
+    if (c.status !== 'open') return 'Mi ricollego…';
+    if (!row.enabled) return 'Spento: non scrive a nessuno, ma vede le risposte';
+    if (paused(st)) return `In pausa fino al ${when(st.pauseUntil)}: ${st.pauseWhy || ''}`;
+    if ((st.sent || 0) >= (st.target || 0)) return 'Finito per oggi';
+    return st.nextAt ? `Prossimo messaggio verso le ${at(st.nextAt)}` : 'Pronto';
+  }
   function note() {
-    const st = S(), c = cfg(), L = local();
-    if (!st.enabled) return 'Il bot è spento.';
-    if (W.status !== 'open') return linked() ? 'Mi sto ricollegando a WhatsApp…' : 'Collega WhatsApp per partire.';
-    if (st.pauseUntil && Date.now() < st.pauseUntil) return `In pausa fino a ${new Date(st.pauseUntil).toLocaleString('it-IT', { timeZone: TZ })}: ${st.pauseWhy || ''}`;
+    const g = S(), c = cfg(), L = local();
+    if (!g.enabled) return 'Il bot è spento.';
+    if (!numbers().length) return 'Aggiungi un numero WhatsApp nella tabella qui sotto.';
+    const rows = numbers().filter(n => n.enabled);
+    if (!rows.length) return 'Nessun numero acceso: accendi «Scrive» su un numero della tabella.';
+    const open = rows.filter(n => (conns.get(n.id) || {}).status === 'open');
+    if (!open.length) return rows.some(n => linked(n.id)) ? 'Mi sto ricollegando a WhatsApp…' : 'Collega il numero WhatsApp nella tabella qui sotto.';
     if (!c.days.includes(L.wd)) return 'Oggi è un giorno di riposo.';
-    if ((st.sent || 0) >= (st.target || 0)) return `Finito per oggi (${st.sent || 0} messaggi). Riparto domani.`;
+    const working = open.filter(n => (n.st.sent || 0) < (n.st.target || 0));
+    if (!working.length) return `Finito per oggi (${open.reduce((s, n) => s + (n.st.sent || 0), 0)} messaggi). Riparto domani.`;
     if (!inWindow(L.min)) {
       const nx = parseHours(c.hours).find(([a]) => a > L.min);
       return nx ? `Fuori orario: riparto alle ${hhmm(nx[0])}.` : 'Fasce orarie finite per oggi: riparto domani.';
     }
+    const free = working.filter(n => !paused(n.st));
+    if (!free.length) return `In pausa: ${working[0].st.pauseWhy || ''}`;
     if (!queue().length) return refilling ? 'Sto cercando nuovi clienti…' : (nextJob() ? 'Coda vuota: cerco nuovi clienti tra poco.' : 'Ho scritto a tutti quelli trovati: aggiungi zone o tipi di attività.');
-    return st.nextAt ? `Prossimo messaggio verso le ${new Date(st.nextAt).toLocaleTimeString('it-IT', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })}.` : 'Preparo il prossimo messaggio…';
+    const next = free.filter(n => n.st.nextAt).sort((a, b) => a.st.nextAt - b.st.nextAt)[0];
+    return next ? `Prossimo messaggio verso le ${at(next.st.nextAt)} da +${next.phone}.` : 'Preparo il prossimo messaggio…';
   }
 
   function status() {
-    const st = S(), c = cfg();
+    const g = S(), c = cfg();
     const all = Object.values(contacted());
     const count = s => all.filter(x => x.s === s).length;
+    const rows = numbers().map(n => {
+      const cn = conns.get(n.id) || {}, st = n.st || {};
+      return {
+        id: n.id, phone: n.phone, label: n.label, enabled: !!n.enabled, addedAt: n.addedAt, linked: linked(n.id),
+        status: cn.status || 'off', qr: cn.qr || null, code: cn.code || null, error: cn.error || null, info: cn.info || null, lock: cn.lock || null, cap: cn.cap || null,
+        sent: st.sent || 0, target: st.target || 0, total: st.total || 0, nextAt: st.nextAt || null,
+        warmupDay: c.warmup && (st.days || 0) < WARMUP.length ? (st.days || 0) + 1 : 0,
+        note: rowNote(n),
+      };
+    });
     return {
       ready: isReady(),
-      wa: { status: W.status, linked: linked(), me: auth.creds && auth.creds.me ? { id: auth.creds.me.id.split(':')[0].split('@')[0], name: auth.creds.me.name } : null, qr: W.qr, code: W.code, error: W.error, lock: W.lock, cap: W.cap },
-      enabled: !!st.enabled,
+      numbers: rows,
+      enabled: !!g.enabled,
       note: note(),
-      today: { day: st.day, sent: st.sent || 0, target: st.target || 0, nextAt: st.nextAt || null, warmupDay: c.warmup && (st.days || 0) < WARMUP.length ? (st.days || 0) + 1 : 0 },
+      today: { sent: rows.reduce((s, n) => s + n.sent, 0), target: rows.filter(n => n.enabled && n.linked).reduce((s, n) => s + n.target, 0) },
       stats: { total: count('inviato') + count('risposto') + count('no'), replies: count('risposto'), no: count('no'), noWa: count('senza-wa'), errors: count('errore') },
       config: c,
-      queue: queue().slice(0, 30).map(l => ({ ...l, preview: buildText(l, st.total || 0) })),
+      queue: queue().slice(0, 30).map(l => ({ ...l, preview: buildText(l, g.total || 0) })),
       queueLength: queue().length,
       refilling, lastSearch, exhausted: !queue().length && !nextJob(), jobsTotal: jobs().length,
       sent: (D.sent || []).slice(0, 100).map(x => ({ ...x, s: (contacted()[x.n] || {}).s })),
       replies: (D.replies || []).slice(0, 100),
-      repliesSeenAt: st.repliesSeenAt || 0,
+      repliesSeenAt: g.repliesSeenAt || 0,
       types: Object.entries(leadTypes()).map(([id, t]) => ({ id, label: t.label })),
       languages: messages.languages,
       google: googleOn(),
@@ -642,39 +770,77 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   function routes(app, requireAdmin) {
     const ready = (req, res, next) => isReady() ? next() : res.status(503).json({ error: 'Sto ancora riprendendo i dati, riprova tra qualche secondo' });
     const r = '/api/admin/bot';
+    const PHONE_ERR = 'Scrivi il numero con il prefisso, es. 39 333 1234567';
+    const findRow = (req, res, next) => { req.row = rowOf(req.params.id); return req.row ? next() : res.status(404).json({ error: 'Numero non trovato' }); };
+    const only = keep => numbers().forEach(n => { if (n !== keep && n.enabled) { n.enabled = false; } });
     app.get(r, requireAdmin, (req, res) => res.json(isReady() ? status() : { ready: false }));
-    app.post(r + '/link', requireAdmin, ready, async (req, res) => {
-      const phone = digitsOf(req.body && req.body.phone);
-      if (phone && (phone.length < 10 || phone.length > 15)) return res.status(400).json({ error: 'Scrivi il numero con il prefisso, es. 39 333 1234567' });
-      if (linked() && W.status === 'open') return res.status(400).json({ error: 'WhatsApp è già collegato' });
-      if (linked()) { W.linking = false; W.error = null; W.retries = 0; connect().catch(err => { W.error = err.message; }); return res.json({ ok: true }); }
-      wipeAuth();
-      Object.assign(W, { linking: true, linkUntil: Date.now() + 4 * 60e3, phone, qr: null, code: null, error: null, retries: 0 });
-      try { await connect(); } catch (err) { W.linking = false; W.status = 'off'; return res.status(500).json({ error: 'Non riesco a contattare WhatsApp: ' + err.message }); }
-      res.json({ ok: true });
+
+    // Tabella dei numeri: aggiungi (e collega subito con il codice), accendi/spegni, collega, scollega, elimina
+    app.post(r + '/numbers', requireAdmin, ready, async (req, res) => {
+      const b = req.body || {};
+      const phone = normPhone(b.phone);
+      if (phone.length < 10 || phone.length > 15) return res.status(400).json({ error: PHONE_ERR });
+      if (numbers().some(n => n.phone === phone)) return res.status(400).json({ error: 'Questo numero è già nella tabella' });
+      if (numbers().length >= 10) return res.status(400).json({ error: 'Massimo 10 numeri: elimina quelli che non usi più' });
+      const row = { id: newId(), phone, label: String(b.label || '').trim().slice(0, 40), enabled: true, addedAt: Date.now(), st: {} };
+      if (b.only) only(row);
+      numbers().push(row);
+      rollDay(row, local());
+      save();
+      await startLink(row, { qr: !!b.qr });
+      res.json(status());
     });
-    app.post(r + '/link/cancel', requireAdmin, (req, res) => { stopLinking(null); res.json({ ok: true }); });
-    app.post(r + '/unlink', requireAdmin, ready, async (req, res) => {
-      clearTimeout(reconnectTimer);
-      const s = sock; sock = null;
-      if (s) { try { await s.logout(); } catch {} try { s.end(undefined); } catch {} }
-      wipeAuth();
-      Object.assign(W, { status: 'off', linking: false, qr: null, code: null, error: null });
-      res.json({ ok: true });
+    app.patch(r + '/numbers/:id', requireAdmin, ready, findRow, (req, res) => {
+      const b = req.body || {}, row = req.row;
+      if (b.label !== undefined) row.label = String(b.label).trim().slice(0, 40);
+      if (b.enabled !== undefined) { row.enabled = !!b.enabled; row.st.nextAt = null; row.st.pauseUntil = null; row.st.pauseWhy = null; }
+      if (b.only) { only(row); row.enabled = true; }
+      save();
+      res.json(status());
     });
+    app.post(r + '/numbers/:id/link', requireAdmin, ready, findRow, async (req, res) => {
+      try { await startLink(req.row, { qr: !!(req.body && req.body.qr) }); }
+      catch (err) { return res.status(400).json({ error: err.message }); }
+      res.json(status());
+    });
+    app.post(r + '/numbers/:id/link/cancel', requireAdmin, findRow, (req, res) => { stopLinking(conn(req.row.id), null); res.json(status()); });
+    app.post(r + '/numbers/:id/unlink', requireAdmin, ready, findRow, async (req, res) => { await unlink(req.row); res.json(status()); });
+    app.delete(r + '/numbers/:id', requireAdmin, ready, findRow, async (req, res) => {
+      const row = req.row;
+      await unlink(row);
+      conns.delete(row.id);
+      delete accounts()[row.id]; saveAuth();
+      D.numbers = numbers().filter(n => n !== row);
+      save();
+      res.json(status());
+    });
+    // Prova: manda al numero scritto (es. il tuo personale) il messaggio che riceverebbe il primo della coda
+    app.post(r + '/numbers/:id/test', requireAdmin, ready, findRow, async (req, res) => {
+      const phone = normPhone(req.body && req.body.phone);
+      if (phone.length < 10) return res.status(400).json({ error: PHONE_ERR });
+      const c = conns.get(req.row.id);
+      if (!c || !c.sock || c.status !== 'open') return res.status(400).json({ error: 'Questo numero non è collegato' });
+      const sample = queue()[0] || { name: 'Pizzeria Da Mario', website: '', social: '', reasons: [] };
+      const text = buildText(sample, S().total || 0);
+      try {
+        const [x] = (await c.sock.onWhatsApp(phone)) || [];
+        if (!x || !x.exists) return res.status(400).json({ error: 'Il numero ' + '+' + phone + ' non ha WhatsApp' });
+        await sendText(c, x.jid, '🤖 PROVA del bot (il cliente riceverà solo il testo qui sotto):\n\n' + text);
+        res.json({ ok: true, text });
+      } catch (err) { res.status(500).json({ error: 'Invio non riuscito: ' + err.message }); }
+    });
+
     app.post(r + '/toggle', requireAdmin, ready, (req, res) => {
-      const st = S();
-      st.enabled = !!(req.body && req.body.enabled);
-      st.nextAt = null; st.pauseUntil = null; st.pauseWhy = null;
+      S().enabled = !!(req.body && req.body.enabled);
+      for (const n of numbers()) Object.assign(n.st ||= {}, { nextAt: null, pauseUntil: null, pauseWhy: null });
       save(); tick().catch(() => {});
       res.json(status());
     });
     app.put(r + '/config', requireAdmin, ready, (req, res) => {
       try { D.config = cleanConfig(req.body || {}); }
       catch (err) { return res.status(400).json({ error: err.message }); }
-      const st = S();
-      // Nuovi limiti: ricalcolo il numero di oggi e il prossimo orario
-      if (st.day) { st.target = Math.max(st.sent || 0, dayTarget()); st.nextAt = null; }
+      // Nuovi limiti: ricalcolo il numero di oggi e il prossimo orario di ogni numero
+      for (const n of numbers()) if (n.st && n.st.day) { n.st.target = Math.max(n.st.sent || 0, dayTarget(n.st)); n.st.nextAt = null; }
       save();
       res.json(status());
     });
@@ -693,27 +859,13 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       res.json({ ok: true });
     });
     app.post(r + '/send-now', requireAdmin, ready, async (req, res) => {
-      const st = S();
-      if (!st.enabled) return res.status(400).json({ error: 'Accendi prima il bot' });
-      if ((st.sent || 0) >= (st.target || 0)) return res.status(400).json({ error: 'Per oggi il bot ha già mandato tutti i messaggi' });
-      const out = await sendNext();
-      if (out.ok) { st.sent = (st.sent || 0) + 1; st.total = (st.total || 0) + 1; if (st.lastDay !== st.day) { st.days = (st.days || 0) + 1; st.lastDay = st.day; } st.nextAt = planNext(false); save(); }
+      if (!S().enabled) return res.status(400).json({ error: 'Accendi prima il bot' });
+      const row = numbers().find(n => n.enabled && (conns.get(n.id) || {}).status === 'open' && (n.st.sent || 0) < (n.st.target || 0));
+      if (!row) return res.status(400).json({ error: 'Nessun numero acceso e collegato che possa scrivere ancora oggi' });
+      const out = await sendNext(conns.get(row.id), row);
+      if (out.ok) counted(row);
       if (out.error) return res.status(400).json({ error: out.error });
-      res.json({ ok: true, skipped: !!out.skipped, text: out.text });
-    });
-    // Prova: manda al numero scritto (es. il tuo personale) il messaggio che riceverebbe il primo della coda
-    app.post(r + '/test', requireAdmin, ready, async (req, res) => {
-      const phone = digitsOf(req.body && req.body.phone);
-      if (phone.length < 10) return res.status(400).json({ error: 'Scrivi il numero con il prefisso, es. 39 333 1234567' });
-      if (!sock || W.status !== 'open') return res.status(400).json({ error: 'WhatsApp non è collegato' });
-      const sample = queue()[0] || { name: 'Pizzeria Da Mario', website: '', social: '', reasons: [] };
-      const text = buildText(sample, S().total || 0);
-      try {
-        const [x] = (await sock.onWhatsApp(phone)) || [];
-        if (!x || !x.exists) return res.status(400).json({ error: 'Questo numero non ha WhatsApp' });
-        await sendText(x.jid, '🤖 PROVA del bot (il cliente riceverà solo il testo qui sotto):\n\n' + text);
-        res.json({ ok: true, text });
-      } catch (err) { res.status(500).json({ error: 'Invio non riuscito: ' + err.message }); }
+      res.json({ ok: true, skipped: !!out.skipped, text: out.text, from: row.phone });
     });
     app.post(r + '/replies/seen', requireAdmin, ready, (req, res) => { S().repliesSeenAt = Date.now(); save(); res.json({ ok: true }); });
     // Numeri già contattati (dal bot o a mano da Trova clienti): così nessuno riceve due messaggi
@@ -733,30 +885,36 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   }
 
   // ---------- Backup (ramo backup-bot, solo l'ultima copia) ----------
+  const backupKeys = a => {
+    const keys = {};
+    for (const t of BACKUP_KEY_TYPES) if (a.keys && a.keys[t]) keys[t] = a.keys[t];
+    return toPlain({ creds: a.creds, keys });
+  };
   const backupFiles = {
     'bot.json': { file: () => BOT_FILE, get: () => D, set: v => { D = v || {}; } },
     'wa-auth.json': {
       file: () => AUTH_FILE,
       get: () => {
-        if (!auth.creds) return {};
-        const keys = {};
-        for (const t of BACKUP_KEY_TYPES) if (auth.keys && auth.keys[t]) keys[t] = auth.keys[t];
-        return toPlain({ creds: auth.creds, keys });
+        if (A.creds) return backupKeys(A); // formato della prima versione, non ancora convertito
+        const out = {};
+        for (const [id, a] of Object.entries(A.accounts || {})) if (a.creds) out[id] = backupKeys(a);
+        return Object.keys(out).length ? { accounts: out } : {};
       },
-      set: v => { auth = revive(v); },
+      set: v => { A = revive(v); },
     },
   };
 
-  // Parte quando il backup è ripreso: si ricollega da solo se WhatsApp era già collegato
+  // Parte quando il backup è ripreso: ricollega da soli i numeri già collegati
   function start() {
     const wait = setInterval(() => {
       if (!isReady()) return;
       clearInterval(wait);
-      if (linked()) connect().catch(err => { W.error = err.message; console.error('Bot WhatsApp:', err.message); });
+      migrate();
+      for (const n of numbers()) if (linked(n.id)) connect(conn(n.id)).catch(err => { conn(n.id).error = err.message; console.error('Bot WhatsApp:', err.message); });
       setInterval(tick, 20000);
       tick();
     }, 1000);
   }
 
-  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, OPT_OUT, YES, state: () => D } };
+  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, normPhone, OPT_OUT, YES, state: () => D, auth: () => A, migrate } };
 };

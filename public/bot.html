@@ -66,6 +66,34 @@
     .btn-wa { background: #25d366; color: #fff; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     details summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+    .addrow { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 14px; }
+    .addrow .full { grid-column: 1 / -1; margin: 0; }
+    .nums { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .nums th { text-align: left; color: var(--muted); font-weight: 500; font-size: .78rem; padding: 8px 8px; border-bottom: 1px solid var(--line); }
+    .nums td { padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .nums tr.panel td { border-bottom: 1px solid var(--line); padding-top: 0; }
+    .nums td small { display: block; color: var(--muted); font-size: .78rem; }
+    .nums .acts { text-align: right; white-space: nowrap; }
+    .nums .acts .btn { margin: 2px 0 2px 4px; }
+    .nums .num { font-weight: 600; white-space: nowrap; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+    .dot.ok { background: #25d366; } .dot.warn { background: var(--gold); } .dot.bad { background: var(--red); }
+    .switch.sm { width: 52px; height: 30px; }
+    .switch.sm::after { width: 22px; height: 22px; top: 3px; left: 3px; }
+    .switch.sm.on::after { left: 25px; }
+    .linkbox { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    @media (max-width: 760px) {
+      .addrow { grid-template-columns: 1fr; }
+      .nums thead { display: none; }
+      .nums tr { display: block; border-bottom: 1px solid var(--line); padding: 10px 0; }
+      .nums tr.panel { border-bottom: 0; padding-top: 0; }
+      .nums td { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; padding: 4px 0; text-align: right; }
+      .nums td::before { content: attr(data-l); color: var(--muted); font-size: .8rem; text-align: left; flex: 0 0 auto; }
+      .nums td.acts { justify-content: flex-start; flex-wrap: wrap; white-space: normal; padding-top: 8px; }
+      .nums td.acts::before, .nums tr.panel td::before { display: none; }
+      .nums tr.panel td { display: block; text-align: left; }
+      .nums .acts .btn { margin: 0 6px 6px 0; }
+    }
     .empty { color: var(--muted); font-size: .9rem; }
     .muted-list { color: var(--muted); font-size: .88rem; margin: 6px 0 0; padding-left: 18px; }
     @media (max-width: 700px) {
@@ -108,8 +136,15 @@
   </section>
 
   <section class="box" id="waBox">
-    <h2>📱 Il tuo WhatsApp Business</h2>
-    <div id="waBody"></div>
+    <h2>📱 Numeri WhatsApp da cui scrive il bot</h2>
+    <p class="muted small" style="margin:-4px 0 12px">Scrivi il numero del WhatsApp Business e collegalo una volta con il codice. Ogni numero con «Scrive» acceso manda i suoi messaggi al giorno. Se cambi numero, aggiungi quello nuovo: il vecchio si spegne da solo (resta collegato per vedere le risposte) e puoi eliminarlo quando vuoi.</p>
+    <form id="addForm" class="addrow" autocomplete="off">
+      <div><label for="addPhone">Numero WhatsApp Business</label><input id="addPhone" inputmode="tel" placeholder="39 333 1234567" required></div>
+      <div><label for="addLabel">Nome (facoltativo)</label><input id="addLabel" maxlength="40" placeholder="Es. Numero 2"></div>
+      <button class="btn btn-wa" type="submit" id="addBtn">➕ Aggiungi e collega</button>
+      <label class="check full"><input type="checkbox" id="addOnly" checked><span>Scrive solo questo numero (spegne gli altri)</span></label>
+    </form>
+    <div id="numbers"></div>
   </section>
 
   <section class="box">
@@ -190,7 +225,7 @@
   <section class="box">
     <h2>⚠️ Da sapere</h2>
     <ul class="muted-list">
-      <li>Il bot usa il tuo WhatsApp Business come «dispositivo collegato» (come WhatsApp Web): i messaggi partono dal tuo numero e li vedi nell'app. Il telefono può restare spento, ma apri WhatsApp Business almeno una volta ogni 14 giorni (altrimenti WhatsApp scollega i dispositivi) e non scollegare «Chrome (Ubuntu)» dai dispositivi collegati.</li>
+      <li>Il bot usa il tuo WhatsApp Business come «dispositivo collegato» (come WhatsApp Web): i messaggi partono dal tuo numero e li vedi nell'app. Il telefono può restare spento, ma apri WhatsApp Business almeno una volta ogni 14 giorni (altrimenti WhatsApp scollega i dispositivi) e non scollegare «Chrome (Ubuntu)» dai dispositivi collegati. Ogni numero nuovo riparte con la partenza graduale.</li>
       <li>WhatsApp non ama i programmi che scrivono da soli e blocca i numeri che ricevono tante segnalazioni. Per questo il bot scrive a ognuno <b>una volta sola</b>, con messaggi brevi e diversi, sparsi nella giornata, e si ferma da solo se WhatsApp limita le chat nuove. Il rischio di blocco però non è zero: usa un numero di lavoro, non quello personale.</li>
       <li>Per la legge italiana sulla privacy i messaggi pubblicitari automatici richiedono di norma il consenso. Scrivere solo a chi ha pubblicato il suo WhatsApp come contatto dell'attività e smettere al primo «no» riduce il problema, ma non lo elimina: se hai dubbi chiedi a un consulente.</li>
     </ul>
@@ -219,7 +254,7 @@
     catch (err) { if (err.message !== '401') document.getElementById('note').textContent = 'Errore: ' + err.message; return; }
     if (!S.ready) { document.getElementById('note').textContent = 'Il sito sta riprendendo i dati dal backup, un attimo…'; schedule(3000); return; }
     render();
-    schedule(S.wa.status === 'linking' || S.wa.status === 'connecting' ? 3000 : 30000);
+    schedule(S.numbers.some(n => n.status === 'linking' || n.status === 'connecting') ? 3000 : 30000);
   }
   function schedule(ms) { clearTimeout(timer); timer = setTimeout(load, ms); }
 
@@ -235,42 +270,49 @@
     document.getElementById('sNo').textContent = st.no;
     document.getElementById('sQueue').textContent = S.queueLength;
     const alerts = [];
-    if (t.warmupDay) alerts.push(`<div class="alert grey">🌱 Partenza graduale: giorno ${t.warmupDay} di 4, oggi al massimo ${t.target} messaggi.</div>`);
     if (S.exhausted && S.enabled) alerts.push('<div class="alert gold">Ho già scritto a tutti quelli trovati nelle tue zone. Aggiungi zone o tipi di attività nelle impostazioni (le stesse ricerche si rifanno dopo 30 giorni).</div>');
     if (backupWarn) alerts.push(`<div class="alert gold">${backupWarn}</div>`);
     document.getElementById('heroAlerts').innerHTML = alerts.join('');
-    renderWa(); renderReplies(); renderQueue(); renderSent();
+    renderNumbers(); renderReplies(); renderQueue(); renderSent();
     if (!formLoaded) fillForm();
   }
 
-  function renderWa() {
-    const w = S.wa, box = document.getElementById('waBody');
-    const err = w.error ? `<div class="alert red">${escapeHtml(w.error)}</div>` : '';
-    let limits = '';
-    if (w.lock && w.lock.isActive) limits += `<div class="alert red">⛔ WhatsApp ha limitato i messaggi a persone nuove${w.lock.timeEnforcementEnds ? ' fino al ' + when(w.lock.timeEnforcementEnds) : ''}. Il bot è in pausa da solo.</div>`;
-    if (w.cap && w.cap.total_quota) limits += `<div class="alert ${/WARNING|CAPPED/.test(w.cap.capping_status || '') ? 'gold' : 'grey'}">Chat nuove usate in questo periodo: ${w.cap.used_quota || 0} su ${w.cap.total_quota}${w.cap.capping_status && w.cap.capping_status !== 'NONE' ? ' · stato: ' + escapeHtml(w.cap.capping_status) : ''}</div>`;
-    if (w.status === 'open') {
-      box.innerHTML = `<p style="margin:0"><b class="ok">✅ Collegato</b>${w.me ? ` · ${escapeHtml(fmtNum(w.me.id))}${w.me.name && w.me.name !== '~' ? ' (' + escapeHtml(w.me.name) + ')' : ''}` : ''}</p>
-        ${limits}${err}
-        <div class="field"><label for="testPhone">Manda una prova a un tuo numero (vedi come arriva il messaggio)</label>
-          <div class="row"><input class="grow" id="testPhone" inputmode="tel" placeholder="39 333 1234567"><button class="btn btn-ghost btn-sm" id="testBtn">Manda prova</button></div></div>
-        <div class="row" style="margin-top:14px"><button class="btn btn-danger btn-sm" id="unlinkBtn">Scollega WhatsApp</button></div>`;
-    } else if (w.status === 'linking') {
-      box.innerHTML = `${w.code ? `<p style="margin:0">Scrivi questo codice nel telefono con il WhatsApp Business:</p><div class="code">${escapeHtml(w.code.replace(/^(.{4})(.{4})$/, '$1-$2'))}</div>
+  function numPanel(n) {
+    const parts = [];
+    if (n.status === 'linking') {
+      parts.push(n.code ? `<p style="margin:0">Scrivi questo codice nel telefono con il WhatsApp Business <b>${escapeHtml(fmtNum(n.phone))}</b>:</p><div class="code">${escapeHtml(n.code.replace(/^(.{4})(.{4})$/, '$1-$2'))}</div>
         <ol class="steps"><li>Apri <b>WhatsApp Business</b> sul telefono</li><li>Tocca <b>⋮</b> (Android) o <b>Impostazioni</b> (iPhone) → <b>Dispositivi collegati</b></li><li><b>Collega un dispositivo</b> → <b>Collega con il numero di telefono</b></li><li>Scrivi il codice qui sopra</li></ol>`
-        : w.qr ? '' : '<p class="muted" style="margin:0">Mi collego a WhatsApp…</p>'}
-        ${w.qr ? `<details ${w.code ? '' : 'open'}><summary>${w.code ? 'Oppure inquadra il QR da un altro telefono o computer' : 'Inquadra il QR: WhatsApp Business → Dispositivi collegati → Collega un dispositivo'}</summary><img class="qr" src="${w.qr}" alt="QR per collegare WhatsApp"></details>` : ''}
-        ${err}
-        <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" id="cancelBtn">Annulla</button><span class="muted small">Il codice vale qualche minuto.</span></div>`;
-    } else if (w.linked) {
-      box.innerHTML = `<p style="margin:0"><b class="warnc">⏳ Mi sto ricollegando…</b>${w.me ? ' · ' + escapeHtml(fmtNum(w.me.id)) : ''}</p>${limits}${err}
-        <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" id="relinkBtn">Riprova adesso</button><button class="btn btn-danger btn-sm" id="unlinkBtn">Scollega</button></div>`;
-    } else {
-      box.innerHTML = `${err}<p class="muted" style="margin:0 0 10px">Collega il WhatsApp Business da cui partono i messaggi. Serve una volta sola: poi il bot si ricollega da solo.</p>
-        <label for="linkPhone">Numero del WhatsApp Business, con prefisso</label>
-        <div class="row"><input class="grow" id="linkPhone" inputmode="tel" placeholder="39 333 1234567"><button class="btn btn-wa" id="linkBtn">Collega con codice</button></div>
-        <p style="margin:10px 0 0"><button class="btn btn-ghost btn-sm" id="qrBtn">Collega con QR (da un altro schermo)</button></p>`;
+        : n.qr ? '' : '<p class="muted" style="margin:0">Mi collego a WhatsApp…</p>');
+      if (n.qr) parts.push(`<details ${n.code ? '' : 'open'}><summary>${n.code ? 'Oppure inquadra il QR da un altro telefono o computer' : 'Inquadra il QR: WhatsApp Business → Dispositivi collegati → Collega un dispositivo'}</summary><img class="qr" src="${n.qr}" alt="QR per collegare WhatsApp"></details>`);
+      parts.push('<div class="row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" data-act="cancel">Annulla</button><span class="muted small">Il codice vale qualche minuto.</span></div>');
     }
+    if (n.lock && n.lock.isActive) parts.push(`<div class="alert red">⛔ WhatsApp ha limitato i messaggi a persone nuove${n.lock.timeEnforcementEnds ? ' fino al ' + when(n.lock.timeEnforcementEnds) : ''}: questo numero è in pausa da solo.</div>`);
+    if (n.cap && n.cap.total_quota) parts.push(`<div class="alert ${/WARNING|CAPPED/.test(n.cap.capping_status || '') ? 'gold' : 'grey'}">Chat nuove usate in questo periodo: ${n.cap.used_quota || 0} su ${n.cap.total_quota}${n.cap.capping_status && n.cap.capping_status !== 'NONE' ? ' · stato: ' + escapeHtml(n.cap.capping_status) : ''}</div>`);
+    if (n.info) parts.push(`<div class="alert gold">${escapeHtml(n.info)}</div>`);
+    if (n.error) parts.push(`<div class="alert red">${escapeHtml(n.error)}</div>`);
+    return parts.length ? `<tr class="panel" data-id="${n.id}"><td colspan="6"><div class="linkbox">${parts.join('')}</div></td></tr>` : '';
+  }
+  function renderNumbers() {
+    const box = document.getElementById('numbers');
+    if (!S.numbers.length) { box.innerHTML = '<p class="empty">Ancora nessun numero: scrivi qui sopra il numero del WhatsApp Business e premi «Aggiungi e collega».</p>'; return; }
+    box.innerHTML = `<table class="nums"><thead><tr><th>Numero</th><th>Stato</th><th>Oggi</th><th>In tutto</th><th>Scrive</th><th></th></tr></thead><tbody>${S.numbers.map(n => {
+      const dot = n.status === 'open' ? (n.enabled ? 'ok' : '') : n.linked || n.status === 'linking' ? 'warn' : 'bad';
+      const acts = [
+        !n.linked && n.status !== 'linking' ? '<button class="btn btn-wa btn-sm" data-act="link">Collega con codice</button><button class="btn btn-ghost btn-sm" data-act="qr">QR</button>' : '',
+        n.linked && n.status !== 'open' && n.status !== 'linking' ? '<button class="btn btn-ghost btn-sm" data-act="relink">Riprova</button>' : '',
+        n.status === 'open' ? '<button class="btn btn-ghost btn-sm" data-act="test">Prova</button>' : '',
+        n.linked ? '<button class="btn btn-ghost btn-sm" data-act="unlink">Scollega</button>' : '',
+        '<button class="btn btn-danger btn-sm" data-act="delete" title="Elimina dalla tabella">Elimina</button>',
+      ].join('');
+      return `<tr data-id="${n.id}">
+        <td data-l="Numero"><span><span class="num">${escapeHtml(fmtNum(n.phone))}</span>${n.label ? `<small>${escapeHtml(n.label)}</small>` : ''}</span></td>
+        <td data-l="Stato"><span><span class="dot ${dot}"></span>${escapeHtml(n.note)}${n.warmupDay && n.linked ? `<small>🌱 partenza graduale: giorno ${n.warmupDay} di 4</small>` : ''}</span></td>
+        <td data-l="Oggi">${n.sent}/${n.enabled && n.linked ? n.target : '–'}</td>
+        <td data-l="In tutto">${n.total}</td>
+        <td data-l="Scrive"><button class="switch sm ${n.enabled ? 'on' : ''}" data-act="toggle" aria-label="Scrive da questo numero"></button></td>
+        <td class="acts">${acts}</td>
+      </tr>${numPanel(n)}`;
+    }).join('')}</tbody></table>`;
   }
 
   function renderReplies() {
@@ -280,7 +322,7 @@
     tag.hidden = !fresh; tag.textContent = fresh + ' nuove';
     document.getElementById('replies').innerHTML = list.length ? list.map(r => `
       <div class="item ${r.at > seen ? 'new' : ''}">
-        <div class="top"><div><h4>${escapeHtml(r.name || fmtNum(r.n))}</h4><div class="meta">${escapeHtml(fmtNum(r.n))} · ${when(r.at)}</div></div>
+        <div class="top"><div><h4>${escapeHtml(r.name || fmtNum(r.n))}</h4><div class="meta">${escapeHtml(fmtNum(r.n))} · ${when(r.at)}${r.to ? ' · a ' + escapeHtml(fmtNum(r.to)) : ''}</div></div>
           ${r.no ? '<span class="tag r">Non interessato</span>' : '<span class="tag g">Ha risposto</span>'}</div>
         <div class="msg">${escapeHtml(r.text)}</div>
         <div class="actions"><a class="btn btn-wa btn-sm" href="${waLink(r.n)}" target="_blank" rel="noopener">💬 Apri chat</a></div>
@@ -317,7 +359,7 @@
   function renderSent() {
     document.getElementById('sent').innerHTML = S.sent.length ? S.sent.map(m => {
       const [label, cls] = STATUS[m.s] || ['', ''];
-      return `<div class="item"><div class="top"><div><h4>${escapeHtml(m.name || fmtNum(m.n))}</h4><div class="meta">${escapeHtml(fmtNum(m.n))} · ${when(m.at)}${m.kind ? ' · ' + escapeHtml(m.kind) : ''}</div></div>
+      return `<div class="item"><div class="top"><div><h4>${escapeHtml(m.name || fmtNum(m.n))}</h4><div class="meta">${escapeHtml(fmtNum(m.n))} · ${when(m.at)}${m.from ? ' · da ' + escapeHtml(fmtNum(m.from)) : ''}${m.kind ? ' · ' + escapeHtml(m.kind) : ''}</div></div>
         ${label ? `<span class="tag ${cls}">${label}</span>` : ''}</div>
         <details style="margin-top:6px"><summary>Testo</summary><div class="msg">${escapeHtml(m.text)}</div></details></div>`;
     }).join('') : '<p class="empty">Ancora nessun messaggio.</p>';
@@ -384,22 +426,41 @@
 
   document.getElementById('switch').addEventListener('click', () => {
     if (!S || !S.ready) return;
-    if (!S.enabled && !S.wa.linked) { toast('Prima collega WhatsApp qui sotto'); document.getElementById('waBox').scrollIntoView({ behavior: 'smooth' }); return; }
+    if (!S.enabled && !S.numbers.some(n => n.linked && n.enabled)) { toast('Prima aggiungi e collega un numero WhatsApp qui sotto'); document.getElementById('waBox').scrollIntoView({ behavior: 'smooth' }); return; }
     act(() => api('/api/admin/bot/toggle', { method: 'POST', body: { enabled: !S.enabled } }), S.enabled ? 'Bot spento' : 'Bot acceso 🚀');
   });
-  document.getElementById('waBody').addEventListener('click', e => {
-    const id = e.target.id;
-    if (id === 'linkBtn' || id === 'qrBtn') {
-      const phone = id === 'linkBtn' ? document.getElementById('linkPhone').value.replace(/\D/g, '') : '';
-      if (id === 'linkBtn' && phone.length < 10) { toast('Scrivi il numero con il prefisso, es. 39 333 1234567'); return; }
-      act(() => api('/api/admin/bot/link', { method: 'POST', body: { phone } }));
-    }
-    if (id === 'cancelBtn') act(() => api('/api/admin/bot/link/cancel', { method: 'POST' }));
-    if (id === 'relinkBtn') act(() => api('/api/admin/bot/link', { method: 'POST', body: {} }));
-    if (id === 'unlinkBtn' && confirm('Scollegare WhatsApp? Il bot si ferma finché non lo ricolleghi.')) act(() => api('/api/admin/bot/unlink', { method: 'POST' }), 'WhatsApp scollegato');
-    if (id === 'testBtn') {
-      const phone = document.getElementById('testPhone').value.replace(/\D/g, '');
-      act(() => api('/api/admin/bot/test', { method: 'POST', body: { phone } }), 'Prova mandata: guarda WhatsApp');
+  document.getElementById('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const phone = document.getElementById('addPhone').value;
+    if (phone.replace(/\D/g, '').length < 9) { toast('Scrivi il numero con il prefisso, es. 39 333 1234567'); return; }
+    act(async () => {
+      await api('/api/admin/bot/numbers', { method: 'POST', body: { phone, label: document.getElementById('addLabel').value, only: document.getElementById('addOnly').checked } });
+      document.getElementById('addPhone').value = ''; document.getElementById('addLabel').value = '';
+    }, 'Numero aggiunto: scrivi il codice nel telefono');
+  });
+  document.getElementById('numbers').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'), tr = e.target.closest('[data-id]');
+    if (!b || !tr) return;
+    const n = S.numbers.find(x => x.id === tr.dataset.id);
+    if (!n) return;
+    const u = '/api/admin/bot/numbers/' + n.id, who = fmtNum(n.phone);
+    switch (b.dataset.act) {
+      case 'link': return act(() => api(u + '/link', { method: 'POST', body: {} }));
+      case 'qr': return act(() => api(u + '/link', { method: 'POST', body: { qr: true } }));
+      case 'relink': return act(() => api(u + '/link', { method: 'POST', body: {} }));
+      case 'cancel': return act(() => api(u + '/link/cancel', { method: 'POST' }));
+      case 'toggle': return act(() => api(u, { method: 'PATCH', body: { enabled: !n.enabled } }), n.enabled ? `${who} non scrive più` : `${who} scrive ✅`);
+      case 'test': {
+        const phone = prompt(`A quale numero mando la prova da ${who}? (con prefisso, es. 39 333 1234567)`);
+        if (phone) act(() => api(u + '/test', { method: 'POST', body: { phone } }), 'Prova mandata: guarda WhatsApp');
+        return;
+      }
+      case 'unlink':
+        if (confirm(`Scollegare ${who}? Non scriverà più e non vedrà le risposte finché non lo ricolleghi.`)) act(() => api(u + '/unlink', { method: 'POST' }), `${who} scollegato`);
+        return;
+      case 'delete':
+        if (confirm(`Eliminare ${who} dalla tabella? Se è collegato viene anche scollegato. Chi ha già ricevuto un messaggio non verrà comunque ricontattato.`)) act(() => api(u, { method: 'DELETE' }), `${who} eliminato`);
+        return;
     }
   });
   document.getElementById('queue').addEventListener('click', e => {
