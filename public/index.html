@@ -248,6 +248,9 @@
     if (c.whatsapp) document.querySelectorAll('.js-plan').forEach(a => {
       a.href = 'https://wa.me/' + c.whatsapp + '?text=' + encodeURIComponent(`Ciao! Vorrei prendere l'abbonamento ${a.dataset.plan}. Mi mandi il codice per poter pagare?`);
     });
+    // Assistenza: se su Render c'è ASSISTENZA_LINK si paga subito con Stripe, senza codice
+    const ab = document.querySelector('[data-plan="Assistenza"]');
+    if (ab && c.assistenzaLink) { ab.href = c.assistenzaLink; ab.textContent = 'Attiva l\'assistenza'; ab.classList.remove('btn-ghost'); ab.classList.add('btn-gold'); }
   }).catch(() => {});
   const codeInput = document.getElementById('codeInput');
   const codeErr = document.getElementById('codeErr');

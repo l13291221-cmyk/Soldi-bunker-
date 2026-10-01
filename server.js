@@ -560,7 +560,38 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 });
 
 // ---------- API pubbliche (cliente) ----------
-app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP, packages: PACKAGES }));
+// Assistenza: si paga direttamente con un Payment Link di Stripe (creato dalla dashboard), niente codice
+const ASSISTENZA_LINK = /^https:\/\/(buy\.stripe\.com|checkout\.stripe\.com)\//.test(process.env.ASSISTENZA_LINK || '') ? process.env.ASSISTENZA_LINK : '';
+app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP, packages: PACKAGES, assistenzaLink: ASSISTENZA_LINK }));
+
+// Attestato dell'assistenza: dopo il pagamento il Payment Link riporta qui con l'id della sessione.
+// I dati arrivano sempre da Stripe, quindi chi apre il link vede lo stato vero (attiva, scadenza).
+const assistHits = new Map();
+app.get('/api/assistenza/:sessionId', async (req, res) => {
+  const now = Date.now(), hits = (assistHits.get(req.ip) || []).filter(t => now - t < 15 * 60 * 1000);
+  if (hits.length >= 30) return res.status(429).json({ error: 'Troppe richieste, riprova tra poco.' });
+  assistHits.set(req.ip, [...hits, now]);
+  if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
+  const id = String(req.params.sessionId || '');
+  if (!/^cs_(live|test)_\w+$/.test(id)) return res.status(400).json({ error: 'Link non valido' });
+  try {
+    const sess = await stripe.checkout.sessions.retrieve(id, { expand: ['subscription'] });
+    if (sess.payment_status !== 'paid' || !sess.subscription) return res.status(404).json({ error: 'Pagamento non trovato' });
+    const sub = sess.subscription, item = sub.items && sub.items.data && sub.items.data[0];
+    const end = sub.current_period_end || (item && item.current_period_end);
+    const start = sub.start_date || sess.created;
+    const cd = sess.customer_details || {};
+    res.json({
+      nome: cd.name || null, importo: sess.amount_total, currency: sess.currency,
+      dal: start ? new Date(start * 1000).toISOString() : null, al: end ? new Date(end * 1000).toISOString() : null,
+      stato: sub.status === 'active' || sub.status === 'trialing' ? (sub.cancel_at_period_end ? 'in disdetta' : 'attiva') : 'non attiva',
+      ricevuta: sess.id.slice(-10).toUpperCase(),
+    });
+  } catch (err) {
+    console.error('Assistenza error:', err.message);
+    res.status(404).json({ error: 'Pagamento non trovato' });
+  }
+});
 
 // QR code (PNG) del sito del cliente: solo per ordini Premium pagati, oppure per l'admin
 const QRCode = require('qrcode');

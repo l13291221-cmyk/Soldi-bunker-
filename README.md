@@ -90,6 +90,15 @@ in un **repository GitHub privato**; all'avvio, se mancano, vengono ripresi da l
 3. Su Render → Environment: `BACKUP_REPO=l13291221-cmyk/nerodoro-dati`, `BACKUP_TOKEN=github_pat_…` (facoltativo `BACKUP_BRANCH`, predefinito `main`).
 4. Manual Deploy. In cima all'admin compare «☁️ Backup su GitHub attivo» con l'ora dell'ultimo salvataggio.
 
+## Assistenza con pagamento diretto
+1. Stripe → **Payment Links** → nuovo link: prodotto «Assistenza sito web», **20 € al mese (ricorrente)**.
+   Spunta «Richiedi ai clienti di accettare i termini di servizio» (Impostazioni → Pubblico: metti `BASE_URL/condizioni`).
+2. Nel link, «Dopo il pagamento» → **Non mostrare la pagina di conferma, reindirizza a**:
+   `https://nerodoro-studio.onrender.com/assistenza?session_id={CHECKOUT_SESSION_ID}`
+3. Su Render → `ASSISTENZA_LINK=https://buy.stripe.com/...` → Manual Deploy.
+Nella home «Attiva l'assistenza» porta al pagamento. Dopo il pagamento il cliente vede l'**attestato** con la data di scadenza
+(presa da Stripe, si aggiorna a ogni rinnovo) e lo manda su WhatsApp: aprendo il link vedi se è attiva e fino a quando.
+
 ## Siti pronti
 Nell'admin, sezione **🌐 Siti pronti**, incolli le copie del sito già online, una per riga: `link PIN token`
 (PIN e token facoltativi). Quando un cliente paga, se il suo ordine non ha già un link, riceve **da solo** il primo sito

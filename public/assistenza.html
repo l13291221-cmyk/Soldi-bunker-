@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Attestato assistenza — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .pay-wrap { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 48px 16px; }
+    .pay-card { width: min(480px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 30px; box-shadow: 0 40px 90px -40px #000; text-align: center; }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); text-align: left; }
+    .scad { font-family: var(--serif); font-size: 1.9rem; margin: 4px 0 0; }
+    @media print { .topbar, .no-print { display: none !important; } body { background: #fff; color: #000; } .pay-card { box-shadow: none; border-color: #999; } }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+    .badge.ok { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .success-ic { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); color: var(--green); font-size: 2rem; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">N</span>Nerodoro Studio</a>
+    <span class="muted small">Assistenza</span>
+  </div>
+</header>
+
+<main class="pay-wrap">
+  <div class="pay-card fade-in" id="card"><div class="spinner"></div></div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const card = document.getElementById('card');
+  const sid = new URLSearchParams(location.search).get('session_id') || '';
+  const dateIt = iso => iso ? new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+  (async () => {
+    let d = {};
+    try {
+      const r = await fetch('/api/assistenza/' + encodeURIComponent(sid));
+      d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+    } catch (e) {
+      card.innerHTML = `<h2>Attestato non trovato</h2><p class="muted">${escapeHtml(e.message || 'Link non valido')}. Se hai appena pagato, ricarica la pagina tra qualche secondo.</p>`;
+      return;
+    }
+    const attiva = d.stato === 'attiva' || d.stato === 'in disdetta';
+    const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
+    const msg = `Ciao! Ho attivato l'assistenza.\nAttestato n. ${d.ricevuta}${d.nome ? ' — ' + d.nome : ''}\nValida fino al ${dateIt(d.al)}\n${location.href}`;
+    card.innerHTML = `
+      <div class="success-ic">${attiva ? '✓' : '!'}</div>
+      <span class="badge ${attiva ? 'ok' : ''}">Assistenza ${escapeHtml(d.stato)}</span>
+      <h2 style="font-size:1.6rem;margin:16px 0 4px">Attestato di assistenza</h2>
+      <p class="muted small" style="margin:0 0 6px">Valida fino al</p>
+      <div class="scad">${dateIt(d.al)}</div>
+      <div style="margin:18px 0 0">
+        <div class="row"><span class="muted">Attestato n.</span><span>${escapeHtml(d.ricevuta)}</span></div>
+        ${d.nome ? `<div class="row"><span class="muted">Intestato a</span><span>${escapeHtml(d.nome)}</span></div>` : ''}
+        <div class="row"><span class="muted">Attivata il</span><span>${dateIt(d.dal)}</span></div>
+        <div class="row"><span class="muted">Importo</span><span>${formatMoney(d.importo, d.currency)} al mese</span></div>
+      </div>
+      <p class="muted small" style="margin:16px 0 0">Si rinnova da sola ogni mese: la data di scadenza si aggiorna dopo ogni pagamento. Questo link mostra sempre lo stato vero, preso da Stripe.</p>
+      <div class="no-print" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:18px">
+        ${cfg.whatsapp ? `<a class="btn btn-gold" target="_blank" rel="noopener" href="https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(msg)}">Mandalo su WhatsApp</a>` : ''}
+        <button class="btn btn-ghost" onclick="window.print()">Salva PDF</button>
+      </div>
+      <p class="muted small no-print" style="margin:14px 0 0">Conserva questo link: quando ti serve assistenza mandacelo su WhatsApp.</p>`;
+  })();
+</script>
+</body>
+</html>
