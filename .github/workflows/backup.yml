@@ -1,5 +1,7 @@
 # Backup di ordini, siti pronti e sveglia siti del sito su Render.
 # Ogni 5 minuti (il minimo che GitHub permette) scarica i dati (già cifrati dal sito) e li salva sul ramo backup-dati.
+# I dati del bot WhatsApp (contatti già scritti e collegamento) vanno sul ramo backup-bot, che tiene solo l'ultima copia:
+# cambiano a ogni messaggio e con la cronologia il repository crescerebbe di continuo.
 # Non serve nessuna chiave: usa il permesso che GitHub Actions dà già a questo repository.
 # Per salvare subito (es. prima di un Manual Deploy): Actions → Backup dati → Run workflow.
 name: Backup dati
@@ -45,3 +47,26 @@ jobs:
           if git diff --cached --quiet; then echo "Nessuna modifica"; exit 0; fi
           git -c user.name="backup-dati" -c user.email="backup-dati@users.noreply.github.com" commit -qm "Backup $(date -u '+%Y-%m-%d %H:%M') UTC"
           git push -q origin backup-dati
+
+      - name: Scarica i dati del bot WhatsApp
+        run: |
+          mkdir -p outbot
+          curl -fsS --retry 3 --retry-delay 15 --retry-all-errors --max-time 90 "$SITE/api/backup-export?set=bot" -o bot.json || { echo "Bot: niente da salvare"; exit 0; }
+          node -e '
+            const d = require("./bot.json"), fs = require("fs");
+            if (d.set !== "bot") { console.log("Il sito non ha ancora il bot: salto"); process.exit(0); }
+            for (const n of Object.keys(d.files || {})) { if (!/^[\w.-]+\.enc\.json$/.test(n)) process.exit(1); fs.writeFileSync("outbot/" + n, d.files[n]); }
+          '
+
+      - name: Salva sul ramo backup-bot (solo l'ultima copia)
+        run: |
+          [ -n "$(ls outbot)" ] || exit 0
+          git init -q c && cd c
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 origin backup-bot 2>/dev/null && git checkout -q FETCH_HEAD -- backup 2>/dev/null && diff -rq backup ../outbot >/dev/null; then echo "Nessuna modifica"; exit 0; fi
+          git checkout -q --orphan backup-bot
+          git rm -rqf --cached . 2>/dev/null || true
+          rm -rf backup && mkdir -p backup && cp ../outbot/*.enc.json backup/
+          git add backup
+          git -c user.name="backup-dati" -c user.email="backup-dati@users.noreply.github.com" commit -qm "Bot $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push -qf origin backup-bot
