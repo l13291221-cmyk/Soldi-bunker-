@@ -156,6 +156,8 @@ function markPaid(orderId, session) {
     stripeCustomerId: typeof session.customer === 'string' ? session.customer : (session.customer && session.customer.id) || null,
     amountPaid: session.amount_total ?? null,
   };
+  // Nessun link messo a mano: il cliente riceve il primo sito pronto della lista
+  if (!o.siteUrl && o.package !== 'assistenza') assignFromPool(o);
   saveOrders();
   savePaymentMethod(o, session).catch(err => console.error('Metodo di pagamento non letto:', err.message));
 }
@@ -175,6 +177,46 @@ async function savePaymentMethod(o, session) {
   };
   saveOrders();
 }
+
+// ---------- Siti pronti ----------
+// Copie del sito già online (link, PIN e token), incollate dall'admin. Quando un cliente paga riceve
+// la prima libera, che viene segnata come usata da quell'ordine.
+const POOL_FILE = path.join(__dirname, 'data', 'siti-pronti.json');
+let pool = (() => { try { return JSON.parse(fs.readFileSync(POOL_FILE, 'utf8')); } catch { return []; } })();
+function savePool() {
+  fs.mkdirSync(path.dirname(POOL_FILE), { recursive: true });
+  const tmp = POOL_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(pool, null, 2));
+  fs.renameSync(tmp, POOL_FILE);
+}
+function assignFromPool(o) {
+  const s = pool.find(x => !x.usedBy);
+  if (!s) return null;
+  Object.assign(s, { usedBy: o.id, usedFor: o.restaurant, usedAt: new Date().toISOString() });
+  o.siteUrl = s.url;
+  if (s.pin) o.panelPin = s.pin;
+  if (s.token) o.siteToken = s.token;
+  savePool();
+  return s;
+}
+// Una riga per sito: link, poi (facoltativi) PIN di 6 cifre e token github_pat_..., separati da spazi
+function parsePoolLines(text) {
+  const out = [], bad = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const parts = line.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) continue;
+    const url = /\./.test(parts[0]) ? cleanUrl(parts[0]) : null;
+    if (!url) { bad.push(line.trim().slice(0, 80)); continue; }
+    const pin = parts.find(x => /^\d{6}$/.test(x)) || '';
+    const token = parts.find(x => /^(github_pat_|ghp_)\w+$/.test(x)) || '';
+    out.push({ url, pin, token });
+  }
+  return { out, bad };
+}
+const poolView = () => pool.map((x, i) => ({
+  i, url: x.url, pin: x.pin, hasToken: !!x.token, addedAt: x.addedAt,
+  usedBy: x.usedBy ? formatCode(x.usedBy) : null, usedFor: x.usedFor || null, usedAt: x.usedAt || null,
+}));
 
 // ---------- Prova di accettazione delle condizioni ----------
 // Testo delle condizioni (public/condizioni.html, dentro #termsBody)
@@ -438,6 +480,28 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   }
   saveOrders();
   res.json({ order: adminOrder(o) });
+});
+
+app.get('/api/admin/siti-pronti', requireAdmin, (req, res) => res.json({ sites: poolView() }));
+app.post('/api/admin/siti-pronti', requireAdmin, (req, res) => {
+  const { out, bad } = parsePoolLines(req.body && req.body.text);
+  if (!out.length) return res.status(400).json({ error: bad.length ? 'Nessun link valido. Controlla: ' + bad[0] : 'Incolla almeno un link' });
+  let added = 0;
+  for (const x of out) {
+    if (pool.some(p => p.url === x.url) || Object.values(orders).some(o => o.siteUrl === x.url)) continue;
+    pool.push({ ...x, addedAt: new Date().toISOString() });
+    added++;
+  }
+  savePool();
+  res.json({ sites: poolView(), added, skipped: out.length - added, bad });
+});
+app.delete('/api/admin/siti-pronti/:i', requireAdmin, (req, res) => {
+  const i = Number(req.params.i);
+  if (!pool[i]) return res.status(404).json({ error: 'Sito non trovato' });
+  if (pool[i].usedBy) return res.status(400).json({ error: 'Questo sito è già di un cliente' });
+  pool.splice(i, 1);
+  savePool();
+  res.json({ sites: poolView() });
 });
 
 // Prova di accettazione in un file di testo: dati del cliente, IP, dispositivo e condizioni accettate

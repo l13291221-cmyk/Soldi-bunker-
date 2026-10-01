@@ -79,6 +79,12 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
+## Siti pronti
+Nell'admin, sezione **🌐 Siti pronti**, incolli le copie del sito già online, una per riga: `link PIN token`
+(PIN e token facoltativi). Quando un cliente paga, se il suo ordine non ha già un link, riceve **da solo** il primo sito
+libero (link, PIN e token compaiono nella sua pagina) e nella lista risulta «Usato da …». Come creare le copie: `/guida`.
+I dati stanno in `data/siti-pronti.json`.
+
 ## Abbonamento con vincolo (Base e Premium)
 Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `VINCOLO_MESI` mesi (predefinito 24).
 - Canoni: `CANONE_BASE` (predefinito 60) e `CANONE_PREMIUM` (predefinito 99), in euro al mese.

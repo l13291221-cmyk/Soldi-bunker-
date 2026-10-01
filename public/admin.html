@@ -150,6 +150,19 @@
     <p class="muted small" style="margin:10px 0 0">Tasse stimate con il regime forfettario per chi inizia (67% imponibile, INPS ~26%, imposta 5%): circa il 20%. Stima indicativa, per i conti veri chiedi a un commercialista.</p>
   </section>
 
+  <section id="pronti" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">🌐 Siti pronti</h3>
+    <p class="muted small" style="margin:0 0 14px">Copie del sito già online. Quando un cliente paga riceve <b>da solo</b> il primo sito libero (link, PIN e token) e qui risulta usato.
+      Una riga per sito: <code>link PIN token</code> separati da spazi (PIN e token facoltativi). Come crearle: <a href="/guida" style="color:var(--gold-2)">guida</a>.</p>
+    <div id="poolInfo" class="meta" style="margin-bottom:10px"></div>
+    <div id="poolList"></div>
+    <form id="poolForm" style="margin-top:14px">
+      <textarea name="text" rows="5" style="width:100%;font-family:ui-monospace,monospace;font-size:.85rem" placeholder="https://l13291221-cmyk.github.io/sito-01/ 482915 github_pat_...&#10;https://l13291221-cmyk.github.io/sito-02/ 730164 github_pat_..."></textarea>
+      <button class="btn btn-gold btn-sm" type="submit" style="margin-top:8px">+ Aggiungi siti</button>
+      <p class="err" id="poolErr" style="margin:8px 0 0"></p>
+    </form>
+  </section>
+
   <section id="sveglia" class="panel" style="margin-top:22px;padding:24px">
     <h3 style="margin-bottom:4px">⏰ Sveglia siti</h3>
     <p class="muted small" style="margin:0 0 16px">Ogni <span id="every">5</span> minuti un bot visita questi siti così Render non li spegne. Anche questo sito si visita da solo.</p>
@@ -339,6 +352,36 @@
         ${self ? '' : '<button class="btn btn-ghost btn-sm" data-ping>Pinga ora</button><button class="btn btn-danger btn-sm" data-rm>✕</button>'}
       </div>`;
   }
+  async function refreshPool(data) {
+    const { sites } = data || await api('/api/admin/siti-pronti');
+    const free = sites.filter(x => !x.usedBy).length;
+    const info = document.getElementById('poolInfo');
+    info.innerHTML = `Liberi: <b style="color:${free < 3 ? 'var(--red)' : 'var(--green)'}">${free}</b> · Usati: <b>${sites.length - free}</b>${free < 3 ? ' · <b style="color:var(--red)">Crea altre copie: quando finiscono il cliente che paga non riceve il link da solo.</b>' : ''}`;
+    document.getElementById('poolList').innerHTML = sites.map(x => `
+      <div class="mon">
+        <span class="led ${x.usedBy ? 'ko' : 'ok'}"></span>
+        <div class="info"><a href="${escapeHtml(x.url)}" target="_blank" rel="noopener">${escapeHtml(x.url)}</a>
+          <span class="muted small">${x.pin ? 'PIN ' + escapeHtml(x.pin) : 'senza PIN'} · ${x.hasToken ? 'token ✓' : 'senza token'}</span></div>
+        <div class="st">${x.usedBy ? `Usato da <b>${escapeHtml(x.usedFor || '')}</b><br>${escapeHtml(x.usedBy)} · ${new Date(x.usedAt).toLocaleDateString('it-IT')}` : 'Libero'}</div>
+        ${x.usedBy ? '' : `<button class="btn btn-danger btn-sm" data-pool-rm="${x.i}">✕</button>`}
+      </div>`).join('') || '<div class="empty" style="padding:20px">Nessun sito pronto. Incolla qui sotto i link delle copie.</div>';
+  }
+  document.getElementById('poolForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = document.getElementById('poolErr'); err.textContent = '';
+    try {
+      const d = await api('/api/admin/siti-pronti', { method: 'POST', body: JSON.stringify({ text: e.target.text.value }) });
+      e.target.text.value = '';
+      toast(`Aggiunti ${d.added} siti${d.skipped ? ` (${d.skipped} già presenti)` : ''}`);
+      if (d.bad.length) err.textContent = 'Righe non valide: ' + d.bad.join(' · ');
+      refreshPool(d);
+    } catch (x) { if (x.message !== '401') err.textContent = x.message; }
+  });
+  document.getElementById('poolList').addEventListener('click', async e => {
+    const b = e.target.closest('[data-pool-rm]');
+    if (!b || !confirm('Togliere questo sito dalla lista?')) return;
+    try { refreshPool(await api('/api/admin/siti-pronti/' + b.dataset.poolRm, { method: 'DELETE' })); } catch (x) { if (x.message !== '401') toast(x.message); }
+  });
   async function refreshMonitors() {
     const d = await api('/api/admin/monitors');
     document.getElementById('every').textContent = d.everyMinutes;
@@ -466,8 +509,8 @@
       toast('Controlla il prezzo e crea l\'ordine');
     }
     refresh();
-    refreshMonitors();
-    setInterval(() => { refresh(); refreshMonitors(); }, 15000);
+    refreshMonitors(); refreshPool();
+    setInterval(() => { refresh(); refreshMonitors(); refreshPool(); }, 15000);
   });
 </script>
 </body>
