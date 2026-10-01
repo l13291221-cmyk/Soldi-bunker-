@@ -133,7 +133,7 @@
             <li>Pannello per modificare menu, foto e prezzi da soli, dal telefono</li>
             <li>Perfetto da smartphone</li>
           </ul>
-          <a href="https://wa.me/27710933377?text=Ciao%20Nerodoro%20Studio%21%20Mi%20interessa%20il%20pacchetto%20Base%20per%20il%20sito%20web%20della%20mia%20attivit%C3%A0." class="btn btn-ghost js-wa js-plan" data-plan="Base" target="_blank" rel="noopener">Scegli Base</a>
+          <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Base.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-ghost js-wa js-plan" data-plan="Base" target="_blank" rel="noopener">Scegli Base</a>
         </div>
         <div class="plan plan-hot">
           <span class="plan-badge">Il più scelto</span>
@@ -147,7 +147,7 @@
             <li>QR code pronto da stampare (menu, vetrina, biglietti)</li>
             <li>Dominio incluso per il primo anno</li>
           </ul>
-          <a href="https://wa.me/27710933377?text=Ciao%20Nerodoro%20Studio%21%20Mi%20interessa%20il%20pacchetto%20Premium%20per%20il%20sito%20web%20della%20mia%20attivit%C3%A0." class="btn btn-gold js-wa js-plan" data-plan="Premium" target="_blank" rel="noopener">Scegli Premium</a>
+          <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Premium.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-gold js-wa js-plan" data-plan="Premium" target="_blank" rel="noopener">Scegli Premium</a>
         </div>
       </div>
 
@@ -156,8 +156,9 @@
         <div class="plan-price" data-price="assistenza">20 €<small>/mese</small></div>
         <p class="muted small" style="margin:0">Da aggiungere a Base o Premium, se vuoi. Disdici quando vuoi.</p>
         <ul class="checks" data-features="assistenza"></ul>
-        <a href="https://wa.me/27710933377" class="btn btn-ghost js-wa js-plan" data-plan="Assistenza" target="_blank" rel="noopener">Chiedi l'assistenza</a>
+        <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Assistenza.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-ghost js-wa js-plan" data-plan="Assistenza" target="_blank" rel="noopener">Chiedi l'assistenza</a>
       </div>
+      <div style="margin-top:18px;padding:14px 16px;border:1px solid rgba(214,177,106,.35);border-radius:14px;background:rgba(214,177,106,.08);font-size:.95rem"><b>Come si attiva:</b> premi il pacchetto che vuoi e scrivici su WhatsApp. Ti mandiamo il tuo <b>codice personale</b>: per pagare serve quel codice, da inserire qui sotto nella sezione «Hai ricevuto un codice?».</div>
       <p class="muted small" style="margin-top:14px"><a href="/condizioni" style="color:var(--gold-2)">Leggi le condizioni</a>.</p>
     </div>
   </section>
@@ -168,7 +169,7 @@
         <div class="offer-l">
           <span class="kicker">Il tuo ordine</span>
           <h2 style="font-size:clamp(1.7rem,3vw,2.3rem)">Hai ricevuto un <em>codice</em> su WhatsApp?</h2>
-          <p class="muted">Inserisci il tuo codice ordine per vedere il riepilogo e passare al pagamento sicuro.</p>
+          <p class="muted">Per pagare serve il <b>codice personale</b> che ti mandiamo noi su WhatsApp. Non ce l'hai ancora? <a class="js-plan" data-plan="Base" href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Base.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" target="_blank" rel="noopener" style="color:var(--gold-2)">Chiedilo qui</a>. Poi inseriscilo qui sotto per vedere il riepilogo e passare al pagamento sicuro.</p>
           <form class="code-form" id="codeForm" autocomplete="off">
             <input id="codeInput" class="code-input" placeholder="XXXX-XXXX" maxlength="9" required aria-label="Codice ordine" autocapitalize="characters" spellcheck="false">
             <button class="btn btn-gold" type="submit" id="codeBtn">Vai al pagamento →</button>
@@ -244,7 +245,7 @@
     if (wa) document.querySelectorAll('.js-wa').forEach(a => a.href = wa);
     // "Scegli Base/Premium": apre WhatsApp con il pacchetto già scritto
     if (c.whatsapp) document.querySelectorAll('.js-plan').forEach(a => {
-      a.href = 'https://wa.me/' + c.whatsapp + '?text=' + encodeURIComponent(`Ciao Nerodoro Studio! Mi interessa il pacchetto ${a.dataset.plan} per il sito web della mia attività.`);
+      a.href = 'https://wa.me/' + c.whatsapp + '?text=' + encodeURIComponent(`Ciao! Vorrei prendere l'abbonamento ${a.dataset.plan}. Mi mandi il codice per poter pagare?`);
     });
   }).catch(() => {});
   const codeInput = document.getElementById('codeInput');
