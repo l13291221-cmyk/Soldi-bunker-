@@ -109,8 +109,8 @@
       </div>
       <div class="grid-3 steps">
         <div class="card step"><h3>Ci sentiamo</h3><p>Ci scrivi su WhatsApp e scegli il pacchetto. Prepariamo il sito con il nome della tua attività.</p></div>
-        <div class="card step"><h3>Firmi il noleggio</h3><p>Ricevi il tuo codice personale, lasci i dati della tua attività e firmi il contratto di noleggio.</p></div>
-        <div class="card step"><h3>Sei online</h3><p>Appena il noleggio è approvato ricevi il link del tuo nuovo sito, pronto da condividere.</p></div>
+        <div class="card step"><h3>Attivi l'abbonamento</h3><p>Ricevi il tuo codice personale e attivi l'abbonamento con la carta, tramite Stripe.</p></div>
+        <div class="card step"><h3>Sei online</h3><p>Subito dopo il pagamento ricevi il link del tuo nuovo sito, pronto da condividere.</p></div>
       </div>
     </div>
   </section>
@@ -120,13 +120,13 @@
       <div class="section-head">
         <span class="kicker">Prezzi</span>
         <h2>Due pacchetti, <em>a canone</em>.</h2>
-        <p>Noleggio per 36 mesi con canone mensile, deducibile per la tua attività. Il dettaglio è in fondo alle condizioni, che accetti prima di inviare la richiesta. L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
+        <p>Abbonamento mensile con vincolo di 24 mesi, nessun anticipo. Il dettaglio è in fondo alle condizioni, che accetti prima di pagare. L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
       </div>
       <div class="plans">
         <div class="plan">
           <div class="plan-name">Base</div>
-          <div class="plan-price" data-price="base">32,70 €<small>/mese</small></div>
-          <p class="rate" data-rate="base">Noleggio per 36 mesi</p>
+          <div class="plan-price" data-price="base">29 €<small>/mese</small></div>
+          <p class="rate" data-rate="base">Vincolo 24 mesi</p>
           <p class="muted small" style="margin:0">Il tuo sito, pronto in pochi giorni</p>
           <ul class="checks" data-features="base">
             <li>Sito web completo per la tua attività</li>
@@ -138,8 +138,8 @@
         <div class="plan plan-hot">
           <span class="plan-badge">Il più scelto</span>
           <div class="plan-name">Premium</div>
-          <div class="plan-price" data-price="premium">49,20 €<small>/mese</small></div>
-          <p class="rate" data-rate="premium">Noleggio per 36 mesi</p>
+          <div class="plan-price" data-price="premium">39 €<small>/mese</small></div>
+          <p class="rate" data-rate="premium">Vincolo 24 mesi</p>
           <p class="muted small" style="margin:0">Il tuo nome online, ovunque</p>
           <ul class="checks" data-features="premium">
             <li>Tutto quello che c'è nel Base</li>
@@ -180,8 +180,8 @@
           <div class="price-note">Sicuro,<br>in un minuto.</div>
           <ul class="checks" style="margin:0">
             <li>Il codice contiene già il pacchetto scelto</li>
-            <li>Noleggio per 36 mesi, nessun anticipo</li>
-            <li>Link del sito appena il noleggio è approvato</li>
+            <li>Abbonamento con carta, vincolo 24 mesi</li>
+            <li>Link del sito subito dopo il pagamento</li>
             <li><b>Menu, foto e prezzi li cambi tu dal telefono</b></li>
           </ul>
         </div>
@@ -196,11 +196,11 @@
         <h2>Tutto chiaro, <em>prima</em> di iniziare.</h2>
       </div>
       <details><summary>Quanto tempo serve per avere il sito?</summary><p>Di solito pochi giorni lavorativi da quando riceviamo testi e foto.</p></details>
-      <details><summary>Il pagamento è sicuro?</summary><p>Sì. Il sito si paga con un contratto di noleggio con una società di noleggio: i canoni li paghi a lei. L'assistenza, se la vuoi, si paga su Stripe e noi non vediamo mai i dati della tua carta.</p></details>
+      <details><summary>Il pagamento è sicuro?</summary><p>Sì. Il pagamento avviene su Stripe, una delle piattaforme più usate al mondo. Noi non vediamo mai i dati della tua carta.</p></details>
       <details><summary>Posso modificare il sito da solo?</summary><p>Sì: dal pannello riservato cambi menu, prezzi, foto e orari dal telefono, senza sapere nulla di programmazione. Se ti blocchi, ci scrivi su WhatsApp e ti aiutiamo.</p></details>
       <details><summary>Cosa cambia con il Premium?</summary><p>Il tuo sito avrà un indirizzo tutto tuo, tipo www.nomeattivita.it (dominio incluso per il primo anno), e ricevi un QR code in alta qualità da stampare su menu, vetrina e biglietti da visita: i clienti lo inquadrano e aprono subito il sito.</p></details>
-      <details><summary>Ci sono costi mensili?</summary><p>Sì: il sito si paga con un canone mensile per 36 mesi (noleggio), poi finisce. L'assistenza è a parte: se la vuoi costa 20 € al mese e la disdici quando vuoi.</p></details>
-      <details><summary>Quando ricevo il link del sito?</summary><p>Appena il noleggio è approvato, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
+      <details><summary>Ci sono costi mensili?</summary><p>Sì: il sito si paga con un canone mensile, con vincolo di 24 mesi (se disdici prima paghi i mesi che mancano). Dopo il vincolo lo disdici quando vuoi. L'assistenza è a parte: se la vuoi costa 20 € al mese.</p></details>
+      <details><summary>Quando ricevo il link del sito?</summary><p>Appena il pagamento va a buon fine, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
     </div>
   </section>
 </main>
@@ -232,10 +232,10 @@
     // Prezzi e contenuti dei pacchetti presi dal server (si cambiano da Render: PREZZO, PREZZO_PREMIUM e CANONE_ASSISTENZA)
     for (const [k, p] of Object.entries(c.packages || {})) {
       const el = document.querySelector(`[data-price="${k}"]`);
-      // Base e Premium: mostrati come canone mensile del noleggio
+      // Base e Premium: canone mensile dell'abbonamento, con il vincolo sotto
       if (el) el.innerHTML = escapeHtml(formatMoney(p.recurring ? p.monthly : p.rateMonthly, c.currency)) + '<small>/mese</small>';
       const rate = document.querySelector(`[data-rate="${k}"]`);
-      if (rate && !p.recurring) rate.textContent = `Noleggio per ${p.rateMonths} mesi`;
+      if (rate) rate.textContent = p.months > 1 ? `Vincolo ${p.months} mesi` : '';
       const ul = document.querySelector(`[data-features="${k}"]`);
       if (ul) ul.innerHTML = p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
     }

@@ -118,9 +118,9 @@
         ${sub ? `
         ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
         <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
-        <div class="row"><span class="muted">Durata</span><span>${o.months > 1 ? 'Vincolo minimo ' + o.months + ' mesi' : 'Disdici quando vuoi'}</span></div>
+        <div class="row"><span class="muted">Durata</span><span>${o.months > 1 ? 'Vincolo ' + o.months + ' mesi' : 'Disdici quando vuoi'}</span></div>
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
-        <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
+        <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.${o.months > 1 ? ` Se disdici prima della fine del vincolo ti vengono addebitati subito i mesi che mancano.` : ''}</p>`
         : `
         <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Noleggio per ${o.rateMonths} mesi</small></span></div>`}
       </div>
@@ -267,6 +267,56 @@
       </div>`;
   }
 
+  // Abbonamento: stato, fine del vincolo e disdetta
+  function subBox(o) {
+    if (!o.monthly || !o.subStatus) return '';
+    const fine = o.commitmentEnd ? new Date(o.commitmentEnd).toLocaleDateString('it-IT') : '';
+    const chiuso = o.subStatus === 'chiuso' || o.subStatus === 'in disdetta';
+    return `
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line);text-align:left">
+        <h3 style="margin:0 0 8px">Il tuo abbonamento</h3>
+        <p class="muted small" style="margin:0 0 4px">${formatMoney(o.monthly, o.currency)} al mese · stato: <b>${escapeHtml(o.subStatus)}</b></p>
+        ${o.months > 1 && fine ? `<p class="muted small" style="margin:0 0 12px">Vincolo di ${o.months} mesi, fino al ${fine}.</p>` : ''}
+        ${!chiuso && o.disdetta ? '<button class="btn btn-ghost btn-sm" id="disBtn">Disdici l\'abbonamento</button>' : ''}
+      </div>`;
+  }
+  function openDisdetta(o) {
+    const d = o.disdetta;
+    const wrap = document.createElement('div');
+    const fine = o.commitmentEnd ? new Date(o.commitmentEnd).toLocaleDateString('it-IT') : '';
+    wrap.innerHTML = `
+      <div class="sheet-bg" data-close></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="disTitle" tabindex="-1">
+        <div class="sheet-head"><h2 id="disTitle">Disdici l'abbonamento</h2><button class="sheet-x" data-close aria-label="Chiudi">✕</button></div>
+        <div class="sheet-body" style="padding-top:16px">
+          ${d.amount > 0 ? `
+          <div class="note" style="margin:0 0 14px">Il tuo vincolo dura fino al <b>${fine}</b>. Mancano <b>${d.months} mesi</b>: se disdici adesso ti addebitiamo subito, sulla carta dell'abbonamento, <b>${formatMoney(d.amount, o.currency)}</b> (${d.months} × ${formatMoney(o.monthly, o.currency)}), come previsto al punto 12 delle condizioni che hai accettato. Poi l'abbonamento si chiude.</div>`
+          : `<p class="muted" style="margin:0 0 14px">Il vincolo è finito: l'abbonamento si chiude alla fine del mese già pagato e non ti addebitiamo altro.</p>`}
+          <input type="email" id="disEmail" placeholder="Email che hai usato per pagare" autocomplete="email" inputmode="email" style="margin:0 0 10px;width:100%">
+          <button class="btn btn-danger" id="disOk" style="width:100%">${d.amount > 0 ? 'Disdici e paga ' + formatMoney(d.amount, o.currency) : 'Disdici'}</button>
+          <p class="err" id="disErr" style="margin-top:10px;text-align:center"></p>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    document.body.classList.add('sheet-lock');
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('sheet-open')));
+    const close = () => { wrap.classList.remove('sheet-open'); document.body.classList.remove('sheet-lock'); setTimeout(() => wrap.remove(), 300); };
+    wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
+    const ok = wrap.querySelector('#disOk'), err = wrap.querySelector('#disErr');
+    ok.addEventListener('click', async () => {
+      const label = ok.textContent;
+      ok.disabled = true; ok.textContent = 'Attendi…'; err.textContent = '';
+      const r = await fetch(`/api/orders/${encodeURIComponent(id)}/disdici`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: wrap.querySelector('#disEmail').value, confirm: true, amount: d.amount }),
+      }).catch(() => null);
+      const res = r ? await r.json().catch(() => ({})) : {};
+      if (res.order) { close(); toast('Abbonamento disdetto'); renderPaid(res.order); return; }
+      err.textContent = res.error || 'Errore di connessione, riprova.';
+      ok.disabled = false; ok.textContent = label;
+    });
+  }
+
   function renderPaid(o) {
     card.style.textAlign = 'center';
     card.innerHTML = `
@@ -289,7 +339,10 @@
         ${guide(o)}`
       : `
         <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
-      <p class="muted small" style="margin:22px 0 0">Conserva questa pagina: puoi riaprirla quando vuoi per ritrovare il link.</p>`;
+      ${subBox(o)}
+      <p class="muted small" style="margin:22px 0 0">Conserva questa pagina e il codice ${escapeHtml(o.code)}: ti servono per ritrovare il link e per gestire l'abbonamento.</p>`;
+    const dis = document.getElementById('disBtn');
+    if (dis) dis.addEventListener('click', () => openDisdetta(o));
     const c = document.getElementById('copyBtn');
     if (c) c.addEventListener('click', () => navigator.clipboard.writeText(o.siteUrl).then(() => toast('Link copiato')));
     card.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () =>

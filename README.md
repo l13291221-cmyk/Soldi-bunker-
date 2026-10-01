@@ -79,21 +79,20 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
-## Pagamento con noleggio (36 mesi)
-Base e Premium si pagano con un **noleggio operativo**: il cliente (un'attività con partita IVA) firma un contratto
-con una società di noleggio (es. Grenke o altre società di leasing), paga a lei un canone al mese per `NOLEGGIO_MESI` mesi
-e la società paga subito a te il prezzo del sito. Se il cliente non paga i canoni, è un problema della società di noleggio.
+## Abbonamento con vincolo (Base e Premium)
+Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `VINCOLO_MESI` mesi (predefinito 24).
+- Canoni: `CANONE_BASE` (predefinito 29) e `CANONE_PREMIUM` (predefinito 39), in euro al mese.
+- Il cliente vede canone, «Vincolo 24 mesi» e «Oggi paghi»; nelle condizioni (punto 12) c'è il totale del vincolo e cosa
+  succede se disdice prima, e lo approva con la seconda casella.
+- **Disdetta**: dalla pagina del suo ordine (codice + email usata per pagare). Prima della fine del vincolo vede l'importo
+  esatto (mesi che mancano × canone): gli viene addebitato subito sulla carta dell'abbonamento e poi l'abbonamento si chiude.
+  Se l'addebito non riesce l'abbonamento **resta attivo**. Dopo il vincolo si chiude a fine mese, senza costi.
+- Nell'admin: «Totale vincoli firmati» (canone × mesi di tutti gli abbonamenti pagati) e, per ogni ordine, fine del vincolo,
+  stato (attivo / insoluto / chiuso) e l'eventuale addebito della disdetta.
+- Nel webhook Stripe attiva `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed` e `customer.subscription.deleted`.
+- Attenzione: se il cliente blocca la carta, l'addebito fallisce; i canoni restano dovuti per contratto ma vanno chiesti a parte.
 
-- Canone mostrato = prezzo × `NOLEGGIO_COEFF` % al mese, arrotondato per eccesso ai 10 centesimi
-  (predefinito 3,3: 990 € → **32,70 €/mese**, 1.490 € → **49,20 €/mese**). Metti il coefficiente vero che ti dà la società.
-- `NOLEGGIO_SOCIETA`: il nome della società, compare nelle condizioni (es. `Grenke Locazione S.r.l.`).
-- Il cliente accetta le condizioni, lascia ragione sociale, P.IVA, titolare, email e telefono: **non paga nulla online**.
-- Nell'admin l'ordine mostra la richiesta: mandi i dati alla società, premi «Inviata alla società»;
-  quando il contratto è firmato e approvato premi **«✅ Approvato e firmato»**: l'ordine diventa pagato e il cliente vede il link del sito.
-  Se la società rifiuta, premi «Rifiutato» e il cliente vede che deve scriverti.
-- Per diventare partner di una società di noleggio di solito serve un'attività con partita IVA: chiedi a loro i requisiti.
-
-Il vecchio pagamento diretto con Klarna resta nel server (`/api/orders/:id/klarna`) ma la pagina non lo usa più.
+Il noleggio (`/api/orders/:id/noleggio`) e Klarna diretto (`/api/orders/:id/klarna`) restano nel server ma la pagina non li usa più.
 
 ## Condizioni e prova di accettazione
 Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo, poi si apre un foglio con le condizioni complete

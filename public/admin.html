@@ -14,7 +14,7 @@
     body { visibility: hidden; }
     body.ready { visibility: visible; }
     .admin { padding: 36px 0 80px; }
-    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 24px 0 30px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0 30px; }
     @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
     .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
     .stat b { display: block; font-family: var(--serif); font-size: 1.9rem; }
@@ -58,7 +58,7 @@
     @media (max-width: 640px) {
       input, textarea { font-size: 16px !important; }
       .admin { padding: 24px 0 60px; }
-      .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 20px; }
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 16px 0 20px; }
       .stat { padding: 12px; }
       .stat b { font-size: 1.25rem; }
       .stat span { font-size: .72rem; }
@@ -107,6 +107,7 @@
     <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
     <div class="stat"><span class="muted small">Ordini pagati</span><b id="sPaid">–</b></div>
     <div class="stat"><span class="muted small">In attesa</span><b id="sWait">–</b></div>
+    <div class="stat"><span class="muted small">Totale vincoli firmati</span><b id="sVincoli">–</b></div>
   </div>
 
   <div class="layout">
@@ -250,9 +251,18 @@
 
   function render(orders) {
     const paid = orders.filter(o => o.paid);
-    document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount, 0), currency);
+    // Abbonamenti: canoni già addebitati (uno all'attivazione, poi uno al mese) più l'eventuale disdetta anticipata
+    const charged = o => {
+      if (!o.monthly || !o.paidAt) return 0;
+      const a = new Date(o.paidAt), n = o.cancelledAt ? new Date(o.cancelledAt) : new Date();
+      let m = (n.getFullYear() - a.getFullYear()) * 12 + n.getMonth() - a.getMonth() - (n.getDate() < a.getDate() ? 1 : 0);
+      return (Math.max(0, m) + 1) * o.monthly + (o.penalty ? o.penalty.amount : 0);
+    };
+    document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount + charged(o), 0), currency);
     document.getElementById('sPaid').textContent = paid.length;
     document.getElementById('sWait').textContent = orders.length - paid.length;
+    // Quanto valgono in tutto i contratti con vincolo pagati (canone × mesi del vincolo)
+    document.getElementById('sVincoli').textContent = formatMoney(paid.filter(o => o.months > 1).reduce((s, o) => s + o.monthly * o.months, 0), currency);
 
     const list = document.getElementById('list');
     if (!orders.length) { list.innerHTML = '<div class="empty">Nessun ordine ancora. Creane uno a sinistra.</div>'; return; }
@@ -263,7 +273,7 @@
             <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ` <span class="muted small">(noleggio ${o.rateMonths} × ${formatMoney(o.rateMonthly, currency)}/mese)</span>`} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
             ${!o.monthly && o.termsAcceptedAt ? `<div class="meta">✅ Condizioni accettate il ${new Date(o.termsAcceptedAt).toLocaleString('it-IT')}${o.payer && o.payer.method ? ' · pagato con ' + (o.payer.method === 'klarna' ? 'Klarna' : o.payer.method === 'card' ? 'carta' : escapeHtml(o.payer.method)) : ''}</div>` : ''}
-            ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
+            ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}${o.penalty ? ' · <b>disdetto prima del vincolo: addebitati ' + formatMoney(o.penalty.amount, currency) + ' (' + o.penalty.months + ' mesi)</b>' : ''}</div>` : ''}
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
         </div>

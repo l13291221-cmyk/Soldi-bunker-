@@ -24,17 +24,22 @@ const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').re
 const eur = (v, d) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : d; };
 const MIN_MONTHS = 1;
 const ASSIST_MONTHLY = eur(process.env.CANONE_ASSISTENZA, 20);
+// Sito in abbonamento: canone mensile con vincolo di VINCOLO_MESI mesi. Se il cliente disdice prima
+// della fine del vincolo gli si addebitano in una volta i canoni che mancano (punto 12 delle condizioni).
+const VINCOLO_MESI = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 24))) || 24;
+const CANONE_BASE = eur(process.env.CANONE_BASE, 29);
+const CANONE_PREMIUM = eur(process.env.CANONE_PREMIUM, 39);
 // 990 → "990 €", 27.5 → "27,50 €"
 const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
   base: {
-    id: 'base', name: 'Base', price: Math.round(PRICE * 100),
+    id: 'base', name: 'Base', recurring: true, months: VINCOLO_MESI, price: 0, monthly: Math.round(CANONE_BASE * 100),
     description: DEFAULT_DESCRIPTION,
     features: ['Sito web completo per la tua attività', 'Pannello per modificare menu, foto e prezzi da soli, dal telefono', 'Perfetto da smartphone', 'Online in pochi giorni'],
   },
   premium: {
-    id: 'premium', name: 'Premium', price: Math.round(PRICE_PREMIUM * 100),
+    id: 'premium', name: 'Premium', recurring: true, months: VINCOLO_MESI, price: 0, monthly: Math.round(CANONE_PREMIUM * 100),
     description: 'Sito web professionale + dominio personalizzato (www.tuonome.it) + QR code',
     features: ['Tutto quello che c\'è nel Base', 'Indirizzo personalizzato: www.tuonome.it', 'QR code pronto da stampare (menu, vetrina, biglietti)', 'Dominio incluso per il primo anno'],
   },
@@ -92,6 +97,18 @@ function adminOrder(o) {
   const acceptance = o.acceptance && { ...o.acceptance, termsText: undefined };
   return { ...o, acceptance, rateMonthly: o.monthly ? 0 : rateOf(o.amount), rateMonths: RATE_MESI, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
 }
+// Canoni che mancano alla fine del vincolo: il primo si paga all'attivazione, poi uno al mese
+function monthsBetween(a, b) {
+  let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  if (b.getDate() < a.getDate()) m--;
+  return Math.max(0, m);
+}
+function penaltyOf(o, now = new Date()) {
+  if (!o.monthly || !o.paidAt || !(o.months > 1)) return { months: 0, amount: 0 };
+  const charged = Math.min(o.months, monthsBetween(new Date(o.paidAt), now) + 1);
+  const months = Math.max(0, o.months - charged);
+  return { months, amount: months * o.monthly };
+}
 function publicOrder(o) {
   return {
     id: o.id,
@@ -107,6 +124,9 @@ function publicOrder(o) {
     rateMonths: RATE_MESI,
     approvalText: o.paid ? null : approvalText(o),
     noleggio: o.noleggio ? o.noleggio.stato : null,
+    subStatus: o.paid ? o.subStatus || null : null,
+    commitmentEnd: o.paid ? o.commitmentEnd || null : null,
+    disdetta: o.paid && o.subscriptionId && o.subStatus !== 'chiuso' && o.subStatus !== 'in disdetta' ? penaltyOf(o) : null,
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
@@ -180,6 +200,9 @@ function termsHtmlFor(o) {
   h = put('js-rate', euro(rateOf(o.amount) / 100))(h);
   h = put('js-rate-n', String(RATE_MESI))(h);
   h = put('js-societa', NOLEGGIO_SOCIETA)(h);
+  h = put('js-canone', euro((o.monthly || 0) / 100))(h);
+  h = put('js-mesi', String(o.months > 1 ? o.months : VINCOLO_MESI))(h);
+  h = put('js-totale', euro((o.monthly || 0) * (o.months > 1 ? o.months : VINCOLO_MESI) / 100))(h);
   h = put('js-assist', euro((assist && o.monthly ? o.monthly : PACKAGES.assistenza.monthly) / 100))(h);
   h = h.replace(/(<a class="js-wa" href=")[^"]*/g, `$1https://wa.me/${WHATSAPP}`);
   return h.replace(/<!--[\s\S]*?-->/g, '');
@@ -196,6 +219,9 @@ function escapeHtml(s) {
 // Seconda casella: richiesta espressa di iniziare subito, con la perdita del recesso a servizio
 // eseguito (art. 59, c. 1, lett. a, Codice del Consumo), e approvazione del dettaglio del pagamento
 function approvalText(o) {
+  if (o.monthly && o.package !== 'assistenza') {
+    return `Chiedo che il lavoro sul mio sito inizi subito (punto 6). Approvo in modo specifico il punto 12: abbonamento di ${euro(o.monthly / 100)} al mese addebitato in automatico sulla stessa carta, con vincolo di ${o.months} mesi; se disdico prima della fine del vincolo mi vengono addebitati subito, in una volta sola, tutti i canoni che mancano alla fine del vincolo.`;
+  }
   if (o.package === 'assistenza') {
     return 'Chiedo che l\'assistenza inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo entro i 14 giorni pago i giorni già usati (punto 6). Approvo l\'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).';
   }
@@ -372,7 +398,7 @@ app.post('/api/admin/orders', requireAdmin, (req, res) => {
     description: String(description || PACKAGES[pkg].description).trim().slice(0, 300),
     package: pkg,
     amount: cents,
-    ...(monthly && { monthly, months: MIN_MONTHS }),
+    ...(monthly && { monthly, months: PACKAGES[pkg].months || MIN_MONTHS }),
     siteUrl: url,
     phone: String(phone || '').replace(/[^\d+]/g, '').slice(0, 20),
     paid: false,
@@ -533,11 +559,13 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
             currency: CURRENCY,
             unit_amount: o.monthly,
             recurring: { interval: 'month' },
-            product_data: { name: `Assistenza sito web — ${o.restaurant}` },
+            product_data: { name: o.package === 'assistenza' ? `Assistenza sito web — ${o.restaurant}` : `Sito web ${(PACKAGES[o.package] || PACKAGES.base).name} — ${o.restaurant}` },
           },
         }, ...(o.amount > 0 ? [oneOff] : [])],
-        subscription_data: { metadata: { orderId: o.id }, description: `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
-        custom_text: { submit: { message: `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
+        subscription_data: { metadata: { orderId: o.id }, description: o.months > 1 ? `Sito web, vincolo ${o.months} mesi (codice ${formatCode(o.id)})` : `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
+        custom_text: { submit: { message: o.months > 1
+          ? `${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Vincolo ${o.months} mesi: se disdici prima ti vengono addebitati in una volta i mesi che mancano. Condizioni: ${BASE_URL}/condizioni`
+          : `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
       } : {
         mode: 'payment',
         line_items: [oneOff],
@@ -598,6 +626,53 @@ app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
   } catch (err) {
     console.error('Klarna error:', err.message);
     res.status(500).json({ error: 'Klarna non è disponibile in questo momento. Riprova tra qualche minuto.' });
+  }
+});
+
+// Disdetta dal codice ordine. Prima della fine del vincolo si addebitano subito, sulla carta dell'abbonamento,
+// i canoni che mancano; solo se l'addebito riesce l'abbonamento viene chiuso. Dopo il vincolo finisce a fine mese.
+app.post('/api/orders/:id/disdici', loadPublicOrder, async (req, res) => {
+  const o = req.order, b = req.body || {};
+  if (!o.paid || !o.subscriptionId) return res.status(400).json({ error: 'Non c\'è un abbonamento attivo per questo codice.' });
+  if (o.subStatus === 'chiuso' || o.subStatus === 'in disdetta') return res.status(400).json({ error: 'L\'abbonamento è già disdetto.' });
+  if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
+  // L'email di chi ha pagato: così chi trova solo il codice non può disdire al posto del cliente
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!o.payer || !o.payer.email || email !== String(o.payer.email).toLowerCase()) {
+    codeLimiter.fail(req.ip);
+    return res.status(400).json({ error: 'Scrivi l\'email che hai usato per pagare.' });
+  }
+  const pen = penaltyOf(o);
+  if (b.confirm !== true || b.amount !== pen.amount) return res.status(400).json({ error: 'Conferma l\'importo della disdetta.' });
+  try {
+    if (pen.amount > 0) {
+      const sub = await stripe.subscriptions.retrieve(o.subscriptionId);
+      const pm = sub.default_payment_method;
+      const pi = await stripe.paymentIntents.create({
+        amount: pen.amount, currency: CURRENCY,
+        customer: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+        payment_method: typeof pm === 'string' ? pm : pm && pm.id,
+        off_session: true, confirm: true,
+        description: `Disdetta prima del vincolo: ${pen.months} canoni — ${o.restaurant} (codice ${formatCode(o.id)})`,
+        metadata: { orderId: o.id, via: 'disdetta_vincolo', months: String(pen.months) },
+      });
+      if (pi.status !== 'succeeded') throw Object.assign(new Error('stato ' + pi.status), { penalty: true });
+      o.penalty = { amount: pen.amount, months: pen.months, paymentIntent: pi.id, at: new Date().toISOString() };
+      await stripe.subscriptions.cancel(o.subscriptionId);
+      o.subStatus = 'chiuso';
+    } else {
+      await stripe.subscriptions.update(o.subscriptionId, { cancel_at_period_end: true });
+      o.subStatus = 'in disdetta';
+    }
+    o.cancelledAt = new Date().toISOString();
+    saveOrders();
+    res.json({ order: publicOrder(o) });
+  } catch (err) {
+    console.error('Disdetta error:', err.message);
+    const card = err.type === 'StripeCardError' || err.penalty;
+    res.status(card ? 402 : 500).json({ error: card
+      ? 'L\'addebito dei canoni che mancano non è riuscito, quindi l\'abbonamento resta attivo. Controlla la carta o scrivici su WhatsApp.'
+      : 'Non riesco a completare la disdetta adesso. Riprova o scrivici su WhatsApp.' });
   }
 });
 
