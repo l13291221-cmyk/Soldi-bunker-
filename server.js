@@ -27,7 +27,7 @@ const ASSIST_MONTHLY = eur(process.env.CANONE_ASSISTENZA, 20);
 // Sito in abbonamento: canone mensile con vincolo di VINCOLO_MESI mesi. Se il cliente disdice prima
 // della fine del vincolo gli si addebitano in una volta i canoni che mancano (punto 12 delle condizioni).
 const VINCOLO_MESI = Math.max(1, Math.round(eur(process.env.VINCOLO_MESI, 24))) || 24;
-const CANONE_BASE = eur(process.env.CANONE_BASE, 60);
+const CANONE_BASE = eur(process.env.CANONE_BASE, 59);
 const CANONE_PREMIUM = eur(process.env.CANONE_PREMIUM, 99);
 // 990 → "990 €", 27.5 → "27,50 €"
 const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';

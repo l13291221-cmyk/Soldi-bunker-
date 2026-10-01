@@ -68,8 +68,8 @@ Nell'admin, pulsante **🤖 Bot** (`/bot`): il sito scrive **da solo** dal vostr
 con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle fasce orarie**, tutti i giorni, finché è acceso.
 
 **Come si attiva**
-1. Apri `/bot` → nella tabella **📱 Numeri WhatsApp** scrivi il numero del WhatsApp Business (es. `39 333 1234567`,
-   o anche solo `333 1234567`) → **Aggiungi e collega**.
+1. Apri `/bot` → nella tabella **📱 Numeri WhatsApp** scegli il prefisso (🇮🇹 +39, 🇿🇦 +27, 🇬🇧 +44…) e scrivi il numero
+   del WhatsApp Business (es. `333 1234567` o `071 093 3377`) → **Aggiungi e collega**.
 2. Sul telefono: WhatsApp Business → ⋮ / Impostazioni → **Dispositivi collegati** → **Collega un dispositivo** →
    **Collega con il numero di telefono** → scrivi il codice che compare sotto il numero. (Oppure **QR** e inquadralo da un altro schermo.)
 3. Controlla le impostazioni (zone, tipi di attività, fasce orarie, il tuo nome) e premi **Salva**.
@@ -88,7 +88,9 @@ Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altr
 - **🎯 A chi scrivere**: Tutti, oppure solo Ristoranti, Pizzerie, Bar (e, se vuoi, altre attività). Si sceglie toccando, si salva da solo.
 - Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
   tutta Italia) e, se c'è `GOOGLE_PLACES_KEY`, **Google Maps** (cellulari, città per città: più città e quartieri scrivi, più ne trova).
-  Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove.
+  Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove. Finite le zone scelte, con Google Maps continua da solo
+  con gli altri comuni d'Italia, dal più grande al più piccolo (1.531 comuni sopra gli 8.000 abitanti, in `comuni-italia.json`):
+  così anche con più numeri accesi (es. 3 numeri = 75-90 messaggi al giorno) il bot non resta senza locali a cui scrivere.
 - Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
 - Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
   sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema
@@ -173,7 +175,7 @@ I dati stanno in `data/siti-pronti.json`.
 
 ## Abbonamento con vincolo (Base e Premium)
 Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `VINCOLO_MESI` mesi (predefinito 24).
-- Canoni: `CANONE_BASE` (predefinito 60) e `CANONE_PREMIUM` (predefinito 99), in euro al mese.
+- Canoni: `CANONE_BASE` (predefinito 59) e `CANONE_PREMIUM` (predefinito 99), in euro al mese.
 - Il cliente vede canone, «Vincolo 24 mesi» e «Oggi paghi»; nelle condizioni (punto 12) c'è il totale del vincolo e cosa
   succede se disdice prima, e lo approva con la seconda casella.
 - Prima di Stripe il cliente scrive **nome e cognome, email e telefono** sulla nostra pagina: Stripe li riceve già compilati
