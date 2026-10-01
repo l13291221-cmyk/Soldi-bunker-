@@ -126,7 +126,6 @@
         <div class="plan">
           <div class="plan-name">Base</div>
           <div class="plan-price" data-price="base">60 €<small>/mese</small></div>
-          <p class="rate" data-rate="base">Vincolo 24 mesi</p>
           <p class="muted small" style="margin:0">Il tuo sito, pronto in pochi giorni</p>
           <ul class="checks" data-features="base">
             <li>Sito web completo per la tua attività</li>
@@ -139,7 +138,6 @@
           <span class="plan-badge">Il più scelto</span>
           <div class="plan-name">Premium</div>
           <div class="plan-price" data-price="premium">99 €<small>/mese</small></div>
-          <p class="rate" data-rate="premium">Vincolo 24 mesi</p>
           <p class="muted small" style="margin:0">Il tuo nome online, ovunque</p>
           <ul class="checks" data-features="premium">
             <li>Tutto quello che c'è nel Base</li>
@@ -264,10 +262,8 @@
     // Prezzi e contenuti dei pacchetti presi dal server (si cambiano da Render: PREZZO, PREZZO_PREMIUM e CANONE_ASSISTENZA)
     for (const [k, p] of Object.entries(c.packages || {})) {
       const el = document.querySelector(`[data-price="${k}"]`);
-      // Base e Premium: canone mensile dell'abbonamento, con il vincolo sotto
+      // Base e Premium: canone mensile dell'abbonamento
       if (el) el.innerHTML = escapeHtml(formatMoney(p.recurring ? p.monthly : p.rateMonthly, c.currency)) + '<small>/mese</small>';
-      const rate = document.querySelector(`[data-rate="${k}"]`);
-      if (rate) rate.textContent = p.months > 1 ? `Vincolo ${p.months} mesi` : '';
       const ul = document.querySelector(`[data-features="${k}"]`);
       if (ul) ul.innerHTML = p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
     }
