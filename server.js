@@ -954,6 +954,7 @@ const OVERPASS_URLS = (process.env.OVERPASS_URL || [
   .split(',').map(s => s.trim()).filter(Boolean);
 const LEAD_TYPES = {
   ristoranti: { label: 'Ristoranti e pizzerie', q: ['nwr["amenity"~"^(restaurant|fast_food)$"]'] },
+  pizzerie: { label: 'Pizzerie', q: ['nwr["amenity"~"^(restaurant|fast_food)$"]["cuisine"~"pizza",i]'] },
   bar: { label: 'Bar, caffè, gelaterie', q: ['nwr["amenity"~"^(cafe|bar|pub|ice_cream)$"]'] },
   bellezza: { label: 'Parrucchieri ed estetica', q: ['nwr["shop"~"^(hairdresser|beauty|cosmetics|massage|tattoo)$"]'] },
   negozi: { label: 'Negozi', q: ['nwr["shop"]["shop"!~"^(hairdresser|beauty|supermarket|convenience|vacant|kiosk)$"]'] },
@@ -1021,7 +1022,8 @@ function leadFromOsm(e) {
   return {
     id: `${e.type[0]}${e.id}`,
     name: t.name,
-    kind: TYPE_IT[kind] || (t.craft ? 'Artigiano' : t.office ? 'Studio/Ufficio' : kind.replace(/_/g, ' ')),
+    kind: /pizza/i.test(t.cuisine || '') && /^(restaurant|fast_food)$/.test(kind) ? 'Pizzeria'
+      : TYPE_IT[kind] || (t.craft ? 'Artigiano' : t.office ? 'Studio/Ufficio' : kind.replace(/_/g, ' ')),
     phones: [...new Set(phones)].slice(0, 3),
     whatsapp: whatsapps[0] || '',
     whatsapps,
@@ -1106,7 +1108,7 @@ const NEED_TAGS = {
 // ---------- Trova clienti: Google Maps (Places API, serve la chiave GOOGLE_PLACES_KEY) ----------
 const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_KEY || '';
 const GOOGLE_QUERY = {
-  ristoranti: 'ristoranti e pizzerie', bar: 'bar e caffè', bellezza: 'parrucchieri ed estetiste', negozi: 'negozi',
+  ristoranti: 'ristoranti e pizzerie', pizzerie: 'pizzerie', bar: 'bar e caffè', bellezza: 'parrucchieri ed estetiste', negozi: 'negozi',
   alimentari: 'panetterie macellerie e alimentari', artigiani: 'artigiani e officine', alloggi: 'B&B e hotel', professionisti: 'studi professionali',
 };
 const isMobileIt = p => /^3\d{8,9}$/.test(p.replace(/\D/g, '').replace(/^39(?=3\d{8,9}$)/, ''));
@@ -1443,6 +1445,8 @@ const bot = require('./bot')({
   googleOn: () => !!GOOGLE_PLACES_KEY,
   messages: require('./public/messages.js'),
   siteUrl: BASE_URL,
+  publicDir: path.join(__dirname, 'public'),
+  packages: () => ['base', 'premium'].map(k => PACKAGES[k]), // i due abbonamenti da mandare a chi dice sì
 });
 bot.routes(app, requireAdmin);
 // I dati del bot (contatti già scritti e collegamento a WhatsApp) cambiano a ogni messaggio:

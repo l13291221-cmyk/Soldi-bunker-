@@ -85,15 +85,25 @@ e collegalo. Ogni riga ha:
 Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altri. Massimo 10 numeri.
 
 **Cosa fa**
+- **🎯 A chi scrivere**: Tutti, oppure solo Ristoranti, Pizzerie, Bar (e, se vuoi, altre attività). Si sceglie toccando, si salva da solo.
 - Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
   tutta Italia) e, se c'è `GOOGLE_PLACES_KEY`, **Google Maps** (cellulari, città per città: più città e quartieri scrivi, più ne trova).
   Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove.
 - Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
-- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il messaggio (gli stessi di «Trova clienti»,
-  personalizzati con nome e problema del sito, oppure messaggi vostri).
-- **A ognuno scrive una volta sola**, mai due. Chi risponde compare in **📬 Risposte** (e nell'app, dove rispondete voi);
-  chi scrive «no», «non ci interessa», «stop»… viene segnato come non interessato.
-- Facoltativo: **risposta automatica a chi dice «sì»** (es. il link a un esempio), una volta sola e solo se nessuno ha già risposto dal telefono.
+- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
+  sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema
+  del sito e il tipo di locale: «siti per pizzerie», «un bar come il vostro»…). I testi si cambiano nelle impostazioni.
+- **A ognuno scrive una volta sola**, mai due. Le risposte compaiono in **📬 Risposte** (e nell'app, dove continuate voi):
+  - **«No»** (anche «no grazie», «nn ci interessa», «abbiamo già il sito», «stop», 👎…) → va negli **🗄️ Archiviati**,
+    la chat viene archiviata anche nell'app WhatsApp e non riceve più niente.
+  - **Tutto il resto** («sì», «sii», «sisi», «ok», «okok», «okk», «va bene», «certo», «mandate», «mi interessa», 👍, una domanda…)
+    → 30-90 secondi dopo il bot manda da solo, un messaggio alla volta: il **video** (`public/video.mp4`, arriva come video
+    WhatsApp), i **due abbonamenti** Base e Premium con il prezzo al mese e cosa comprendono (presi dal sito, senza vincoli),
+    il **link del sito per pagare** con la spiegazione di come si paga e come funziona, e il **link della demo**
+    (https://l13291221-cmyk.github.io/Ristorante-/). Una volta sola, e non se avete già risposto voi dal telefono.
+  - I messaggi automatici del WhatsApp Business del locale («Grazie per averci contattato, vi risponderemo…») non contano.
+- **Prova** sulla riga del numero manda al tuo numero personale il primo messaggio e, poco dopo, tutto quello che riceve chi dice sì.
+- Per cambiare il video: sostituisci `public/video.mp4` (sotto 16 MB) e `public/video.jpg` (anteprima), oppure metti un link nelle impostazioni.
 - Ogni giorno, per ogni numero acceso, sceglie a caso quanti messaggi mandare (tra «da» e «a», predefinito 25-30) e li sparge a caso nelle fasce orarie
   (predefinito 9:30-12:30 e 15:00-19:30, ora italiana, dal lunedì al sabato), con almeno 4 minuti tra uno e l'altro.
 - **Partenza graduale**: i primi 4 giorni manda 10, 15, 20, 25 messaggi. Se WhatsApp avvisa o limita le chat nuove,

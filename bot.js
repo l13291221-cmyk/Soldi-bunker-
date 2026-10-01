@@ -12,7 +12,7 @@ const DEFAULTS = {
   // «italia» = tutta Italia su OpenStreetMap; le città servono anche per Google Maps
   zones: ['italia', 'Milano', 'Roma', 'Napoli', 'Torino', 'Palermo', 'Genova', 'Bologna', 'Firenze', 'Bari', 'Catania',
     'Verona', 'Venezia', 'Padova', 'Brescia', 'Parma', 'Modena', 'Bergamo', 'Monza', 'Rimini'].join('\n'),
-  types: ['ristoranti', 'bar'],
+  types: ['ristoranti', 'pizzerie', 'bar'],
   osm: true, // OpenStreetMap: solo chi ha scritto il suo WhatsApp
   google: true, // Google Maps (se c'è la chiave): cellulari, prima di scrivere controllo che abbiano WhatsApp
   min: 25, max: 30, // messaggi al giorno (ogni giorno un numero a caso tra i due)
@@ -20,10 +20,48 @@ const DEFAULTS = {
   days: [1, 2, 3, 4, 5, 6], // 0 = domenica
   lang: 'it',
   firma: 'Simone',
-  templates: '', // messaggi propri, uno per riga; vuoto = quelli già pronti
-  autoReply: '', // risposta automatica a chi dice «sì»; vuoto = nessuna
+  templates: '', // primi messaggi, uno per riga (si alternano); vuoto = DEFAULT_FIRST
+  autoFollow: true, // a chi risponde (e non dice di no) manda da solo video, abbonamenti, come pagare e demo
+  videoUrl: '', // link del video (mp4 → arriva come video; YouTube/Drive → come link); vuoto = public/video.mp4 se c'è
+  demoUrl: 'https://l13291221-cmyk.github.io/Ristorante-/',
+  followUp: '', // messaggi dopo il «sì», separati da una riga «---»; vuoto = DEFAULT_FOLLOW
   warmup: true, // i primi giorni ne manda meno: un numero nuovo che scrive subito a tanti sconosciuti viene bloccato
 };
+// Primo messaggio: corto, senza link (sembrano spam), una domanda semplice. Uno per riga, si alternano.
+// {firma} il tuo nome · {nome} nome del locale · {problema} «non avete ancora un sito web»…
+// {categoria} «pizzerie», «ristoranti», «bar» · {locale} «una pizzeria come la vostra»…
+const DEFAULT_FIRST = [
+  'Salve, sono {firma} di Nerodoro Studio. Ho notato che {problema} e mi occupo proprio di siti per {categoria}. Posso mandarvi un video di un minuto con un esempio? 🙂',
+  'Salve, sono {firma} di Nerodoro Studio 🙂 Facciamo siti web per {categoria} e ho visto che {problema}. Vi interessa vedere un esempio?',
+  'Salve, sono {firma} di Nerodoro Studio. Vi scrivo perché {problema}: abbiamo un sito pronto pensato per {locale}. Vi mando un breve video per vederlo?',
+  'Salve, sono {firma} di Nerodoro Studio. Ho trovato {nome} cercando {categoria} in zona e ho visto che {problema}. Vi farebbe piacere vedere un esempio di sito? 🙂',
+].join('\n');
+// Dopo il «sì»: prima il video (se c'è), poi questi messaggi, uno alla volta. Senza vincoli: le condizioni le vedono sul sito.
+// {abbonamenti} Base e Premium con prezzo al mese · {sito} link per pagare · {demo} sito di esempio · {nome} · {firma}
+const DEFAULT_FOLLOW = [
+  'Se vi piace e siete interessati, ci sono due abbonamenti:\n\n{abbonamenti}',
+  'Per attivarlo è semplicissimo:\n1️⃣ Andate su {sito}\n2️⃣ Scegliete Base o Premium e scrivete il nome del locale\n3️⃣ Pagate con la carta, in modo sicuro con Stripe (prima di pagare vedete il riepilogo e le condizioni)\n\nSubito dopo il pagamento ricevete il link del vostro sito, pronto da condividere, e un codice personale. Dal pannello cambiate da soli menu, foto e prezzi, anche dal telefono.',
+  'Qui potete vedere un esempio di sito: {demo}\n\nPer qualsiasi domanda scrivetemi pure qui 🙂',
+].join('\n---\n');
+const VIDEO_CAPTION = 'Ecco il video 🎬 Così funziona il sito: si apre come un\'app, i clienti prenotano in 30 secondi e voi cambiate testi e foto con un tocco.';
+// Che tipo di locale è: serve per scrivere «siti per pizzerie», «un bar come il vostro»…
+const CATEGORIES = {
+  pizzeria: { plurale: 'pizzerie', locale: 'una pizzeria come la vostra' },
+  ristorante: { plurale: 'ristoranti', locale: 'un ristorante come il vostro' },
+  gelateria: { plurale: 'gelaterie', locale: 'una gelateria come la vostra' },
+  bar: { plurale: 'bar', locale: 'un bar come il vostro' },
+  attivita: { plurale: 'attività come la vostra', locale: 'un\'attività come la vostra' },
+};
+function categoryOf(lead) {
+  const kind = String(lead.kind || ''), all = kind + ' ' + (lead.name || '');
+  if (lead.type === 'pizzerie' || /pizz/i.test(all)) return 'pizzeria';
+  if (/gelat/i.test(kind)) return 'gelateria';
+  if (lead.type === 'bar' || /\b(bar|caff|cafe|café|pub|pasticc|bistrot|enoteca)/i.test(kind)) return 'bar';
+  if (lead.type === 'ristoranti' || /ristor|trattori|osteri|sushi|fast food|cucina|restaurant/i.test(all)) return 'ristorante';
+  return 'attivita';
+}
+const blocks = s => String(s || '').split(/\n\s*-{3,}\s*\n/).map(x => x.trim()).filter(Boolean);
+const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
 const WARMUP = [10, 15, 20, 25];
 const MIN_GAP_MS = 4 * 60 * 1000; // mai due messaggi a meno di 4 minuti
 const QUEUE_MIN = 40, QUEUE_MAX = 3000;
@@ -34,9 +72,14 @@ const MAX_SESSIONS = 3000;
 // e si ricreano da sole, salvarle ogni 5 minuti farebbe crescere il backup senza motivo
 const BACKUP_KEY_TYPES = ['pre-key', 'app-state-sync-key', 'lid-mapping', 'tctoken'];
 
-// Chi non vuole essere contattato (in più lingue) e chi dice sì
-const OPT_OUT = /^\s*(no+|nono)\b|\bstop\b|\bbasta\b|non (ci |mi )?(interessa|serve)|non siamo interessat|non sono interessat|non scriv|non contatt|cancell|rimuov|togliet|spam|unsubscribe|not interested|no thanks|don'?t (text|write|contact)|no me interesa|no gracias|pas int[ée]ress|kein interesse|nein danke/i;
-const YES = /^\s*(s[iìí]+|certo|ok|okay|va bene|volentieri|perch[eé] no|mandate|manda|mandami|inviate|invia|yes|sure|oui|ja|claro|vale|d'accordo|👍)/i;
+// Le risposte si leggono in minuscolo e senza accenti («Sì» → «si»).
+// Chi non vuole essere contattato (anche «nn ci interessa», «abbiamo già il sito», 👎…)
+const OPT_OUT = /^\W*(no+|nono+)\b|\bstop\b|\bbasta\b|non (ci |mi )?(interessa|serve|servono)|nn (ci |mi )?(interessa|serve)|non (siamo|sono) interessat|non interessat|non grazie|no,? grazie|abbiamo gia|ce l'?abbiamo|gia (un|il|lo) sito|ne abbiamo gia|non scriv|non contatt|non disturb|lasci(a|ate)? perdere|cancell|rimuov|togliet|spam|unsubscribe|not interested|no thanks|don'?t (text|write|contact)|no me interesa|no gracias|pas interess|kein interesse|nein danke|👎/i;
+// Chi dice sì, in tutti i modi: «si», «sisi», «siii», «ok», «okok», «okk», «va bene», «certo», «mandate», «mi interessa», 👍…
+const YES = /^\W*((s+i+)+\b|s+y+|(o+k+)+|okay|okey|okei|oki|va\s*be|vabbe|vabene|certo|certamente|sicuro|volentieri|perche\s*no|mand|invia|dai\b|vai\b|d'?accordo|esatto|perfetto|yes|yep|yeah|sure|oui|ja\b|claro|vale)|interess|👍|👌|✅|😊|🙂/i;
+// Messaggi automatici del WhatsApp Business del locale (benvenuto, assenza): non sono una risposta vera
+const AUTO_REPLY = /grazie per (averci|aver|avermi|il|la) ?(contattat|scritt|messaggio)|grazie (del|per il) (messaggio|contatto)|(vi|ti) risponderemo|risponderemo (il prima|al piu|appena|a breve|quanto prima)|messaggio automatico|risposta automatica|al momento non (siamo|possiamo|sono)|siamo chiusi|siamo in ferie|orari di apertura|benvenut[oiae]|thank you for (contacting|your message|reaching)|we will (reply|get back|respond)|auto.?reply|fuori orario/i;
+const plain = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, "'");
 
 // Stessa conversione di Baileys (BufferJSON): le chiavi di WhatsApp sono Buffer, nel file diventano base64
 const replacer = (k, v) => (Buffer.isBuffer(v) || v instanceof Uint8Array || (v && v.type === 'Buffer'))
@@ -93,7 +136,7 @@ function parseZones(s) {
   });
 }
 
-module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, leadTypes, googleOn, messages, siteUrl }) {
+module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, leadTypes, googleOn, messages, siteUrl, publicDir, packages }) {
   const BOT_FILE = path.join(dataDir, 'bot.json');
   const AUTH_FILE = path.join(dataDir, 'wa-auth.json');
   const readJson = (f, rev) => { try { return JSON.parse(fs.readFileSync(f, 'utf8'), rev); } catch { return {}; } };
@@ -402,23 +445,29 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       }
       const text = textOf(m.message).trim();
       if (!text) continue;
-      const no = OPT_OUT.test(text);
-      const row = rowOf(c.id);
-      ct.s = no ? 'no' : (ct.s === 'no' ? 'no' : 'risposto');
-      ct.r = text.slice(0, 500); ct.rAt = Date.now();
-      (D.replies ||= []).unshift({ n: num, name: ct.n, text: text.slice(0, 500), at: Date.now(), no, to: row && row.phone });
+      const row = rowOf(c.id), t = plain(text);
+      const no = OPT_OUT.test(t), yes = !no && YES.test(t);
+      // Benvenuto/assenza automatici del WhatsApp Business del locale: li segno ma non sono una risposta
+      const auto = !no && !yes && (AUTO_REPLY.test(t) || (Date.now() - (ct.at || 0) < 25000 && text.length > 60));
+      (D.replies ||= []).unshift({ n: num, name: ct.n, text: text.slice(0, 500), at: Date.now(), no, yes, auto, to: row && row.phone });
       D.replies = D.replies.slice(0, 300);
+      if (auto) { ct.autoMsg = text.slice(0, 300); save(); continue; }
+      ct.s = no ? 'no' : 'risposto';
+      ct.r = text.slice(0, 500); ct.rAt = Date.now();
+      if (yes) ct.yes = Date.now();
       save();
+      // «No»: va negli archiviati (anche su WhatsApp) e non riceve più niente
+      if (no) { archiveChat(c, m); continue; }
+      // «Sì», «ok», «okok», una domanda… (tutto tranne il no): video, abbonamenti, come si paga e demo, una volta sola
       const cf = cfg();
-      if (!no && cf.autoReply.trim() && !ct.auto && !ct.human && text.length < 80 && YES.test(text)) {
-        ct.auto = Date.now(); save();
+      if (cf.autoFollow && !ct.follow && !ct.human) {
+        ct.follow = Date.now(); save();
         const jid = k.remoteJid;
         setTimeout(async () => {
-          if (!c.sock || c.status !== 'open' || ct.human) return;
-          const reply = cf.autoReply.replace(/\{sito\}/g, siteUrl).replace(/\{nome\}/g, ct.n || '').replace(/\{firma\}/g, cf.firma);
-          try { await typing(c, jid, reply); const r = await sendText(c, jid, reply); logSent(num, ct.n, reply, r, 'risposta automatica', row && row.phone); }
-          catch (err) { console.error('Bot: risposta automatica non mandata:', err.message); }
-        }, rand(40, 120) * 1000);
+          if (!c.sock || c.status !== 'open' || ct.human || ct.s === 'no') { if (ct.s !== 'no') { ct.follow = null; save(); } return; }
+          try { await sendFollowUp(c, jid, ct, num); ct.followDone = Date.now(); save(); }
+          catch (err) { console.error('Bot: risposta al sì non completata:', err.message); ct.followErr = err.message.slice(0, 200); save(); }
+        }, rand(30, 90) * 1000);
       }
     }
   }
@@ -461,7 +510,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       const q = queue();
       const fresh = shuffle(cand).slice(0, Math.max(0, QUEUE_MAX - q.length)).map(({ l, wa }) => ({
         id: l.id, name: l.name, kind: l.kind, wa, waGuess: !!l.waGuess, website: l.website || '', social: l.social || '',
-        address: l.address || '', maps: l.maps || '', reasons: [], checked: !l.website, source: job.source, zone: job.city, at: Date.now(),
+        address: l.address || '', maps: l.maps || '', reasons: [], checked: !l.website, source: job.source, type: job.type, zone: job.city, at: Date.now(),
       }));
       q.push(...fresh);
       Object.assign(lastSearch, { found: cand.length, added: fresh.length });
@@ -505,18 +554,82 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   // ---------- Invio ----------
   function buildText(lead, variant) {
     const c = cfg();
-    const own = String(c.templates || '').split('\n').map(x => x.trim()).filter(Boolean);
-    let text;
-    if (own.length) {
-      // Il «problema» (senza sito, solo social, difetto del sito) lo prendo dai messaggi pronti, nella lingua scelta
-      const problema = messages.problem(c.lang, lead, { reasons: lead.reasons });
-      text = own[variant % own.length].replace(/\{nome\}/g, lead.name).replace(/\{problema\}/g, problema).replace(/\{firma\}/g, c.firma).replace(/\{sito\}/g, siteUrl);
-    } else {
-      text = messages.build({ lang: c.lang, variant, lead: { name: lead.name, website: lead.website, social: lead.social }, check: { reasons: lead.reasons }, firma: c.firma, sito: siteUrl });
-    }
-    if (c.lang === 'it' && local().min >= 14 * 60) text = text.replace(/^Buongiorno\b/, 'Buonasera');
+    const own = lines(c.templates).length ? lines(c.templates) : lines(DEFAULT_FIRST);
+    const cat = CATEGORIES[categoryOf(lead)];
+    // Il «problema» (senza sito, solo social, difetto del sito) lo prendo dai messaggi di Trova clienti
+    const problema = messages.problem('it', lead, { reasons: lead.reasons });
+    let text = own[variant % own.length].replace(/\{nome\}/g, lead.name).replace(/\{problema\}/g, problema)
+      .replace(/\{categoria\}/g, cat.plurale).replace(/\{locale\}/g, cat.locale).replace(/\{firma\}/g, c.firma).replace(/\{sito\}/g, siteUrl);
+    if (local().min >= 14 * 60) text = text.replace(/^Buongiorno\b/, 'Buonasera');
     return text;
   }
+
+  // ---------- Dopo il «sì»: video, abbonamenti, come si paga, demo ----------
+  const euro = cents => (cents / 100).toLocaleString('it-IT', { minimumFractionDigits: cents % 100 ? 2 : 0 }) + ' €';
+  // I due abbonamenti con il prezzo al mese e cosa comprendono (senza vincoli: stanno nelle condizioni sul sito)
+  function plansText() {
+    const icons = ['✅', '⭐'];
+    return packages().map((p, i) => `${icons[i] || '•'} *${p.name} – ${euro(p.monthly)} al mese*\n` +
+      p.features.map(f => '• ' + f.replace(/\bla tua\b/g, 'la vostra').replace(/\bil tuo\b/g, 'il vostro')).join('\n')).join('\n\n');
+  }
+  function followTexts(ct) {
+    const c = cfg();
+    const list = blocks(c.followUp).length ? blocks(c.followUp) : blocks(DEFAULT_FOLLOW);
+    return list.map(t => t
+      .replace(/\{abbonamenti\}/g, plansText()).replace(/\{sito\}/g, siteUrl + '/#prezzi').replace(/\{demo\}/g, c.demoUrl || siteUrl)
+      .replace(/\{nome\}/g, (ct && ct.n) || '').replace(/\{firma\}/g, c.firma));
+  }
+  // Il video: un file del sito (es. /video.mp4) o un link .mp4 arrivano come video; YouTube, Drive… come link
+  function videoSource() {
+    const v = String(cfg().videoUrl || '').trim();
+    if (v.startsWith('/')) {
+      const f = path.join(publicDir, path.normalize(v).replace(/^[/\\]+/, ''));
+      if (f.startsWith(publicDir + path.sep) && fs.existsSync(f)) return { file: f, link: siteUrl + v };
+      return { link: siteUrl + v };
+    }
+    if (/^https?:\/\//i.test(v)) return /\.(mp4|m4v|mov|3gp)(\?|#|$)/i.test(v) ? { url: v, link: v } : { link: v };
+    const f = path.join(publicDir, 'video.mp4');
+    return fs.existsSync(f) ? { file: f, link: siteUrl + '/video.mp4' } : null;
+  }
+  async function sendVideo(c, jid) {
+    const v = videoSource();
+    if (!v) return null;
+    if (v.file || v.url) {
+      try {
+        try { await c.sock.sendPresenceUpdate('composing', jid); } catch {}
+        await sleep(rand(2000, 5000));
+        const messageId = B.generateMessageIDV2(c.sock.user && c.sock.user.id);
+        botMsgIds.add(messageId);
+        // Anteprima: se accanto al video c'è un .jpg con lo stesso nome (es. video.jpg) la uso, su Render non c'è ffmpeg
+        const thumb = v.file && v.file.replace(/\.[^.]+$/, '.jpg');
+        const jpegThumbnail = thumb && fs.existsSync(thumb) ? fs.readFileSync(thumb).toString('base64') : undefined;
+        return await c.sock.sendMessage(jid, { video: { url: v.file || v.url }, caption: VIDEO_CAPTION, mimetype: 'video/mp4', ...(jpegThumbnail && { jpegThumbnail }) }, { messageId });
+      } catch (err) {
+        console.error('Bot: video non mandato, mando il link:', err.message);
+      }
+    }
+    return sendText(c, jid, VIDEO_CAPTION + '\n' + v.link);
+  }
+  // Manda tutto, un messaggio alla volta come farebbe una persona. «log» = segna nei messaggi mandati
+  async function sendFollowUp(c, jid, ct, num, log = true) {
+    const from = (rowOf(c.id) || {}).phone;
+    const r = await sendVideo(c, jid);
+    if (r && log) logSent(num, ct.n, '🎬 ' + VIDEO_CAPTION, r, 'dopo il sì', from);
+    for (const text of followTexts(ct)) {
+      await sleep(rand(4000, 9000));
+      if (!c.sock || c.status !== 'open') throw new Error('WhatsApp scollegato a metà');
+      await typing(c, jid, text);
+      const m = await sendText(c, jid, text);
+      if (log) logSent(num, ct.n, text, m, 'dopo il sì', from);
+    }
+  }
+  // Chi dice di no: chat archiviata anche nell'app WhatsApp
+  async function archiveChat(c, m) {
+    await sleep(rand(3000, 8000));
+    try { await c.sock.chatModify({ archive: true, lastMessages: [{ key: m.key, messageTimestamp: m.messageTimestamp }] }, m.key.remoteJid); }
+    catch (err) { console.warn('Bot: chat non archiviata su WhatsApp:', err.message); }
+  }
+
   // L'ID lo scelgo io e lo segno prima: WhatsApp rimanda subito il messaggio come «mio» e non deve
   // sembrare scritto a mano dal telefono (che spegne le risposte automatiche)
   function sendText(c, jid, text) {
@@ -725,12 +838,19 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       note: note(),
       today: { sent: rows.reduce((s, n) => s + n.sent, 0), target: rows.filter(n => n.enabled && n.linked).reduce((s, n) => s + n.target, 0) },
       stats: { total: count('inviato') + count('risposto') + count('no'), replies: count('risposto'), no: count('no'), noWa: count('senza-wa'), errors: count('errore') },
-      config: c,
-      queue: queue().slice(0, 30).map(l => ({ ...l, preview: buildText(l, g.total || 0) })),
+      config: { ...c, templates: lines(c.templates).length ? c.templates : DEFAULT_FIRST, followUp: blocks(c.followUp).length ? c.followUp : DEFAULT_FOLLOW },
+      defaults: { templates: DEFAULT_FIRST, followUp: DEFAULT_FOLLOW, demoUrl: DEFAULTS.demoUrl },
+      follow: { video: (videoSource() || {}).link || null, caption: VIDEO_CAPTION, messages: followTexts({ n: 'Pizzeria Da Mario' }) },
+      queue: queue().slice(0, 30).map(l => ({ ...l, category: categoryOf(l), preview: buildText(l, g.total || 0) })),
       queueLength: queue().length,
       refilling, lastSearch, exhausted: !queue().length && !nextJob(), jobsTotal: jobs().length,
       sent: (D.sent || []).slice(0, 100).map(x => ({ ...x, s: (contacted()[x.n] || {}).s })),
-      replies: (D.replies || []).slice(0, 100),
+      replies: (D.replies || []).filter(x => (contacted()[x.n] || {}).s !== 'no').slice(0, 100)
+        .map(x => { const ct = contacted()[x.n] || {}; return { ...x, follow: ct.followDone ? 'fatto' : ct.follow ? 'in corso' : ct.followErr ? 'errore' : null, human: !!ct.human }; }),
+      // Chi ha detto no: archiviati (anche nell'app WhatsApp)
+      archived: Object.entries(contacted()).filter(([, x]) => x.s === 'no').sort((a, b) => (b[1].rAt || b[1].at) - (a[1].rAt || a[1].at)).slice(0, 200)
+        .map(([n, x]) => ({ n, name: x.n, text: x.r || '', at: x.rAt || x.at, from: x.from })),
+      archivedTotal: Object.values(contacted()).filter(x => x.s === 'no').length,
       repliesSeenAt: g.repliesSeenAt || 0,
       types: Object.entries(leadTypes()).map(([id, t]) => ({ id, label: t.label })),
       languages: messages.languages,
@@ -755,10 +875,17 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       out.hours = parseHours(b.hours).map(([a, z]) => `${hhmm(a)}-${hhmm(z)}`).join(', ');
     }
     if (Array.isArray(b.days)) out.days = [...new Set(b.days.map(Number).filter(d => d >= 0 && d <= 6))];
-    if (b.lang !== undefined && messages.languages.some(([k]) => k === b.lang)) out.lang = b.lang;
     if (b.firma !== undefined) out.firma = String(b.firma).trim().slice(0, 40) || c.firma;
     if (b.templates !== undefined) out.templates = String(b.templates).slice(0, 4000);
-    if (b.autoReply !== undefined) out.autoReply = String(b.autoReply).slice(0, 1000);
+    if (b.autoFollow !== undefined) out.autoFollow = !!b.autoFollow;
+    if (b.followUp !== undefined) out.followUp = String(b.followUp).slice(0, 6000);
+    const link = (v, what) => {
+      const x = String(v || '').trim().slice(0, 500);
+      if (x && !/^(https?:\/\/|\/)\S+$/i.test(x)) throw new Error(`${what}: scrivi un link che inizia con https://`);
+      return x;
+    };
+    if (b.videoUrl !== undefined) out.videoUrl = link(b.videoUrl, 'Video');
+    if (b.demoUrl !== undefined) out.demoUrl = link(b.demoUrl, 'Demo');
     if (b.warmup !== undefined) out.warmup = !!b.warmup;
     if (!out.types.length) throw new Error('Scegli almeno un tipo di attività');
     if (!out.days.length) throw new Error('Scegli almeno un giorno');
@@ -825,8 +952,12 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       try {
         const [x] = (await c.sock.onWhatsApp(phone)) || [];
         if (!x || !x.exists) return res.status(400).json({ error: 'Il numero ' + '+' + phone + ' non ha WhatsApp' });
-        await sendText(c, x.jid, '🤖 PROVA del bot (il cliente riceverà solo il testo qui sotto):\n\n' + text);
+        await sendText(c, x.jid, '🤖 PROVA del bot: qui sotto il primo messaggio, poi (tra un minuto) quello che riceve chi risponde «sì».');
+        await sleep(1500);
+        await sendText(c, x.jid, text);
         res.json({ ok: true, text });
+        // La risposta al «sì» la mando dopo, senza far aspettare la pagina
+        setTimeout(() => sendFollowUp(c, x.jid, { n: sample.name }, phone, false).catch(err => console.error('Bot: prova non completata:', err.message)), 20000);
       } catch (err) { res.status(500).json({ error: 'Invio non riuscito: ' + err.message }); }
     });
 
@@ -866,6 +997,13 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       if (out.ok) counted(row);
       if (out.error) return res.status(400).json({ error: out.error });
       res.json({ ok: true, skipped: !!out.skipped, text: out.text, from: row.phone });
+    });
+    // Ripristina un archiviato (es. ha detto no per sbaglio): torna tra le risposte, il bot non gli scrive comunque di nuovo
+    app.post(r + '/archived/restore', requireAdmin, ready, (req, res) => {
+      const ct = contacted()[digitsOf(req.body && req.body.wa)];
+      if (!ct || ct.s !== 'no') return res.status(404).json({ error: 'Non è negli archiviati' });
+      ct.s = 'risposto'; save();
+      res.json({ ok: true });
     });
     app.post(r + '/replies/seen', requireAdmin, ready, (req, res) => { S().repliesSeenAt = Date.now(); save(); res.json({ ok: true }); });
     // Numeri già contattati (dal bot o a mano da Trova clienti): così nessuno riceve due messaggi
@@ -916,5 +1054,5 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     }, 1000);
   }
 
-  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, normPhone, OPT_OUT, YES, state: () => D, auth: () => A, migrate } };
+  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, normPhone, OPT_OUT, YES, AUTO_REPLY, plain, buildText, followTexts, videoSource, state: () => D, auth: () => A, migrate } };
 };

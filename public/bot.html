@@ -135,6 +135,16 @@
     <div id="heroAlerts"></div>
   </section>
 
+  <section class="box">
+    <h2>🎯 A chi scrivere</h2>
+    <p class="muted small" style="margin:-4px 0 12px">Tocca per scegliere: si salva da solo. Il primo messaggio cambia in base al locale («siti per pizzerie», «un bar come il vostro»…).</p>
+    <div class="chips" id="targets"></div>
+    <details style="margin-top:12px"><summary>Altre attività (parrucchieri, negozi, B&amp;B…)</summary>
+      <div class="chips" id="targetsMore" style="margin-top:10px"></div>
+      <p class="muted small" style="margin:8px 0 0">Per queste il messaggio dice «siti per attività come la vostra».</p>
+    </details>
+  </section>
+
   <section class="box" id="waBox">
     <h2>📱 Numeri WhatsApp da cui scrive il bot</h2>
     <p class="muted small" style="margin:-4px 0 12px">Scrivi il numero del WhatsApp Business e collegalo una volta con il codice. Ogni numero con «Scrive» acceso manda i suoi messaggi al giorno. Se cambi numero, aggiungi quello nuovo: il vecchio si spegne da solo (resta collegato per vedere le risposte) e puoi eliminarlo quando vuoi.</p>
@@ -149,8 +159,14 @@
 
   <section class="box">
     <h2>📬 Risposte <span class="tag g" id="newReplies" hidden></span></h2>
-    <p class="muted small" style="margin:-4px 0 12px">Le vedi anche nell'app WhatsApp Business: rispondi tu da lì. Chi scrive «no», «non ci interessa», «stop»… non viene più contattato.</p>
+    <p class="muted small" style="margin:-4px 0 12px">Le vedi anche nell'app WhatsApp Business: da lì continui tu. A chi risponde «sì», «ok», «okok», «mandate», con una domanda… il bot manda da solo il video, i due abbonamenti, come si paga e la demo (una volta sola). Chi dice di no va negli archiviati.</p>
     <div id="replies"></div>
+  </section>
+
+  <section class="box">
+    <h2>🗄️ Archiviati <span class="tag" id="archivedCount" hidden></span></h2>
+    <p class="muted small" style="margin:-4px 0 12px">Chi ha risposto «no», «non ci interessa», «abbiamo già il sito», 👎… La chat viene archiviata anche nell'app WhatsApp e il bot non scrive più.</p>
+    <div id="archived"></div>
   </section>
 
   <section class="box">
@@ -172,11 +188,6 @@
         <small>Un comune per riga (es. «Monza» o «Milano Navigli»), oppure «provincia: Bergamo», «regione: Lombardia», «italia». Con «italia» OpenStreetMap cerca in tutta Italia in un colpo solo; le città servono per Google Maps (massimo 60 attività per ricerca: più città e quartieri scrivi, più clienti trova). Il bot cerca una zona alla volta e rifà la stessa ricerca dopo 30 giorni per trovare le attività nuove.</small>
       </div>
       <div class="field">
-        <label>Tipi di attività</label>
-        <div class="chips" id="types"></div>
-        <small>I messaggi già pronti parlano di «locali» e «ristoranti»: se scegli anche parrucchieri, negozi… scrivi qui sotto messaggi tuoi più generici.</small>
-      </div>
-      <div class="field">
         <label>Dove cercare</label>
         <label class="check"><input type="checkbox" id="osm"><span>OpenStreetMap: solo chi ha scritto il suo WhatsApp<small>Gratis. Sono le attività che dichiarano di usare WhatsApp.</small></span></label>
         <label class="check"><input type="checkbox" id="google"><span>Google Maps: cellulari delle attività<small id="googleNote">Prima di scrivere il bot controlla che il numero abbia davvero WhatsApp. Usa la chiave Google (quota gratuita mensile, poi a pagamento).</small></span></label>
@@ -196,20 +207,32 @@
         <label>Giorni</label>
         <div class="chips" id="days"></div>
       </div>
-      <div class="field grid2">
-        <div><label for="lang">Lingua dei messaggi</label><select id="lang"></select></div>
-        <div><label for="firma">Il tuo nome nel messaggio</label><input id="firma" maxlength="40" placeholder="Es. Luca"></div>
+      <div class="field">
+        <label for="firma">Il tuo nome nel messaggio</label><input id="firma" maxlength="40" placeholder="Es. Simone">
       </div>
       <div class="field">
-        <label for="templates">Messaggi tuoi (facoltativo, uno per riga: si alternano)</label>
-        <textarea id="templates" rows="4" placeholder="Ciao {nome}! Sono {firma}, faccio siti web per attività della zona. Ho visto che {problema}: posso mandarvi un esempio? 🙂"></textarea>
-        <small>Vuoto = i messaggi già pronti (gli stessi di Trova clienti). Puoi usare {nome} (nome dell'attività), {problema} (es. «non avete ancora un sito web»), {firma}. Niente link nel primo messaggio: sembrano spam.</small>
+        <label for="templates">Primo messaggio (uno per riga: si alternano, così non sono tutti uguali)</label>
+        <textarea id="templates" rows="6"></textarea>
+        <small>Corto e senza link (sembrano spam). Puoi usare {firma} (il tuo nome), {nome} (nome del locale), {problema} (es. «non avete ancora un sito web»), {categoria} («pizzerie», «ristoranti», «bar»), {locale} («una pizzeria come la vostra»).</small>
+      </div>
+
+      <h3 style="font:600 1rem var(--sans);letter-spacing:0;margin:24px 0 0">💬 Quando rispondono</h3>
+      <label class="check"><input type="checkbox" id="autoFollow"><span>Rispondi da solo a chi non dice di no<small>«Sì», «ok», «okok», «va bene», «mandate», una domanda… Una volta sola, 30-90 secondi dopo, e solo se nessuno ha già risposto a mano dal telefono. I messaggi automatici del locale («Grazie per averci contattato…») non contano.</small></span></label>
+      <div class="field">
+        <label for="videoUrl">Video</label>
+        <input id="videoUrl" placeholder="Vuoto = il video del sito (video.mp4)">
+        <small id="videoNote">Vuoto = il video caricato sul sito, arriva come video WhatsApp. Puoi mettere anche un link .mp4 (arriva come video) o di YouTube/Drive (arriva come link).</small>
       </div>
       <div class="field">
-        <label for="autoReply">Risposta automatica a chi dice «sì» (facoltativo)</label>
-        <textarea id="autoReply" rows="3" placeholder="Perfetto! Ecco un esempio di sito come lo faremmo per voi: https://... Se vi piace vi preparo una prova gratuita con il vostro nome 🙂"></textarea>
-        <small>Mandata una volta sola, 1-2 minuti dopo un «sì», «ok», «certo», «mandate»… e solo se nessuno ha già risposto a mano dal telefono. Vuoto = nessuna risposta automatica. Puoi usare {nome}, {firma}, {sito}.</small>
+        <label for="demoUrl">Link della demo (sito di esempio)</label>
+        <input id="demoUrl" placeholder="https://…">
       </div>
+      <div class="field">
+        <label for="followUp">Messaggi dopo il video (separali con una riga «---»: partono uno alla volta)</label>
+        <textarea id="followUp" rows="12"></textarea>
+        <small>Puoi usare {abbonamenti} (Base e Premium con il prezzo al mese e cosa comprendono, presi dal sito), {sito} (link per pagare), {demo}, {nome}, {firma}. <a href="#" id="resetTexts">Ripristina i testi predefiniti</a></small>
+      </div>
+      <details class="field"><summary>👀 Anteprima di cosa riceve chi dice sì</summary><div id="followPreview" style="margin-top:8px"></div></details>
       <div class="row" style="margin-top:16px">
         <button class="btn btn-gold" type="submit" id="saveBtn">Salva impostazioni</button>
         <span class="muted small" id="saveNote"></span>
@@ -273,7 +296,7 @@
     if (S.exhausted && S.enabled) alerts.push('<div class="alert gold">Ho già scritto a tutti quelli trovati nelle tue zone. Aggiungi zone o tipi di attività nelle impostazioni (le stesse ricerche si rifanno dopo 30 giorni).</div>');
     if (backupWarn) alerts.push(`<div class="alert gold">${backupWarn}</div>`);
     document.getElementById('heroAlerts').innerHTML = alerts.join('');
-    renderNumbers(); renderReplies(); renderQueue(); renderSent();
+    renderTargets(); renderNumbers(); renderReplies(); renderArchived(); renderQueue(); renderSent();
     if (!formLoaded) fillForm();
   }
 
@@ -323,11 +346,53 @@
     document.getElementById('replies').innerHTML = list.length ? list.map(r => `
       <div class="item ${r.at > seen ? 'new' : ''}">
         <div class="top"><div><h4>${escapeHtml(r.name || fmtNum(r.n))}</h4><div class="meta">${escapeHtml(fmtNum(r.n))} · ${when(r.at)}${r.to ? ' · a ' + escapeHtml(fmtNum(r.to)) : ''}</div></div>
-          ${r.no ? '<span class="tag r">Non interessato</span>' : '<span class="tag g">Ha risposto</span>'}</div>
+          ${r.auto ? '<span class="tag">Messaggio automatico del locale</span>' : r.no ? '<span class="tag r">Non interessato</span>' : r.yes ? '<span class="tag g">Interessato</span>' : '<span class="tag y">Ha risposto</span>'}</div>
         <div class="msg">${escapeHtml(r.text)}</div>
+        ${!r.auto && r.follow ? `<div class="meta" style="margin-top:6px">${r.follow === 'fatto' ? '✅ Video, abbonamenti e demo mandati' : r.follow === 'in corso' ? '⏳ Sto mandando video, abbonamenti e demo…' : '⚠️ Video e prezzi non mandati: scrivigli tu'}</div>` : ''}
+        ${!r.auto && !r.follow && r.human ? '<div class="meta" style="margin-top:6px">✍️ Stai rispondendo tu dal telefono</div>' : ''}
         <div class="actions"><a class="btn btn-wa btn-sm" href="${waLink(r.n)}" target="_blank" rel="noopener">💬 Apri chat</a></div>
       </div>`).join('') : '<p class="empty">Ancora nessuna risposta.</p>';
     if (fresh && document.visibilityState === 'visible') api('/api/admin/bot/replies/seen', { method: 'POST' }).catch(() => {});
+  }
+
+  // A chi scrivere: «Tutti» = ristoranti, pizzerie e bar
+  const MAIN = ['ristoranti', 'pizzerie', 'bar'];
+  function renderTargets() {
+    const on = S.config.types, all = MAIN.every(t => on.includes(t));
+    const chip = t => `<button type="button" class="chip ${on.includes(t.id) ? 'on' : ''}" data-type="${t.id}">${escapeHtml(t.label)}</button>`;
+    document.getElementById('targets').innerHTML = `<button type="button" class="chip ${all ? 'on' : ''}" data-type="tutti">Tutti</button>` +
+      S.types.filter(t => MAIN.includes(t.id)).map(chip).join('');
+    document.getElementById('targetsMore').innerHTML = S.types.filter(t => !MAIN.includes(t.id)).map(chip).join('');
+  }
+  async function toggleTarget(id) {
+    let on = [...S.config.types];
+    if (id === 'tutti') on = MAIN.every(t => on.includes(t)) ? on.filter(t => !MAIN.includes(t)) : [...new Set([...on, ...MAIN])];
+    else on = on.includes(id) ? on.filter(t => t !== id) : [...on, id];
+    if (!on.length) { toast('Scegli almeno un tipo di locale'); return; }
+    try { S = await api('/api/admin/bot/config', { method: 'PUT', body: { types: on } }); render(); toast('Salvato'); }
+    catch (err) { if (err.message !== '401') toast(err.message); }
+  }
+  document.getElementById('targets').addEventListener('click', e => { const b = e.target.closest('[data-type]'); if (b) toggleTarget(b.dataset.type); });
+  document.getElementById('targetsMore').addEventListener('click', e => { const b = e.target.closest('[data-type]'); if (b) toggleTarget(b.dataset.type); });
+
+  function renderArchived() {
+    const tag = document.getElementById('archivedCount');
+    tag.hidden = !S.archivedTotal; tag.textContent = S.archivedTotal;
+    document.getElementById('archived').innerHTML = S.archived.length ? S.archived.map(a => `
+      <div class="item"><div class="top"><div><h4>${escapeHtml(a.name || fmtNum(a.n))}</h4><div class="meta">${escapeHtml(fmtNum(a.n))} · ${when(a.at)}</div></div><span class="tag r">No</span></div>
+        ${a.text ? `<div class="msg">${escapeHtml(a.text)}</div>` : ''}
+        <div class="actions"><a class="btn btn-ghost btn-sm" href="${waLink(a.n)}" target="_blank" rel="noopener">Apri chat</a><button class="btn btn-ghost btn-sm" data-restore="${escapeHtml(a.n)}">Non era un no</button></div>
+      </div>`).join('') : '<p class="empty">Nessuno per ora.</p>';
+  }
+  document.getElementById('archived').addEventListener('click', e => {
+    const b = e.target.closest('[data-restore]');
+    if (b) act(() => api('/api/admin/bot/archived/restore', { method: 'POST', body: { wa: b.dataset.restore } }), 'Tolto dagli archiviati');
+  });
+
+  function renderFollowPreview() {
+    const f = S.follow;
+    document.getElementById('followPreview').innerHTML = (f.video ? `<div class="msg">🎬 <a href="${escapeHtml(f.video)}" target="_blank" rel="noopener">Video</a> — ${escapeHtml(f.caption)}</div>` : '<div class="msg">(nessun video)</div>') +
+      f.messages.map(m => `<div class="msg">${escapeHtml(m)}</div>`).join('');
   }
 
   function siteTag(l) {
@@ -369,7 +434,6 @@
     const c = S.config;
     formLoaded = true;
     document.getElementById('zones').value = c.zones;
-    document.getElementById('types').innerHTML = S.types.map(t => `<button type="button" class="chip ${c.types.includes(t.id) ? 'on' : ''}" data-type="${t.id}">${escapeHtml(t.label)}</button>`).join('');
     document.getElementById('osm').checked = c.osm;
     const g = document.getElementById('google');
     g.checked = c.google && S.google; g.disabled = !S.google;
@@ -379,16 +443,25 @@
     document.getElementById('warmup').checked = c.warmup;
     document.getElementById('hours').value = c.hours;
     document.getElementById('days').innerHTML = DAYS.map(([d, l]) => `<button type="button" class="chip ${c.days.includes(d) ? 'on' : ''}" data-day="${d}">${l}</button>`).join('');
-    document.getElementById('lang').innerHTML = S.languages.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
-    document.getElementById('lang').value = c.lang;
     document.getElementById('firma').value = c.firma;
     document.getElementById('templates').value = c.templates;
-    document.getElementById('autoReply').value = c.autoReply;
+    document.getElementById('autoFollow').checked = c.autoFollow;
+    document.getElementById('videoUrl').value = c.videoUrl;
+    document.getElementById('demoUrl').value = c.demoUrl;
+    document.getElementById('followUp').value = c.followUp;
+    renderFollowPreview();
   }
 
   document.getElementById('cfg').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (chip) chip.classList.toggle('on');
+    if (e.target.id === 'resetTexts') {
+      e.preventDefault();
+      if (!confirm('Rimettere i testi predefiniti del primo messaggio e dei messaggi dopo il sì? (Poi premi Salva)')) return;
+      document.getElementById('templates').value = S.defaults.templates;
+      document.getElementById('followUp').value = S.defaults.followUp;
+      document.getElementById('demoUrl').value = S.defaults.demoUrl;
+    }
   });
   document.getElementById('cfg').addEventListener('submit', async e => {
     e.preventDefault();
@@ -397,17 +470,18 @@
     try {
       S = await api('/api/admin/bot/config', { method: 'PUT', body: {
         zones: document.getElementById('zones').value,
-        types: [...document.querySelectorAll('#types .chip.on')].map(b => b.dataset.type),
         osm: document.getElementById('osm').checked,
         google: document.getElementById('google').checked,
         min: document.getElementById('min').value, max: document.getElementById('max').value,
         warmup: document.getElementById('warmup').checked,
         hours: document.getElementById('hours').value,
         days: [...document.querySelectorAll('#days .chip.on')].map(b => +b.dataset.day),
-        lang: document.getElementById('lang').value,
         firma: document.getElementById('firma').value,
         templates: document.getElementById('templates').value,
-        autoReply: document.getElementById('autoReply').value,
+        autoFollow: document.getElementById('autoFollow').checked,
+        videoUrl: document.getElementById('videoUrl').value,
+        demoUrl: document.getElementById('demoUrl').value,
+        followUp: document.getElementById('followUp').value,
       } });
       formLoaded = false; render();
       toast('Impostazioni salvate');
