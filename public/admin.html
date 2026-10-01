@@ -30,6 +30,13 @@
     .calc-out td:last-child { text-align: right; font-weight: 600; }
     .calc-out tr.big td { font-size: 1.1rem; color: var(--gold-2); }
     .order { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg-2); margin-bottom: 12px; }
+    .sub { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--bg-2); margin-bottom: 10px; }
+    .sub.bad { border-color: var(--red); background: rgba(248,113,113,.07); }
+    .sub.done { opacity: .6; }
+    .sub .warn { color: var(--red); font-weight: 600; font-size: .92rem; margin: 10px 0 0; }
+    .sub .okmsg { color: var(--green); font-size: .9rem; margin: 10px 0 0; }
+    .sub .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .subs-sum { color: var(--muted); font-size: .88rem; margin: -8px 0 14px; }
     .order-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
     .order-top h4 { margin: 0; font-size: 1.05rem; }
     .pill { font-size: .75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
@@ -108,6 +115,7 @@
       <a href="/clienti" class="btn btn-gold btn-sm">🔎 <span class="lg">Trova clienti</span><span class="sm">Clienti</span></a>
       <a href="/bot" class="btn btn-ghost btn-sm" title="Bot WhatsApp">🤖 Bot</a>
       <a href="/guida" class="btn btn-ghost btn-sm">📋 <span class="lg">Guida cliente</span><span class="sm">Guida</span></a>
+      <a href="#abbonamenti" class="hide-sm">Abbonamenti</a>
       <a href="#calcolo" class="hide-sm">Calcolatore</a>
       <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>
@@ -126,6 +134,12 @@
     <div class="stat"><span class="muted small">Ordini pagati</span><b id="sPaid">–</b></div>
     <div class="stat"><span class="muted small">In attesa</span><b id="sWait">–</b></div>
     <div class="stat"><span class="muted small">Totale vincoli firmati</span><b id="sVincoli">–</b></div>
+  </div>
+
+  <div class="panel" id="abbonamenti" style="margin-bottom:22px">
+    <h3>📋 Abbonamenti venduti</h3>
+    <p class="subs-sum" id="subsSum"></p>
+    <div id="subs"></div>
   </div>
 
   <div>
@@ -279,10 +293,10 @@
       ['Dispositivo', a.userAgent],
       ['Lingua', a.language],
       ['Importi accettati', a.rateMonthly ? `Prezzo ${formatMoney(a.price, currency)} · noleggio ${a.rateMonths} mesi da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
-      ['Caselle spuntate', a.specificApproval && 'Condizioni + inizio immediato (recesso)'],
+      ['Caselle spuntate', a.specificApproval && (a.b2b ? 'Condizioni + acquisto per la sua attività (P.IVA) e approvazione dei punti 6 e 12 (vincolo)' : 'Condizioni + inizio immediato (recesso)')],
       ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method === 'noleggio' ? 'Noleggio' : p.method],
       ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
-      ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
+      ['P.IVA', [o.cliente && o.cliente.piva, ...(p.taxIds || []).map(t => t.value)].filter(Boolean).join(', ')],
       ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],
     ].filter(r => r[1]);
     return `<details class="more"><summary>🧾 Prova di accettazione e dati del cliente</summary>
@@ -500,7 +514,84 @@
     const d = await api('/api/admin/orders');
     currency = d.currency;
     render(d.orders);
+    renderSubs(d.orders);
   }
+
+  // ---- Abbonamenti venduti: chi ha comprato, stato e problemi (rosso = da sistemare) ----
+  let subsById = {};
+  const day = iso => iso ? new Date(iso).toLocaleDateString('it-IT') : '—';
+  const who = o => (o.payer && o.payer.name) || (o.cliente && o.cliente.nome) || '';
+  const phoneOf = o => String((o.cliente && o.cliente.telefono) || (o.payer && o.payer.phone) || o.phone || '').replace(/\D/g, '').replace(/^00/, '');
+  const emailOf = o => (o.payer && o.payer.email) || (o.cliente && o.cliente.email) || '';
+  const monthsPaid = o => {
+    if (!o.paidAt) return 0;
+    const a = new Date(o.paidAt), n = o.cancelledAt ? new Date(o.cancelledAt) : new Date();
+    const m = (n.getFullYear() - a.getFullYear()) * 12 + n.getMonth() - a.getMonth() - (n.getDate() < a.getDate() ? 1 : 0);
+    return Math.min(o.months || 999, Math.max(0, m) + 1);
+  };
+  // Il problema più grave dell'abbonamento (null = tutto a posto)
+  function issueOf(o) {
+    if (o.issueResolvedAt) return null;
+    if (o.dispute && !o.dispute.closed) return { kind: 'dispute', text: `Ha contestato con la banca un addebito di ${formatMoney(o.dispute.amount, currency)}${o.dispute.reason ? ' (' + o.dispute.reason + ')' : ''}. Rispondi da Stripe → Pagamenti → Contestazioni allegando la prova di accettazione (qui sotto).` };
+    if (o.unpaidClose && !(o.residuo && o.residuo.paidAt)) return { kind: 'close', text: `Ha chiuso l'abbonamento senza pagare i ${o.unpaidClose.months} mesi restanti (${formatMoney(o.unpaidClose.amount, currency)}).`, amount: o.unpaidClose.amount, months: o.unpaidClose.months };
+    if (o.subStatus === 'insoluto' && !(o.residuo && o.residuo.paidAt && o.residuo.at > (o.unpaidSince || ''))) return { kind: 'unpaid', text: `Il canone non è stato pagato${o.unpaidSince ? ' (dal ' + day(o.unpaidSince) + ')' : ''}: Stripe riprova da solo nei prossimi giorni.`, amount: o.monthly, months: 1 };
+    return null;
+  }
+  function reminder(o, iss) {
+    const nome = who(o).split(' ')[0] || '', link = o.residuo && !o.residuo.paidAt ? o.residuo.url : '';
+    if (iss.kind === 'unpaid') return `Buongiorno${nome ? ' ' + nome : ''}, le scrivo da Nerodoro Studio: il pagamento del canone di ${formatMoney(o.monthly, currency)} per il sito di ${o.restaurant} non è andato a buon fine. Può controllare la carta? ${link ? 'Oppure può pagare qui con la carta: ' + link : 'Stripe riproverà da solo nei prossimi giorni.'}\nGrazie!`;
+    return `Buongiorno${nome ? ' ' + nome : ''}, le scrivo da Nerodoro Studio. L'abbonamento del sito di ${o.restaurant} risulta chiuso prima della fine del vincolo di ${o.months} mesi accettato all'attivazione (condizioni, punto 12): mancano ${iss.months} canoni, in tutto ${formatMoney(iss.amount, currency)}.${link ? '\n\nPuò saldare qui con la carta: ' + link : ''}\n\nSe c'è un problema mi scriva pure, troviamo insieme una soluzione.`;
+  }
+  function renderSubs(orders) {
+    const subs = orders.filter(o => o.paid && o.monthly && o.package !== 'assistenza');
+    subsById = Object.fromEntries(subs.map(o => [o.id, o]));
+    const rank = o => issueOf(o) ? 0 : o.subStatus === 'chiuso' ? 2 : 1;
+    subs.sort((a, b) => rank(a) - rank(b) || String(b.paidAt).localeCompare(String(a.paidAt)));
+    const bad = subs.filter(issueOf), active = subs.filter(o => o.subStatus !== 'chiuso');
+    document.getElementById('subsSum').innerHTML = subs.length
+      ? `${subs.length} venduti · ${active.length} attivi · ${formatMoney(active.reduce((s, o) => s + o.monthly, 0), currency)} al mese${bad.length ? ` · <b style="color:var(--red)">${bad.length} da sistemare</b>` : ''}`
+      : '';
+    document.getElementById('subs').innerHTML = subs.length ? subs.map(o => {
+      const iss = issueOf(o), paidM = monthsPaid(o), tel = phoneOf(o), mail = emailOf(o);
+      const msg = iss ? reminder(o, iss) : '';
+      const ok = o.residuo && o.residuo.paidAt ? `<p class="okmsg">✅ Ha pagato ${formatMoney(o.residuo.paidAmount || o.residuo.amount, currency)} il ${day(o.residuo.paidAt)}</p>`
+        : o.dispute && o.dispute.closed ? `<p class="okmsg" style="color:${o.dispute.status === 'won' ? 'var(--green)' : 'var(--red)'}">Contestazione chiusa: ${o.dispute.status === 'won' ? 'vinta ✅' : 'persa ❌'}</p>` : '';
+      return `<div class="sub ${iss ? 'bad' : o.subStatus === 'chiuso' ? 'done' : ''}" data-id="${o.id}">
+        <div class="order-top"><div>
+          <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.monthly, currency)}/mese ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+          <div class="meta">👤 ${escapeHtml(who(o) || '—')}${tel ? ' · 📞 +' + escapeHtml(tel) : ''}${mail ? ' · ✉️ ' + escapeHtml(mail) : ''}${o.cliente && o.cliente.piva ? ' · P.IVA ' + escapeHtml(o.cliente.piva) : ''}</div>
+          <div class="meta">Dal ${day(o.paidAt)} · vincolo ${o.months} mesi fino al ${day(o.commitmentEnd)} · pagati ${paidM} di ${o.months}${o.siteUrl ? ` · <a href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">sito</a>` : ''}</div>
+        </div><span class="pill ${iss ? '' : o.subStatus === 'chiuso' ? 'wait' : 'paid'}" style="${iss ? 'color:var(--red);border:1px solid rgba(248,113,113,.4);background:rgba(248,113,113,.1)' : ''}">${iss ? '⚠️ Da sistemare' : escapeHtml(o.subStatus || 'attivo')}</span></div>
+        ${iss ? `<p class="warn">⚠️ ${escapeHtml(iss.text)}</p>` : ''}
+        ${ok}
+        ${o.residuo && !o.residuo.paidAt && iss ? `<div class="linkbox"><input readonly value="${escapeHtml(o.residuo.url)}"><button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.residuo.url)}" data-msg="Link copiato">Copia</button></div>` : ''}
+        <div class="acts">
+          ${tel ? `<a class="btn btn-wa btn-sm" href="https://wa.me/${tel}${msg ? '?text=' + encodeURIComponent(msg) : ''}" target="_blank" rel="noopener">💬 Scrivi su WhatsApp</a>` : ''}
+          ${mail ? `<a class="btn btn-ghost btn-sm" href="mailto:${encodeURIComponent(mail)}?subject=${encodeURIComponent('Sito ' + o.restaurant + (iss ? ': canoni da saldare' : ''))}&body=${encodeURIComponent(msg)}">✉️ Manda email</a>` : ''}
+          ${iss && iss.kind !== 'dispute' && !(o.residuo && !o.residuo.paidAt) ? `<button class="btn btn-gold btn-sm" data-residuo>💳 Crea link per pagare ${formatMoney(iss.amount, currency)}</button>` : ''}
+          ${iss ? `<a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">🧾 Prova di accettazione</a><button class="btn btn-ghost btn-sm" data-risolto>Segna come risolto</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty" style="padding:16px">Ancora nessun abbonamento venduto.</div>';
+  }
+  document.getElementById('subs').addEventListener('click', async e => {
+    const card = e.target.closest('.sub');
+    if (!card) return;
+    const id = card.dataset.id;
+    const cp = e.target.closest('[data-copy]');
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); toast(cp.dataset.msg || 'Copiato'); } catch { toast('Copia non riuscita: tieni premuto sul link'); } return; }
+    try {
+      if (e.target.closest('[data-residuo]')) {
+        const b = e.target.closest('[data-residuo]'); b.disabled = true; b.textContent = 'Creo il link…';
+        await api('/api/admin/orders/' + id + '/residuo', { method: 'POST' });
+        toast('Link creato: ora «Scrivi su WhatsApp» lo manda già nel messaggio'); refresh();
+      } else if (e.target.closest('[data-risolto]')) {
+        if (!confirm('Segnare come risolto? Il riquadro torna normale.')) return;
+        await api('/api/admin/orders/' + id + '/risolto', { method: 'POST' });
+        toast('Segnato come risolto'); refresh();
+      }
+    } catch (x) { if (x.message !== '401') toast(x.message); refresh(); }
+  });
 
   document.getElementById('closeWarn').addEventListener('click', async e => {
     const b = e.target.closest('[data-closed]');

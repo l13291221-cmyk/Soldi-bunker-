@@ -104,11 +104,21 @@ function monthsBetween(a, b) {
   if (b.getDate() < a.getDate()) m--;
   return Math.max(0, m);
 }
+// Partita IVA italiana: 11 cifre con la cifra di controllo giusta
+function pivaOk(p) {
+  if (!/^\d{11}$/.test(p) || /^0{11}$/.test(p)) return false;
+  let sum = 0;
+  for (let i = 0; i < 10; i++) { let n = +p[i]; if (i % 2) { n *= 2; if (n > 9) n -= 9; } sum += n; }
+  return (10 - sum % 10) % 10 === +p[10];
+}
 const RECESSO_GIORNI = 14;
+// Il servizio è per le aziende (partita IVA): niente recesso di 14 giorni. Vale solo per gli ordini
+// accettati con le vecchie condizioni (prima di «b2b» nella prova di accettazione)
+const isB2b = o => !!(o.acceptance && o.acceptance.b2b);
 function penaltyOf(o, now = new Date()) {
   if (!o.monthly || !o.paidAt || !(o.months > 1)) return { months: 0, amount: 0 };
-  // Entro 14 giorni dall'attivazione vale il recesso (punto 6): si chiude senza addebitare il vincolo
-  if (now - new Date(o.paidAt) < RECESSO_GIORNI * 864e5) return { months: 0, amount: 0, recesso: true };
+  // Vecchie condizioni: entro 14 giorni dall'attivazione vale il recesso, si chiude senza addebitare il vincolo
+  if (!isB2b(o) && now - new Date(o.paidAt) < RECESSO_GIORNI * 864e5) return { months: 0, amount: 0, recesso: true };
   const charged = Math.min(o.months, monthsBetween(new Date(o.paidAt), now) + 1);
   const months = Math.max(0, o.months - charged);
   return { months, amount: months * o.monthly };
@@ -263,16 +273,17 @@ function termsTextFor(o) {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-// Seconda casella: richiesta espressa di iniziare subito, con la perdita del recesso a servizio
-// eseguito (art. 59, c. 1, lett. a, Codice del Consumo), e approvazione del dettaglio del pagamento
+// Seconda casella: chi paga dichiara di acquistare per la sua attività (contratto tra imprese, niente
+// tutele del consumatore) e approva per iscritto le clausole più pesanti (artt. 1341 e 1342 del Codice civile)
 function approvalText(o) {
+  const b2b = 'Dichiaro di acquistare per la mia attività, come impresa o professionista con partita IVA, e non come consumatore.';
   if (o.monthly && o.package !== 'assistenza') {
-    return `Chiedo che il lavoro sul mio sito inizi subito (punto 6). Approvo in modo specifico il punto 12: abbonamento di ${euro(o.monthly / 100)} al mese addebitato in automatico sulla stessa carta, con vincolo di ${o.months} mesi; se disdico prima della fine del vincolo mi vengono addebitati subito, in una volta sola, tutti i canoni che mancano alla fine del vincolo.`;
+    return `${b2b} Approvo in modo specifico, ai sensi degli artt. 1341 e 1342 del Codice civile, i punti 6 e 12 delle condizioni: abbonamento di ${euro(o.monthly / 100)} al mese addebitato in automatico sulla stessa carta, con VINCOLO DI ${o.months} MESI (in tutto ${euro(o.monthly * o.months / 100)}); nessun diritto di recesso; se disdico prima della fine del vincolo, o smetto di pagare, sono dovuti tutti i canoni che mancano alla fine del vincolo, che mi vengono addebitati subito in una volta sola.`;
   }
   if (o.package === 'assistenza') {
-    return 'Chiedo che l\'assistenza inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo entro i 14 giorni pago i giorni già usati (punto 6). Approvo l\'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).';
+    return `${b2b} Approvo l'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).`;
   }
-  return `Chiedo che il lavoro sul mio sito inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo prima della consegna pago il lavoro già fatto e che, una volta consegnato il sito, perdo il diritto di recesso (punto 6). Approvo il dettaglio del pagamento (punto 12): noleggio di ${RATE_MESI} mesi a ${euro(rateOf(o.amount) / 100)} al mese, con il contratto che firmerò con ${NOLEGGIO_SOCIETA}.`;
+  return `${b2b} Approvo il dettaglio del pagamento (punto 12): noleggio di ${RATE_MESI} mesi a ${euro(rateOf(o.amount) / 100)} al mese, con il contratto che firmerò con ${NOLEGGIO_SOCIETA}.`;
 }
 function acceptanceFor(o, req) {
   const termsText = termsTextFor(o);
@@ -285,6 +296,7 @@ function acceptanceFor(o, req) {
     price: o.amount, currency: CURRENCY,
     ...(o.monthly ? { monthly: o.monthly } : { rateMonthly: rateOf(o.amount), rateMonths: RATE_MESI }),
     termsHash: crypto.createHash('sha256').update(termsText).digest('hex'),
+    b2b: true, // condizioni per le aziende: niente recesso di 14 giorni (penaltyOf)
     specificApproval: approvalText(o),
     termsText,
   };
@@ -343,6 +355,28 @@ function attemptLimiter(max) {
 const pinLimiter = attemptLimiter(5);   // 5 PIN sbagliati
 const codeLimiter = attemptLimiter(30); // 30 codici ordine inesistenti
 
+// Contestazione (chargeback): trovo l'ordine dal cliente Stripe dell'addebito contestato
+async function disputeUpdate(d, type) {
+  const ch = await stripe.charges.retrieve(typeof d.charge === 'string' ? d.charge : d.charge.id);
+  const cust = typeof ch.customer === 'string' ? ch.customer : ch.customer && ch.customer.id;
+  const o = cust && Object.values(orders).find(x => x.stripeCustomerId === cust || (x.payer && x.payer.stripeCustomerId === cust));
+  if (!o) return;
+  o.dispute = { id: d.id, amount: d.amount, reason: d.reason, status: d.status, at: (o.dispute && o.dispute.id === d.id && o.dispute.at) || new Date().toISOString(), closed: type === 'charge.dispute.closed' };
+  saveOrders();
+}
+
+// Le contestazioni le controllo anche da solo ogni 6 ore: così non serve attivare altri eventi nel webhook di Stripe
+async function syncDisputes() {
+  if (!stripe || !Object.values(orders).some(o => o.paid && o.monthly)) return;
+  const list = await stripe.disputes.list({ limit: 100, created: { gte: Math.floor(Date.now() / 1000) - 180 * 86400 } });
+  for (const d of list.data) {
+    const known = Object.values(orders).find(o => o.dispute && o.dispute.id === d.id);
+    if (!known || known.dispute.status !== d.status) await disputeUpdate(d, ['won', 'lost', 'warning_closed'].includes(d.status) ? 'charge.dispute.closed' : 'charge.dispute.created');
+  }
+}
+setInterval(() => syncDisputes().catch(err => console.error('Contestazioni:', err.message)), 6 * 3600e3);
+setTimeout(() => syncDisputes().catch(err => console.error('Contestazioni:', err.message)), 90000);
+
 const app = express();
 app.set('trust proxy', 1);
 
@@ -357,7 +391,10 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), (req,
   }
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const s = event.data.object;
-    if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId) markPaid(s.metadata.orderId, s);
+    // Pagamento dei canoni che mancavano, dal link creato nell'admin (sezione Abbonamenti)
+    const res2 = s.payment_link && Object.values(orders).find(o => o.residuo && o.residuo.linkId === s.payment_link);
+    if (res2 && s.payment_status === 'paid') { res2.residuo.paidAt = new Date().toISOString(); res2.residuo.paidAmount = s.amount_total; saveOrders(); }
+    else if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId) markPaid(s.metadata.orderId, s);
   } else if (event.type === 'payment_intent.succeeded') {
     // Solo i pagamenti Klarna diretti: quelli con la pagina Stripe arrivano già da checkout.session.completed
     const pi = event.data.object;
@@ -366,12 +403,27 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), (req,
     const o = orderBySubscription(invoiceSubscription(event.data.object));
     if (o) {
       o.subStatus = event.type === 'invoice.paid' ? 'attivo' : 'insoluto';
-      if (event.type === 'invoice.paid') o.lastPaidAt = new Date().toISOString();
+      if (event.type === 'invoice.paid') { o.lastPaidAt = new Date().toISOString(); o.unpaidSince = null; }
+      else o.unpaidSince ||= new Date().toISOString();
       saveOrders();
     }
   } else if (event.type === 'customer.subscription.deleted') {
     const o = orderBySubscription(event.data.object.id);
-    if (o) { o.subStatus = 'chiuso'; saveOrders(); }
+    if (o) {
+      // Chiuso non dalla nostra pagina di disdetta (che addebita prima i mesi che mancano): carta bloccata,
+      // pagamenti falliti o chiuso da Stripe. I mesi che mancano restano dovuti → avviso rosso nell'admin
+      const pen = penaltyOf(o);
+      // Se l'ultimo canone non era stato pagato, manca anche quello
+      const months = Math.min(o.months || 0, pen.months + (o.subStatus === 'insoluto' ? 1 : 0));
+      if (o.subStatus !== 'chiuso' && !o.penalty && months > 0 && o.months > 1) {
+        o.unpaidClose = { at: new Date().toISOString(), months, amount: months * o.monthly, reason: (event.data.object.cancellation_details || {}).reason || null };
+      }
+      o.subStatus = 'chiuso'; o.cancelledAt ||= new Date().toISOString();
+      saveOrders();
+    }
+  } else if (event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') {
+    // Il cliente ha contestato un addebito con la sua banca
+    disputeUpdate(event.data.object, event.type).catch(err => console.error('Contestazione non registrata:', err.message));
   }
   res.json({ received: true });
 });
@@ -552,6 +604,42 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
   res.send(lines.join('\n') + '\n');
 });
 
+// Link Stripe per pagare in una volta i canoni che mancano alla fine del vincolo (da mandare su WhatsApp o per email)
+app.post('/api/admin/orders/:id/residuo', requireAdmin, async (req, res) => {
+  const o = orders[req.params.id];
+  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+  if (!stripe) return res.status(503).json({ error: 'Stripe non è configurato' });
+  const due = o.unpaidClose || (o.subStatus === 'insoluto' && o.monthly ? { months: 1, amount: o.monthly } : null);
+  if (!due || !(due.amount > 0)) return res.status(400).json({ error: 'Non ci sono canoni da incassare per questo ordine' });
+  if (o.residuo && !o.residuo.paidAt && o.residuo.amount === due.amount) return res.json({ residuo: o.residuo });
+  try {
+    const price = await stripe.prices.create({
+      currency: CURRENCY, unit_amount: due.amount,
+      product_data: { name: `Sito web ${o.restaurant}: ${due.months} ${due.months === 1 ? 'canone' : 'canoni'} da saldare (codice ${formatCode(o.id)})` },
+    });
+    const link = await stripe.paymentLinks.create({
+      line_items: [{ price: price.id, quantity: 1 }],
+      metadata: { orderId: o.id, via: 'residuo' },
+      payment_intent_data: { metadata: { orderId: o.id, via: 'residuo' } },
+      after_completion: { type: 'hosted_confirmation', hosted_confirmation: { custom_message: 'Grazie, il pagamento è arrivato. Nerodoro Studio' } },
+    });
+    o.residuo = { linkId: link.id, url: link.url, amount: due.amount, months: due.months, at: new Date().toISOString() };
+    saveOrders();
+    res.json({ residuo: o.residuo });
+  } catch (err) {
+    console.error('Link residuo:', err.message);
+    res.status(500).json({ error: 'Stripe non ha creato il link: ' + err.message });
+  }
+});
+// «Risolto»: il cliente ha pagato in altro modo o hai deciso di chiudere la questione
+app.post('/api/admin/orders/:id/risolto', requireAdmin, (req, res) => {
+  const o = orders[req.params.id];
+  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+  o.issueResolvedAt = new Date().toISOString();
+  saveOrders();
+  res.json({ ok: true });
+});
+
 app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
   if (!orders[req.params.id]) return res.status(404).json({ error: 'Ordine non trovato' });
   delete orders[req.params.id];
@@ -670,8 +758,9 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   let cliente = null;
   if (o.monthly) {
     const c = req.body.cliente || {}, t = (v, n) => String(v || '').trim().slice(0, n);
-    cliente = { nome: t(c.nome, 120), email: t(c.email, 200).toLowerCase(), telefono: t(c.telefono, 20).replace(/[^\d+]/g, '') };
+    cliente = { nome: t(c.nome, 120), email: t(c.email, 200).toLowerCase(), telefono: t(c.telefono, 20).replace(/[^\d+]/g, ''), piva: t(c.piva, 20).toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^IT(?=\d{11}$)/, '') };
     if (cliente.nome.length < 3) return res.status(400).json({ error: 'Scrivi nome e cognome del titolare.' });
+    if (!pivaOk(cliente.piva)) return res.status(400).json({ error: 'Partita IVA non valida: scrivi le 11 cifre (il servizio è per le attività con partita IVA).' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) return res.status(400).json({ error: 'Email non valida.' });
     if (cliente.telefono.replace(/\D/g, '').length < 8) return res.status(400).json({ error: 'Numero di telefono non valido.' });
   }
@@ -693,7 +782,7 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
     let customer = null;
     if (cliente) {
       o.cliente = cliente;
-      const data = { name: cliente.nome, email: cliente.email, phone: cliente.telefono, metadata: { orderId: o.id, attivita: o.restaurant } };
+      const data = { name: cliente.nome, email: cliente.email, phone: cliente.telefono, metadata: { orderId: o.id, attivita: o.restaurant, piva: cliente.piva } };
       customer = o.stripeCustomerId
         ? (await stripe.customers.update(o.stripeCustomerId, data)).id
         : (await stripe.customers.create(data)).id;
@@ -716,9 +805,9 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
             product_data: { name: o.package === 'assistenza' ? `Assistenza sito web — ${o.restaurant}` : `Sito web ${(PACKAGES[o.package] || PACKAGES.base).name} — ${o.restaurant}` },
           },
         }, ...(o.amount > 0 ? [oneOff] : [])],
-        subscription_data: { metadata: { orderId: o.id }, description: o.months > 1 ? `Sito web (codice ${formatCode(o.id)})` : `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
+        subscription_data: { metadata: { orderId: o.id }, description: o.months > 1 ? `Sito web, vincolo ${o.months} mesi (codice ${formatCode(o.id)})` : `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
         custom_text: { submit: { message: o.months > 1
-          ? `${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Vincoli: specificati nelle condizioni ${BASE_URL}/condizioni`
+          ? `Abbonamento con VINCOLO DI ${o.months} MESI: ${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta (in tutto ${euro(o.monthly * o.months / 100)}). Se disdici prima, i mesi che mancano vengono addebitati subito. Condizioni: ${BASE_URL}/condizioni`
           : `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
       } : {
         mode: 'payment',

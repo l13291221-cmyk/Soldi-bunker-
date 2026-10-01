@@ -118,9 +118,14 @@
         ${sub ? `
         ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
         <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
-        ${o.months > 1 ? '' : '<div class="row"><span class="muted">Durata</span><span>Disdici quando vuoi</span></div>'}
+        ${o.months > 1
+          ? `<div class="row"><span class="muted">Durata</span><span><b style="color:var(--gold-2)">Vincolo ${o.months} mesi</b></span></div>
+        <div class="row"><span class="muted">Totale nei ${o.months} mesi</span><span>${formatMoney(o.monthly * o.months, o.currency)}</span></div>`
+          : '<div class="row"><span class="muted">Durata</span><span>Disdici quando vuoi</span></div>'}
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
-        ${o.months > 1 ? '' : `<p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`}`
+        <p class="muted small" style="margin:6px 0 0">${o.months > 1
+          ? `Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta, per ${o.months} mesi. Se disdici prima, i mesi che mancano vengono addebitati subito. Servizio per attività con partita IVA.`
+          : `Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.`}</p>`
         : `
         <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Noleggio per ${o.rateMonths} mesi</small></span></div>`}
       </div>
@@ -196,6 +201,7 @@
             ${o.monthly > 0 ? `
             <div class="nol-form">
               <input id="cNome" placeholder="Nome e cognome del titolare" autocomplete="name">
+              <input id="cPiva" placeholder="Partita IVA dell'attività (11 cifre)" inputmode="numeric" maxlength="16" autocomplete="off">
               <input id="cEmail" type="email" placeholder="Email" autocomplete="email" inputmode="email">
               <input id="cTel" type="tel" placeholder="Telefono (WhatsApp)" autocomplete="tel" inputmode="tel">
             </div>
@@ -238,7 +244,7 @@
     const boxes = wrap.querySelectorAll('.fade-end');
     boxes.forEach(el => { el.addEventListener('scroll', () => atEnd(el), { passive: true }); atEnd(el); });
     if (pay) pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#cNome') && {
-      nome: wrap.querySelector('#cNome').value, email: wrap.querySelector('#cEmail').value, telefono: wrap.querySelector('#cTel').value,
+      nome: wrap.querySelector('#cNome').value, piva: wrap.querySelector('#cPiva').value, email: wrap.querySelector('#cEmail').value, telefono: wrap.querySelector('#cTel').value,
     }));
 
     // Testo completo con pacchetto, prezzo e rate di questo ordine: è lo stesso salvato come prova
