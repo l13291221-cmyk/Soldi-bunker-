@@ -190,14 +190,28 @@ Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `
 
 Il noleggio (`/api/orders/:id/noleggio`) e Klarna diretto (`/api/orders/:id/klarna`) restano nel server ma la pagina non li usa più.
 
-## Condizioni e prova di accettazione
-Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo, poi si apre un foglio con le condizioni complete
-(con prezzo e rate del suo ordine, il dettaglio del pagamento in fondo) e spunta la **seconda casella**: chiede che il lavoro inizi
-subito e riconosce che, a sito consegnato, perde il diritto di recesso (art. 59 Codice del Consumo), e approva il dettaglio del
-pagamento. Senza tutte e due il server non apre il pagamento.
+## 📋 Abbonamenti venduti (nell'admin)
+In cima all'admin c'è l'elenco di ogni sito venduto in abbonamento: attività, titolare, telefono, email, partita IVA, da quando,
+fino a quando dura il vincolo e quanti canoni ha pagato. Il riquadro diventa **rosso** con un avviso quando:
+- **ha chiuso l'abbonamento senza pagare i mesi restanti** (carta bloccata, pagamenti falliti, chiuso da Stripe…), con l'importo che manca;
+- **il canone del mese non è stato pagato** (Stripe riprova da solo per qualche giorno);
+- **ha contestato un addebito con la banca** (il sito lo controlla da solo ogni 6 ore): si risponde da Stripe allegando la prova di accettazione.
 
-Il servizio è per i privati: valgono i **14 giorni di recesso** (punto 6 delle condizioni). Se il cliente recede prima della consegna
-paga solo il lavoro già fatto e gli rimborsi il resto da Stripe (con Klarna il rimborso riduce o annulla le rate); dopo la consegna non può più recedere.
+Pulsanti: **💬 Scrivi su WhatsApp** e **✉️ Manda email** con il messaggio già scritto (cortese, con l'importo e il punto 12),
+**💳 Crea link per pagare** (link Stripe per saldare con la carta, che finisce da solo nel messaggio; quando paga il riquadro torna
+a posto) e **Segna come risolto**.
+
+## Condizioni e prova di accettazione
+Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo (dove vede canone, **«Vincolo 24 mesi»** e totale), poi si apre
+un foglio con le condizioni complete (con il dettaglio del pagamento in fondo) e spunta la **seconda casella**: dichiara di acquistare
+per la sua attività, con partita IVA, e non come consumatore, e approva in modo specifico (artt. 1341-1342 c.c.) i punti 6 e 12
+(nessun recesso, vincolo di 24 mesi, canoni che mancano dovuti se disdice prima o smette di pagare). Poi scrive nome del titolare,
+**partita IVA** (controllata), email e telefono. Senza tutto questo il server non apre il pagamento. Anche la pagina di Stripe dice
+«Abbonamento con VINCOLO DI 24 MESI» con il totale.
+
+Il servizio è **per le attività con partita IVA**: contratto tra imprese, niente recesso di 14 giorni (punto 6). Gli ordini accettati
+con le vecchie condizioni per i privati tengono i loro 14 giorni. Le condizioni prevedono anche gli interessi di mora e le spese di
+recupero dei contratti tra imprese (D.Lgs. 231/2002) e la possibilità di cedere i crediti a terzi (recupero crediti, factoring, noleggio).
 Nell'admin, in ogni ordine, **🧾 Prova di accettazione**: data e ora, IP, dispositivo, importi accettati, metodo (carta o Klarna)
 e i dati inseriti su Stripe (nome, email, telefono, indirizzo, P.IVA, carta: solo tipo e ultime 4 cifre).
 Con **Scarica la prova completa (.txt)** hai anche il testo esatto delle condizioni accettate con la sua impronta SHA-256.
