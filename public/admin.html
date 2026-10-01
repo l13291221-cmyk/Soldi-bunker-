@@ -37,6 +37,9 @@
     .pill.wait { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
     .linkbox { display: flex; gap: 8px; margin-top: 12px; }
     .linkbox input { font-size: .85rem; padding: 10px 12px; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 10px 0 12px; font-size: .85rem; }
+    .kv span { color: var(--muted); }
+    .kv b { font-weight: 500; overflow-wrap: anywhere; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .btn-wa { background: #25d366; color: #fff; }
     .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
@@ -222,6 +225,29 @@
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }
 
+  // Prova di accettazione: chi ha accettato, quando, da dove e con quali dati ha pagato
+  function proof(o) {
+    const a = o.acceptance || {}, p = o.payer || {}, c = p.card || {};
+    if (!a.at && !o.termsAcceptedAt && !o.payer) return '';
+    const ad = p.address ? [p.address.line1, p.address.line2, [p.address.postal_code, p.address.city].filter(Boolean).join(' '), p.address.country].filter(Boolean).join(', ') : '';
+    const rows = [
+      ['Accettate il', (a.at || o.termsAcceptedAt) && new Date(a.at || o.termsAcceptedAt).toLocaleString('it-IT')],
+      ['IP', a.ip || o.termsAcceptedIp],
+      ['Dispositivo', a.userAgent],
+      ['Lingua', a.language],
+      ['Importi accettati', a.rateMonthly ? `${formatMoney(a.price, currency)} · ${a.rateMonths} rate da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
+      ['Caselle spuntate', a.specificApproval && 'Condizioni + approvazione specifica'],
+      ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method],
+      ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
+      ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
+      ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],
+    ].filter(r => r[1]);
+    return `<details class="more"><summary>🧾 Prova di accettazione e dati del cliente</summary>
+      <div class="kv">${rows.map(r => `<span>${r[0]}</span><b>${escapeHtml(r[1])}</b>`).join('')}</div>
+      <a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">⬇️ Scarica la prova completa (.txt)</a>
+    </details>`;
+  }
+
   function render(orders) {
     const paid = orders.filter(o => o.paid);
     document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount, 0), currency);
@@ -234,8 +260,9 @@
       <div class="order" data-id="${o.id}">
         <div class="order-top">
           <div>
-            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ''} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ` <span class="muted small">(${o.rateMonths} × ${formatMoney(o.rateMonthly, currency)}/mese)</span>`} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
+            ${!o.monthly && o.termsAcceptedAt ? `<div class="meta">✅ Condizioni accettate il ${new Date(o.termsAcceptedAt).toLocaleString('it-IT')}${o.payer && o.payer.method ? ' · pagato con ' + (o.payer.method === 'klarna' ? 'Klarna' : o.payer.method === 'card' ? 'carta' : escapeHtml(o.payer.method)) : ''}</div>` : ''}
             ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
           </div>
           <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
@@ -251,6 +278,7 @@
           <div class="linkbox"><input class="pin" inputmode="numeric" value="${escapeHtml(o.panelPin || '')}" placeholder="PIN pannello (6 cifre)"></div>
           <div class="linkbox"><input class="tok" type="password" autocomplete="off" value="${escapeHtml(o.siteToken || '')}" placeholder="Token GitHub del suo sito"><button class="btn btn-ghost btn-sm" data-savex>Salva</button></div>
         </details>
+        ${proof(o)}
         <div class="actions">
           <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>

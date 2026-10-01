@@ -24,7 +24,8 @@ const PRICE_PREMIUM = parseFloat(String(process.env.PREZZO_PREMIUM || '1490').re
 const eur = (v, d) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : d; };
 const MIN_MONTHS = 1;
 const ASSIST_MONTHLY = eur(process.env.CANONE_ASSISTENZA, 20);
-const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
+// 990 → "990 €", 27.5 → "27,50 €"
+const euro = n => n.toLocaleString('it-IT', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2, useGrouping: 'always' }) + ' €';
 // I due pacchetti mostrati sul sito e scelti nell'admin
 const PACKAGES = {
   base: {
@@ -44,6 +45,11 @@ const PACKAGES = {
     features: ['Ti aiutiamo per dubbi e problemi con il sito', 'Ti spieghiamo come usare il pannello', 'Disdici quando vuoi'],
   },
 };
+// Pagamento a rate con Klarna: sul sito il prezzo si mostra come rata mensile
+// (prezzo diviso per le rate, arrotondato per eccesso ai 10 centesimi: 990 € → 27,50 €, 1.490 € → 41,40 €)
+const RATE_MESI = Math.max(1, Math.round(eur(process.env.RATE_KLARNA, 36))) || 36;
+const rateOf = cents => Math.ceil(cents / RATE_MESI / 10) * 10;
+for (const p of Object.values(PACKAGES)) if (!p.recurring) Object.assign(p, { rateMonthly: rateOf(p.price), rateMonths: RATE_MESI });
 const isPremium = pkg => String(pkg || '').startsWith('premium');
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
@@ -79,7 +85,9 @@ function findOrder(raw) {
   return orders[s] || orders[s.toUpperCase().replace(/[^A-Z0-9]/g, '')] || null;
 }
 function adminOrder(o) {
-  return { ...o, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
+  // il testo completo delle condizioni accettate si scarica a parte (prova .txt)
+  const acceptance = o.acceptance && { ...o.acceptance, termsText: undefined };
+  return { ...o, acceptance, rateMonthly: o.monthly ? 0 : rateOf(o.amount), rateMonths: RATE_MESI, code: formatCode(o.id), payUrl: `${BASE_URL}/paga/${o.id}` };
 }
 function publicOrder(o) {
   return {
@@ -92,6 +100,9 @@ function publicOrder(o) {
     package: o.package || 'base',
     monthly: o.monthly || 0,
     months: o.months || 0,
+    rateMonthly: o.monthly ? 0 : rateOf(o.amount),
+    rateMonths: RATE_MESI,
+    approvalText: o.paid ? null : approvalText(o),
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
@@ -111,7 +122,93 @@ function markPaid(orderId, session) {
     const end = new Date(); end.setMonth(end.getMonth() + (o.months || MIN_MONTHS));
     o.commitmentEnd = end.toISOString();
   }
+  const cd = session.customer_details || {};
+  o.payer = {
+    name: cd.name || null,
+    email: cd.email || null,
+    phone: cd.phone || null,
+    address: cd.address || null,
+    taxIds: (cd.tax_ids || []).map(t => ({ type: t.type, value: t.value })),
+    stripeCustomerId: typeof session.customer === 'string' ? session.customer : (session.customer && session.customer.id) || null,
+    amountPaid: session.amount_total ?? null,
+  };
   saveOrders();
+  savePaymentMethod(o, session).catch(err => console.error('Metodo di pagamento non letto:', err.message));
+}
+// Come ha pagato (carta o Klarna) e, per la carta, tipo, ultime 4 cifre, scadenza e paese
+// (Stripe non dà mai il numero completo)
+async function savePaymentMethod(o, session) {
+  if (!stripe) return;
+  let pm = null;
+  if (o.subscriptionId) pm = (await stripe.subscriptions.retrieve(o.subscriptionId, { expand: ['default_payment_method'] })).default_payment_method;
+  else if (session.payment_intent) pm = (await stripe.paymentIntents.retrieve(String(session.payment_intent), { expand: ['payment_method'] })).payment_method;
+  if (!pm || typeof pm !== 'object') return;
+  const c = pm.card;
+  o.payer = {
+    ...o.payer,
+    method: pm.type,
+    ...(c && { card: { brand: c.brand, last4: c.last4, expMonth: c.exp_month, expYear: c.exp_year, country: c.country, funding: c.funding } }),
+  };
+  saveOrders();
+}
+
+// ---------- Prova di accettazione delle condizioni ----------
+// Testo delle condizioni (public/condizioni.html, dentro #termsBody)
+const TERMS_HTML = (() => {
+  try {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'condizioni.html'), 'utf8');
+    const m = html.match(/<div id="termsBody"[^>]*>([\s\S]*?)<\/div>\s*<!-- \/termsBody -->/);
+    return m ? m[1] : '';
+  } catch { return ''; }
+})();
+if (!TERMS_HTML) console.warn('⚠️  Testo delle condizioni non trovato in public/condizioni.html');
+// Condizioni con pacchetto, prezzo e rate di questo ordine. In fondo il dettaglio del pagamento:
+// per il sito le rate Klarna, per l'assistenza il canone mensile.
+function termsHtmlFor(o) {
+  const assist = o.package === 'assistenza';
+  const put = (cls, val) => h => h.replace(new RegExp(`(<(\\w+) class="${cls}">)[^<]*(</\\2>)`, 'g'), (_, a, t, b) => a + escapeHtml(val) + b);
+  let h = TERMS_HTML;
+  h = assist
+    ? h.replace(/<!--sito-->[\s\S]*?<!--\/sito-->/g, '').replace(/<!--assistenza([\s\S]*?)\/assistenza-->/g, '$1')
+    : h.replace(/<!--assistenza[\s\S]*?\/assistenza-->/g, '');
+  h = put('js-pkg', (PACKAGES[o.package] || PACKAGES.base).name)(h);
+  h = put('js-price', euro(o.amount / 100))(h);
+  h = put('js-rate', euro(rateOf(o.amount) / 100))(h);
+  h = put('js-rate-n', String(RATE_MESI))(h);
+  h = put('js-assist', euro((assist && o.monthly ? o.monthly : PACKAGES.assistenza.monthly) / 100))(h);
+  h = h.replace(/(<a class="js-wa" href=")[^"]*/g, `$1https://wa.me/${WHATSAPP}`);
+  return h.replace(/<!--[\s\S]*?-->/g, '');
+}
+function termsTextFor(o) {
+  return termsHtmlFor(o)
+    .replace(/<li[^>]*>/g, '- ').replace(/<\/(p|li|h2|div|ul|ol)>|<br\s*\/?>/g, '\n').replace(/<h2[^>]*>/g, '\n')
+    .replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// Seconda casella: approvazione specifica delle clausole pesanti (artt. 1341 e 1342 c.c.)
+function approvalText(o) {
+  const last = o.package === 'assistenza'
+    ? '10 (Assistenza: canone addebitato in automatico ogni mese sulla stessa carta fino alla disdetta)'
+    : `12 (Dettaglio del pagamento: ${RATE_MESI} rate dovute a Klarna secondo le sue condizioni; importo esatto della rata, eventuali interessi e approvazione li decide Klarna)`;
+  return `Ai sensi degli artt. 1341 e 1342 del Codice Civile approvo specificamente i punti 6 (Rimborsi: nessun rimborso), 7 (rimozione dei contenuti e sospensione del sito) e ${last}.`;
+}
+function acceptanceFor(o, req) {
+  const termsText = termsTextFor(o);
+  return {
+    at: new Date().toISOString(),
+    ip: req.ip,
+    userAgent: String(req.get('user-agent') || '').slice(0, 400),
+    language: String(req.get('accept-language') || '').slice(0, 120),
+    package: o.package || 'base',
+    price: o.amount, currency: CURRENCY,
+    ...(o.monthly ? { monthly: o.monthly } : { rateMonthly: rateOf(o.amount), rateMonths: RATE_MESI }),
+    termsHash: crypto.createHash('sha256').update(termsText).digest('hex'),
+    specificApproval: approvalText(o),
+    termsText,
+  };
 }
 // Stato dell'abbonamento aggiornato dagli eventi Stripe (rinnovi, pagamenti falliti, disdette)
 function orderBySubscription(subId) {
@@ -297,6 +394,43 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   res.json({ order: adminOrder(o) });
 });
 
+// Prova di accettazione in un file di testo: dati del cliente, IP, dispositivo e condizioni accettate
+app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
+  const o = orders[req.params.id];
+  if (!o) return res.status(404).json({ error: 'Ordine non trovato' });
+  const a = o.acceptance || {}, p = o.payer || {}, c = p.card || {};
+  const when = iso => iso ? `${new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} (ora italiana) · ${iso}` : '—';
+  const addr = p.address ? [p.address.line1, p.address.line2, [p.address.postal_code, p.address.city, p.address.state].filter(Boolean).join(' '), p.address.country].filter(Boolean).join(', ') : '';
+  const price = a.price ?? o.amount;
+  const lines = [
+    'PROVA DI ACCETTAZIONE DELLE CONDIZIONI — Nerodoro Studio', '',
+    `Ordine: ${formatCode(o.id)}`, `Attività: ${o.restaurant}`, `WhatsApp (dall'ordine): ${o.phone || '—'}`, `Pacchetto: ${(PACKAGES[a.package || o.package] || PACKAGES.base).name}`, '',
+    'ACCETTAZIONE',
+    `Data e ora: ${when(a.at || o.termsAcceptedAt)}`,
+    `Indirizzo IP: ${a.ip || o.termsAcceptedIp || '—'}`,
+    `Browser e dispositivo: ${a.userAgent || '—'}`,
+    `Lingua del browser: ${a.language || '—'}`,
+    o.monthly
+      ? `Importi accettati: canone ${euro((a.monthly ?? o.monthly) / 100)} al mese${price ? ` · attivazione ${euro(price / 100)}` : ''}`
+      : `Importi accettati: prezzo del sito ${euro(price / 100)} · con Klarna ${a.rateMonths || RATE_MESI} rate da ${euro((a.rateMonthly ?? rateOf(price)) / 100)} al mese`,
+    `Prima casella spuntata: Accetto le condizioni`,
+    `Seconda casella spuntata (approvazione specifica): ${a.specificApproval || '—'}`,
+    `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`, '',
+    'PAGAMENTO (dati inseriti dal cliente su Stripe)',
+    `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
+    `Importo incassato: ${p.amountPaid != null ? euro(p.amountPaid / 100) : '—'}`,
+    `Metodo: ${p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method || '—'}`,
+    `Nome: ${p.name || '—'}`, `Email: ${p.email || '—'}`, `Telefono: ${p.phone || '—'}`, `Indirizzo di fatturazione: ${addr || '—'}`,
+    `Partita IVA / codici: ${(p.taxIds || []).map(t => `${t.value} (${t.type})`).join(', ') || '—'}`,
+    `Carta: ${c.last4 ? `${c.brand} •••• ${c.last4}, scadenza ${String(c.expMonth).padStart(2, '0')}/${c.expYear}, paese ${c.country || '—'}, tipo ${c.funding || '—'}` : '—'}`,
+    `Cliente Stripe: ${p.stripeCustomerId || '—'}`, ...(o.subscriptionId ? [`Abbonamento Stripe: ${o.subscriptionId}`] : []), `Sessione di pagamento Stripe: ${o.stripeSessionId || '—'}`, '',
+    'TESTO DELLE CONDIZIONI ACCETTATE', a.termsText || '(non salvato: ordine accettato prima di questa funzione)',
+  ];
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="prova-${formatCode(o.id)}.txt"`);
+  res.send(lines.join('\n') + '\n');
+});
+
 app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
   if (!orders[req.params.id]) return res.status(404).json({ error: 'Ordine non trovato' });
   delete orders[req.params.id];
@@ -337,13 +471,21 @@ app.get('/api/orders/:id', loadPublicOrder, (req, res) => {
   res.json({ order: publicOrder(o) });
 });
 
+// Condizioni complete con i dati di questo ordine: il cliente le legge nel foglio prima di pagare
+app.get('/api/orders/:id/terms', loadPublicOrder, (req, res) => {
+  res.json({ html: termsHtmlFor(req.order) });
+});
+
 app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   const o = req.order;
   if (o.paid) return res.status(400).json({ error: 'Ordine già pagato' });
   if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
-  // Abbonamento: il cliente deve aver accettato le condizioni (vincolo minimo) prima di pagare
-  if (o.monthly && !(req.body && req.body.accept === true)) {
-    return res.status(400).json({ error: 'Per l\'abbonamento devi accettare le condizioni.' });
+  // Prima di pagare il cliente deve spuntare entrambe le caselle: condizioni e approvazione specifica
+  if (!(req.body && req.body.accept === true)) {
+    return res.status(400).json({ error: 'Per pagare devi accettare le condizioni.' });
+  }
+  if (req.body.approve !== true) {
+    return res.status(400).json({ error: 'Per pagare spunta anche l\'approvazione dei punti indicati.' });
   }
   const oneOff = {
     quantity: 1,
@@ -351,17 +493,16 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
       currency: CURRENCY,
       unit_amount: o.amount,
       product_data: {
-        name: `Sito web — ${o.restaurant}`,
-        description: `${o.description} (codice ${formatCode(o.id)})`,
+        name: 'Sito web',
+        ...(!o.monthly && { description: `${euro(rateOf(o.amount) / 100)} al mese · Pagamento con Klarna in ${RATE_MESI} rate` }),
       },
     },
   };
   try {
-    if (o.monthly) {
-      o.termsAcceptedAt = new Date().toISOString();
-      o.termsAcceptedIp = req.ip;
-      saveOrders();
-    }
+    o.acceptance = acceptanceFor(o, req);
+    o.termsAcceptedAt = o.acceptance.at;
+    o.termsAcceptedIp = o.acceptance.ip;
+    saveOrders();
     const session = await stripe.checkout.sessions.create({
       ...(o.monthly ? {
         mode: 'subscription',
@@ -376,7 +517,19 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
         }, ...(o.amount > 0 ? [oneOff] : [])],
         subscription_data: { metadata: { orderId: o.id }, description: `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
         custom_text: { submit: { message: `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
-      } : { mode: 'payment', line_items: [oneOff] }),
+      } : {
+        mode: 'payment',
+        line_items: [oneOff],
+        // Cliente Stripe sempre creato: così restano salvati anche i dati di fatturazione e la partita IVA
+        customer_creation: 'always',
+        // Nel pannello Stripe si vede comunque chi ha pagato
+        payment_intent_data: { description: `Sito web — ${o.restaurant} (codice ${formatCode(o.id)})`, metadata: { orderId: o.id } },
+        custom_text: { submit: { message: `Con Klarna paghi in ${RATE_MESI} rate da circa ${euro(rateOf(o.amount) / 100)} al mese: rata esatta, eventuali interessi (TAN/TAEG) e approvazione li indica Klarna prima di confermare. Condizioni accettate: ${BASE_URL}/condizioni` } },
+      }),
+      // Dati del cliente per la prova di accettazione e la ricevuta
+      billing_address_collection: 'required',
+      phone_number_collection: { enabled: true },
+      tax_id_collection: { enabled: true },
       metadata: { orderId: o.id },
       client_reference_id: o.id,
       success_url: `${BASE_URL}/paga/${o.id}?session_id={CHECKOUT_SESSION_ID}`,

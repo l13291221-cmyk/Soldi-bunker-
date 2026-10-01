@@ -13,10 +13,6 @@
   <style>
     .terms { max-width: 760px; margin: 0 auto; padding: 40px 16px 60px; }
     .terms h1 { font-size: 2rem; margin: 0 0 6px; }
-    .terms h2 { font-size: 1.25rem; margin: 30px 0 8px; }
-    .terms p, .terms li { color: var(--text); line-height: 1.65; }
-    .terms ol, .terms ul { padding-left: 22px; }
-    .terms .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 16px 0; }
   </style>
 </head>
 <body>
@@ -29,39 +25,145 @@
 
 <main class="terms">
   <h1>Condizioni del servizio</h1>
-  <p class="muted">Valide per tutti gli ordini di siti web di Nerodoro Studio. Il servizio è rivolto ad attività e professionisti.</p>
+  <!-- Il testo dentro #termsBody è anche quello mostrato prima di pagare e salvato come prova di accettazione (server.js) -->
+  <div id="termsBody" class="terms-body">
+  <p class="muted">Valgono per ogni ordine di sito web fatto con Nerodoro Studio. Il servizio è rivolto ad attività e professionisti. Leggile fino in fondo: pagando dichiari di averle lette e di accettarle tutte, compreso il dettaglio del pagamento scritto alla fine.</p>
 
-  <h2>1. Pacchetti a pagamento unico (Base e Premium)</h2>
+  <h2>1. Chi siamo</h2>
+  <p>Nerodoro Studio crea e mette online siti web per attività: ristoranti e bar, negozi, parrucchieri ed estetica, B&amp;B e hotel, studi e professionisti, artigiani. Ci trovi su <a class="js-wa" href="https://wa.me/27710933377">WhatsApp</a>.</p>
+
+  <h2>2. Cosa ti vendiamo</h2>
+  <p>Ti vendiamo un <b>sito web</b>: noi lo creiamo e lo mettiamo online. Il prezzo del sito si paga una volta sola, anche a rate con Klarna (punto 12): nessun canone e nessun rinnovo automatico.</p>
+  <p><b>Pacchetto Base</b></p>
   <ul>
-    <li>Paghi una volta sola: nessun canone e nessun rinnovo automatico.</li>
-    <li>Nel Premium il dominio (www.tuonome.it) è incluso per il primo anno; dal secondo anno il rinnovo del dominio è a carico del cliente.</li>
+    <li>Sito web completo per la tua attività, con il nome e i colori della tua attività.</li>
+    <li>Servizi, prodotti, menu e prezzi facili da consultare dal telefono.</li>
+    <li>Pulsante per scriverti su WhatsApp, senza commissioni.</li>
+    <li>Indirizzo, mappa di Google, orari di apertura e contatti in evidenza.</li>
+    <li>Galleria di foto della tua attività.</li>
+    <li>Sito preparato per le ricerche locali su Google (per esempio «vicino a me»).</li>
+    <li>Sito veloce e fatto prima di tutto per lo smartphone, senza app da scaricare.</li>
+    <li>Pannello riservato per cambiare da solo, dal telefono, menu, prezzi, foto e orari.</li>
+  </ul>
+  <p><b>Pacchetto Premium</b>: tutto quello che c'è nel Base, più</p>
+  <ul>
+    <li>un indirizzo tutto tuo, tipo <b>www.tuonome.it</b>: il dominio è incluso per il primo anno, dal secondo anno il rinnovo è a carico tuo;</li>
+    <li>un QR code in alta qualità, pronto da stampare su menu, vetrina e biglietti da visita.</li>
+  </ul>
+  <p><b>Cosa non è incluso</b></p>
+  <ul>
+    <li>L'assistenza: si aggiunge a parte, solo se la vuoi (punto 10).</li>
+    <li>La scrittura dei testi e le fotografie: li fornisci tu.</li>
+    <li>Pubblicità a pagamento, gestione dei social e vendita online dal sito.</li>
+    <li>Una posizione garantita su Google: i risultati li decide Google.</li>
   </ul>
 
-  <h2>2. Assistenza (facoltativa)</h2>
-  <div class="box">
-    L'assistenza <b>non è inclusa</b> nel prezzo del sito. Se la vuoi, costa <b><span class="js-assist">20 €</span> al mese</b> e la <b>disdici quando vuoi</b>.
-  </div>
+  <h2>3. Cosa ricevi e quando</h2>
+  <ul>
+    <li><b>Il link del tuo sito</b>: compare nella pagina del tuo ordine subito dopo il pagamento. Se il sito è ancora in preparazione, il link compare appena è pronto: riapri la pagina del tuo ordine quando vuoi per ritrovarlo.</li>
+    <li><b>Le istruzioni per gestirlo</b>: come entrare nel pannello con il tasto «Amministratore», il PIN e, se serve, il codice («token») per pubblicare le modifiche.</li>
+    <li><b>Con il Premium</b>: il QR code da scaricare e il sito sul tuo indirizzo www.</li>
+    <li><b>Tempi</b>: di solito pochi giorni lavorativi da quando riceviamo testi e foto.</li>
+  </ul>
+
+  <h2>4. Come funziona, passo per passo</h2>
   <ol>
-    <li><b>Cosa comprende.</b> Ti aiutiamo per dubbi e problemi con il sito e ti spieghiamo come usare il pannello.</li>
-    <li><b>Pagamento.</b> Il primo mese si paga all'attivazione; poi il canone viene addebitato ogni mese sulla stessa carta, in automatico, tramite Stripe.</li>
-    <li><b>Disdetta.</b> Nessun vincolo: la disdici quando vuoi con un messaggio su WhatsApp. Vale dalla fine del mese già pagato.</li>
-    <li><b>Mancato pagamento.</b> Se un canone non viene pagato, l'assistenza si interrompe. Il sito resta tuo e resta online.</li>
+    <li>Ci scrivi su WhatsApp e scegli il pacchetto.</li>
+    <li>Ti mandiamo un codice ordine personale.</li>
+    <li>Inserisci il codice sul sito, vedi il riepilogo, spunti «Accetto le condizioni» e premi «Paga».</li>
+    <li>Leggi queste condizioni fino in fondo e spunti la seconda casella, con cui approvi i punti più importanti.</li>
+    <li>Paghi su Stripe: con Klarna in rate mensili, oppure tutto subito con carta.</li>
+    <li>Subito dopo il pagamento trovi il link del tuo sito nella pagina del tuo ordine.</li>
+    <li>Dal pannello cambi il sito da solo quando vuoi: le modifiche vanno online in 1-2 minuti.</li>
   </ol>
 
-  <h2>3. Pagamenti</h2>
-  <p>I pagamenti avvengono con carta tramite Stripe. Nerodoro Studio non vede né conserva i dati della tua carta.</p>
-  <p><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate (sito e canoni dell'assistenza) non sono rimborsabili, neanche se il sito non ti piace. L'unico caso in cui ti restituiamo i soldi è se il sito non ti viene consegnato.</p>
-  <p><b>Assistenza.</b> Non è inclusa nel prezzo del sito: si aggiunge solo se la scegli (punto 2).</p>
+  <h2>5. Pagamenti</h2>
+  <ul>
+    <li>I pagamenti avvengono tramite <b>Stripe</b>, con carta oppure con <b>Klarna</b>. Nerodoro Studio non vede e non conserva i dati della tua carta.</li>
+    <li>Il prezzo del tuo pacchetto, le rate e come funzionano sono scritti nel dettaglio del pagamento, al punto 12.</li>
+  </ul>
 
-  <h2>4. Contatti</h2>
-  <p>Per domande o disdette scrivici su <a class="js-wa" href="https://wa.me/27710933377" style="color:var(--gold-2)">WhatsApp</a>.</p>
+  <h2>6. Rimborsi</h2>
+  <ul>
+    <li><b>Nessun rimborso.</b> Il lavoro sul sito inizia subito dopo il pagamento, quindi le somme pagate non sono rimborsabili: neanche se il sito non ti piace o se non lo usi.</li>
+    <li><b>Unica eccezione:</b> se il sito non ti viene consegnato, ti restituiamo quello che hai pagato.</li>
+    <li>Se hai pagato con Klarna, le rate restano dovute a Klarna secondo le sue condizioni, anche in questi casi.</li>
+    <li>Se contesti un pagamento con la tua banca o con Klarna senza averci scritto prima, il sito può essere sospeso e le somme restano dovute.</li>
+  </ul>
+
+  <h2>7. Il tuo pannello e i tuoi contenuti</h2>
+  <ul>
+    <li>Tieni riservati PIN e token: chi li ha può modificare il sito. Se li perdi o pensi che qualcuno li conosca, scrivici.</li>
+    <li>I contenuti che pubblichi (testi, foto, prezzi, orari, recensioni) sono una tua responsabilità: devono essere corretti e devi avere il diritto di usarli.</li>
+    <li>Non puoi pubblicare contenuti illegali o offensivi. Se succede possiamo toglierli o sospendere il sito.</li>
+    <li>I tuoi contenuti restano tuoi.</li>
+  </ul>
+
+  <h2>8. Il sito e il dominio</h2>
+  <ul>
+    <li>Il sito resta tuo e resta online, senza canoni.</li>
+    <li><b>Premium.</b> Il dominio (www.tuonome.it) è incluso per il primo anno. Dal secondo anno il rinnovo è a carico tuo: se non lo rinnovi, l'indirizzo www smette di funzionare.</li>
+  </ul>
+
+  <h2>9. Dati personali</h2>
+  <p>Quando accetti queste condizioni e paghi salviamo questi dati, come prova dell'accettazione e per gestire l'ordine e la fatturazione:</p>
+  <ul>
+    <li>nome dell'attività, numero WhatsApp e dati dell'ordine;</li>
+    <li>data e ora dell'accettazione, indirizzo IP, tipo di browser e di dispositivo, lingua del browser;</li>
+    <li>il testo di queste condizioni come le hai accettate, con prezzo e rate del tuo ordine;</li>
+    <li>i dati che inserisci su Stripe: nome, email, telefono, indirizzo di fatturazione ed eventuale partita IVA;</li>
+    <li>il metodo di pagamento (carta o Klarna) e, della carta, solo tipo, ultime 4 cifre, scadenza e paese. Il numero completo e il codice di sicurezza li vede solo Stripe, noi mai. I dati che dai a Klarna li tratta Klarna.</li>
+  </ul>
+  <p>Li conserviamo per il tempo necessario a gestire l'ordine e a dimostrare l'accettazione delle condizioni, e comunque per quanto richiesto dalla legge. Per vederli, correggerli o chiederne la cancellazione, nei limiti di legge, scrivici su <a class="js-wa" href="https://wa.me/27710933377">WhatsApp</a>.</p>
+
+  <h2>10. Assistenza (facoltativa)</h2>
+  <ul>
+    <li>L'assistenza <b>non è inclusa</b> nel prezzo del sito. Se la vuoi, costa <b><span class="js-assist">20 €</span> al mese</b>: ti aiutiamo per dubbi e problemi con il sito e ti spieghiamo come usare il pannello.</li>
+    <li>Il primo mese si paga all'attivazione; poi il canone viene addebitato in automatico ogni mese sulla stessa carta, tramite Stripe.</li>
+    <li>Nessun vincolo: la disdici quando vuoi con un messaggio su WhatsApp. Vale dalla fine del mese già pagato.</li>
+    <li>Se un canone non viene pagato, l'assistenza si interrompe. Il sito resta tuo e resta online.</li>
+  </ul>
+
+  <h2>11. Condizioni valide per te e contatti</h2>
+  <p>Per il tuo ordine valgono le condizioni che hai accettato al momento del pagamento, compreso il dettaglio del pagamento scritto qui sotto. Per domande scrivici su <a class="js-wa" href="https://wa.me/27710933377">WhatsApp</a>.</p>
+
+  <h2>12. Dettaglio del pagamento</h2>
+  <!--sito-->
+  <div class="terms-box">
+    <p>Pacchetto <b class="js-pkg">Base</b>: prezzo del sito <b class="js-price">990 €</b>, da pagare una volta sola.</p>
+    <p>Con Klarna lo paghi in <b><span class="js-rate-n">36</span> rate mensili</b> da <b class="js-rate">27,50 €</b> al mese.</p>
+  </div>
+  <ul>
+    <li><b>Come paghi.</b> Su Stripe scegli Klarna e il pagamento in <span class="js-rate-n">36</span> rate, oppure paghi tutto subito con carta.</li>
+    <li><b>Le rate le gestisce Klarna.</b> Il pagamento a rate è un accordo tra te e Klarna: Nerodoro Studio riceve da Klarna l'intero prezzo del sito, tu paghi le rate a Klarna, secondo le sue condizioni.</li>
+    <li><b>Importo esatto, interessi e approvazione.</b> La rata scritta qui sopra è il prezzo diviso per <span class="js-rate-n">36</span>, arrotondato per eccesso ai 10 centesimi. Prima di confermare, Klarna ti mostra l'importo esatto di ogni rata, gli eventuali interessi (TAN e TAEG), il totale da restituire e se la richiesta è approvata: se Klarna applica interessi, rata e totale sono più alti. Se Klarna non approva la richiesta, puoi pagare con carta.</li>
+    <li><b>Rate non pagate.</b> Ritardi, solleciti e rate non pagate li gestisce Klarna, secondo le sue condizioni.</li>
+    <li><b>Assistenza.</b> Non è compresa nelle rate: se la vuoi, si paga a parte (punto 10).</li>
+  </ul>
+  <!--/sito-->
+  <!--assistenza
+  <div class="terms-box">
+    <p>Assistenza: <b><span class="js-assist">20 €</span> al mese</b>, addebitati in automatico ogni mese sulla stessa carta, tramite Stripe.</p>
+    <p>Nessun vincolo: la disdici quando vuoi, vale dalla fine del mese già pagato.</p>
+  </div>
+  /assistenza-->
+  </div>
+  <!-- /termsBody -->
 </main>
 
 <script src="/common.js"></script>
 <script>
+  // Prezzi e rate di entrambi i pacchetti presi dal server (si cambiano da Render)
   fetch('/api/config').then(r => r.json()).then(c => {
-    const a = (c.packages || {}).assistenza;
-    if (a) document.querySelectorAll('.js-assist').forEach(el => el.textContent = formatMoney(a.monthly, c.currency));
+    const pk = c.packages || {}, sites = [pk.base, pk.premium].filter(Boolean);
+    const set = (sel, txt) => document.querySelectorAll(sel).forEach(el => el.textContent = txt);
+    if (sites.length) {
+      set('.js-pkg', sites.map(p => p.name).join(' o '));
+      set('.js-price', sites.map(p => p.name + ' ' + formatMoney(p.price, c.currency)).join(', '));
+      set('.js-rate', sites.map(p => p.name + ' ' + formatMoney(p.rateMonthly, c.currency)).join(', '));
+      set('.js-rate-n', sites[0].rateMonths);
+    }
+    if (pk.assistenza) set('.js-assist', formatMoney(pk.assistenza.monthly, c.currency));
     if (c.whatsapp) document.querySelectorAll('.js-wa').forEach(a => a.href = 'https://wa.me/' + c.whatsapp);
   }).catch(() => {});
 </script>

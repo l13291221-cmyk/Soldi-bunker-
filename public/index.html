@@ -119,14 +119,14 @@
     <div class="wrap">
       <div class="section-head">
         <span class="kicker">Prezzi</span>
-        <h2>Due pacchetti, <em>pagamento unico</em>.</h2>
-        <p>Paghi una volta sola, oppure a rate con Klarna: 3 rate senza interessi, o fino a 36 rate (eventuali interessi, TAN e TAEG li indica Klarna prima di confermare, previa approvazione). L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
+        <h2>Due pacchetti, <em>a rate</em>.</h2>
+        <p>Paghi con Klarna in 36 rate mensili, oppure tutto subito con carta. Il dettaglio del pagamento è in fondo alle condizioni, che accetti prima di pagare. L'assistenza non è inclusa: se la vuoi, si aggiunge a 20 € al mese.</p>
       </div>
       <div class="plans">
         <div class="plan">
           <div class="plan-name">Base</div>
-          <div class="plan-price" data-price="base">990 €</div>
-          <p class="rate" data-rate="base">oppure 3 rate da 330 € o fino a 36 rate con Klarna</p>
+          <div class="plan-price" data-price="base">27,50 €<small>/mese</small></div>
+          <p class="rate" data-rate="base">Pagamento con Klarna in 36 rate</p>
           <p class="muted small" style="margin:0">Il tuo sito, pronto in pochi giorni</p>
           <ul class="checks" data-features="base">
             <li>Sito web completo per la tua attività</li>
@@ -138,8 +138,8 @@
         <div class="plan plan-hot">
           <span class="plan-badge">Il più scelto</span>
           <div class="plan-name">Premium</div>
-          <div class="plan-price" data-price="premium">1.490 €</div>
-          <p class="rate" data-rate="premium">oppure 3 rate da 496,67 € o fino a 36 rate con Klarna</p>
+          <div class="plan-price" data-price="premium">41,40 €<small>/mese</small></div>
+          <p class="rate" data-rate="premium">Pagamento con Klarna in 36 rate</p>
           <p class="muted small" style="margin:0">Il tuo nome online, ovunque</p>
           <ul class="checks" data-features="premium">
             <li>Tutto quello che c'è nel Base</li>
@@ -180,7 +180,7 @@
           <div class="price-note">Sicuro,<br>in un minuto.</div>
           <ul class="checks" style="margin:0">
             <li>Il codice contiene già il pacchetto scelto</li>
-            <li>Pagamento con carta via Stripe</li>
+            <li>Pagamento con Klarna in 36 rate o con carta, via Stripe</li>
             <li>Link del sito subito dopo il pagamento</li>
             <li><b>Menu, foto e prezzi li cambi tu dal telefono</b></li>
           </ul>
@@ -199,7 +199,7 @@
       <details><summary>Il pagamento è sicuro?</summary><p>Sì. Il pagamento avviene su Stripe, una delle piattaforme più usate al mondo. Noi non vediamo mai i dati della tua carta.</p></details>
       <details><summary>Posso modificare il sito da solo?</summary><p>Sì: dal pannello riservato cambi menu, prezzi, foto e orari dal telefono, senza sapere nulla di programmazione. Se ti blocchi, ci scrivi su WhatsApp e ti aiutiamo.</p></details>
       <details><summary>Cosa cambia con il Premium?</summary><p>Il tuo sito avrà un indirizzo tutto tuo, tipo www.nomeattivita.it (dominio incluso per il primo anno), e ricevi un QR code in alta qualità da stampare su menu, vetrina e biglietti da visita: i clienti lo inquadrano e aprono subito il sito.</p></details>
-      <details><summary>Ci sono costi mensili?</summary><p>No: il sito si paga una volta sola. Solo se vuoi l'assistenza, costa 20 € al mese e la disdici quando vuoi.</p></details>
+      <details><summary>Ci sono costi mensili?</summary><p>Nessun canone: il sito si paga una volta sola, con Klarna in 36 rate mensili oppure tutto subito con carta. Solo se vuoi l'assistenza, costa 20 € al mese e la disdici quando vuoi.</p></details>
       <details><summary>Quando ricevo il link del sito?</summary><p>Appena il pagamento va a buon fine, il link compare automaticamente nella pagina del tuo ordine. Puoi riaprire il tuo link ordine in qualsiasi momento per ritrovarlo.</p></details>
     </div>
   </section>
@@ -232,11 +232,10 @@
     // Prezzi e contenuti dei pacchetti presi dal server (si cambiano da Render: PREZZO, PREZZO_PREMIUM e CANONE_ASSISTENZA)
     for (const [k, p] of Object.entries(c.packages || {})) {
       const el = document.querySelector(`[data-price="${k}"]`);
-      if (el && p.recurring) el.innerHTML = escapeHtml(formatMoney(p.monthly, c.currency)) + '<small>/mese</small>';
-      else if (el) el.textContent = formatMoney(p.price, c.currency);
-      // Klarna: 3 rate senza interessi per il cliente (solo pagamento unico)
+      // Base e Premium: mostrati come rata mensile con Klarna (il prezzo intero è nelle condizioni)
+      if (el) el.innerHTML = escapeHtml(formatMoney(p.recurring ? p.monthly : p.rateMonthly, c.currency)) + '<small>/mese</small>';
       const rate = document.querySelector(`[data-rate="${k}"]`);
-      if (rate && !p.recurring) rate.textContent = `oppure 3 rate da ${formatMoney(Math.ceil(p.price / 3), c.currency)} o fino a 36 rate con Klarna`;
+      if (rate && !p.recurring) rate.textContent = `Pagamento con Klarna in ${p.rateMonths} rate`;
       const ul = document.querySelector(`[data-features="${k}"]`);
       if (ul) ul.innerHTML = p.features.map(f => `<li>${escapeHtml(f)}</li>`).join('');
     }

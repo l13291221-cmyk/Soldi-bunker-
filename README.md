@@ -79,9 +79,19 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
-## Pagamento in 3 rate (Klarna)
-Sul sito e nella pagina di pagamento c'è scritto che Base e Premium si possono pagare anche in 3 rate senza interessi con Klarna.
-Klarna mostra al cliente 3 rate senza interessi o il finanziamento fino a 36 rate (con eventuali interessi, previa approvazione).
-Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Il codice non va cambiato:
-Stripe Checkout mostra da solo i metodi attivi. Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna.
+## Pagamento a rate (Klarna)
+Sul sito Base e Premium si mostrano come rata mensile: prezzo diviso per `RATE_KLARNA` (predefinito 36), arrotondato per eccesso
+ai 10 centesimi (990 € → **27,50 €/mese**, 1.490 € → **41,40 €/mese**), con sotto «Pagamento con Klarna in 36 rate».
+Il prezzo intero e tutto il dettaglio del pagamento sono al punto 12 delle condizioni, che il cliente legge prima di pagare.
+Klarna mostra al cliente la rata esatta, gli eventuali interessi (TAN/TAEG) e se la richiesta è approvata; può anche pagare tutto con carta.
+Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Stripe Checkout mostra da solo i metodi attivi.
+Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna. Su Stripe il prodotto si chiama «Sito web».
 
+## Condizioni e prova di accettazione
+Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo, poi si apre un foglio con le condizioni complete
+(con prezzo e rate del suo ordine, il dettaglio del pagamento in fondo) e spunta la **seconda casella** (approvazione specifica dei
+punti 6, 7 e 12, artt. 1341-1342 c.c.). Senza tutte e due il server non apre il pagamento.
+Nell'admin, in ogni ordine, **🧾 Prova di accettazione**: data e ora, IP, dispositivo, importi accettati, metodo (carta o Klarna)
+e i dati inseriti su Stripe (nome, email, telefono, indirizzo, P.IVA, carta: solo tipo e ultime 4 cifre).
+Con **Scarica la prova completa (.txt)** hai anche il testo esatto delle condizioni accettate con la sua impronta SHA-256.
+Il testo delle condizioni sta in `public/condizioni.html`, dentro `#termsBody`.

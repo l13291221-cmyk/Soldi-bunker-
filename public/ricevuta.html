@@ -131,7 +131,7 @@
       <div class="notes">
         <div>Prestazione di lavoro autonomo occasionale ai sensi dell'art. 2222 del Codice Civile.</div>
         <div>Operazione esclusa dal campo di applicazione IVA ai sensi dell'art. 5 del D.P.R. 633/1972, per mancanza del requisito dell'abitualità.</div>
-        ${order.paid ? `<div>Pagamento ricevuto con carta tramite Stripe il ${dateIt(order.paidAt || cl.data)}.</div>` : '<div>Pagamento non ancora ricevuto.</div>'}
+        ${order.paid ? `<div>Pagamento ricevuto ${order.payer && order.payer.method === 'klarna' ? 'con Klarna' : 'con carta'} tramite Stripe il ${dateIt(order.paidAt || cl.data)}.</div>` : '<div>Pagamento non ancora ricevuto.</div>'}
         ${bollo ? `<div>Imposta di bollo di € 2,00 assolta sull'originale.</div>` : ''}
       </div>
       <div class="foot">
@@ -174,7 +174,14 @@
       const counter = get(NUM) || {};
       counter[year] = (counter[year] || 0) + 1;
       set(NUM, counter);
-      cl = { nome: order.restaurant, numero: `${counter[year]}/${year}`, data: (order.paidAt || new Date().toISOString()).slice(0, 10), ritenuta: false };
+      // Partita IVA e indirizzo già compilati con i dati inseriti dal cliente su Stripe
+      const pr = order.payer || {}, a = pr.address;
+      cl = {
+        nome: order.restaurant, numero: `${counter[year]}/${year}`, ritenuta: false,
+        data: (order.paidAt || new Date().toISOString()).slice(0, 10),
+        piva: (pr.taxIds || []).map(t => t.value).join(', '),
+        indirizzo: a ? [a.line1, a.line2, [a.postal_code, a.city, a.state].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ') : '',
+      };
       set(CL, cl);
     }
     bind(); render();
