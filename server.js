@@ -561,7 +561,34 @@ app.delete('/api/admin/orders/:id', requireAdmin, (req, res) => {
 
 // ---------- API pubbliche (cliente) ----------
 // Assistenza: si paga direttamente con un Payment Link di Stripe (creato dalla dashboard), niente codice
-const ASSISTENZA_LINK = /^https:\/\/(buy\.stripe\.com|checkout\.stripe\.com)\//.test(process.env.ASSISTENZA_LINK || '') ? process.env.ASSISTENZA_LINK : '';
+// Se ASSISTENZA_LINK non c'è, il link lo crea il sito da solo su Stripe (una volta, poi lo ritrova).
+let ASSISTENZA_LINK = /^https:\/\/(buy\.stripe\.com|checkout\.stripe\.com)\//.test(process.env.ASSISTENZA_LINK || '') ? process.env.ASSISTENZA_LINK : '';
+async function ensureAssistLink() {
+  if (ASSISTENZA_LINK || !stripe) return;
+  const amount = String(PACKAGES.assistenza.monthly), redirect = `${BASE_URL}/assistenza?session_id={CHECKOUT_SESSION_ID}`;
+  try {
+    for await (const l of stripe.paymentLinks.list({ active: true, limit: 100 })) {
+      if (l.metadata && l.metadata.nerodoro === 'assistenza' && l.metadata.amount === amount && l.metadata.redirect === redirect) { ASSISTENZA_LINK = l.url; return; }
+    }
+    const price = await stripe.prices.create({
+      currency: CURRENCY, unit_amount: PACKAGES.assistenza.monthly, recurring: { interval: 'month' },
+      product_data: { name: 'Assistenza sito web' },
+    });
+    const link = await stripe.paymentLinks.create({
+      line_items: [{ price: price.id, quantity: 1 }],
+      payment_method_types: ['card'],
+      phone_number_collection: { enabled: true },
+      after_completion: { type: 'redirect', redirect: { url: redirect } },
+      custom_text: { submit: { message: `${euro(PACKAGES.assistenza.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Nessun vincolo: disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
+      metadata: { nerodoro: 'assistenza', amount, redirect },
+    });
+    ASSISTENZA_LINK = link.url;
+    console.log('Link di pagamento dell\'assistenza creato su Stripe:', link.url);
+  } catch (err) {
+    console.error('Link assistenza non creato:', err.message);
+  }
+}
+ensureAssistLink();
 app.get('/api/config', (req, res) => res.json({ price: Math.round(PRICE * 100), currency: CURRENCY, description: DEFAULT_DESCRIPTION, whatsapp: WHATSAPP, packages: PACKAGES, assistenzaLink: ASSISTENZA_LINK }));
 
 // Attestato dell'assistenza: dopo il pagamento il Payment Link riporta qui con l'id della sessione.
@@ -1346,10 +1373,26 @@ app.delete('/api/admin/monitors/:id', requireAdmin, (req, res) => {
 // Render gratuito cancella data/ a ogni deploy o riavvio. Ordini (con accettazioni e dati per le ricevute),
 // siti pronti e sveglia siti si copiano in un repository privato pochi secondi dopo ogni modifica,
 // e all'avvio, se qui mancano, si riprendono da lì.
-const BACKUP_REPO = String(process.env.BACKUP_REPO || '').trim();   // es. l13291221-cmyk/nerodoro-dati
-const BACKUP_TOKEN = String(process.env.BACKUP_TOKEN || '').trim(); // token solo per quel repository
-const BACKUP_BRANCH = String(process.env.BACKUP_BRANCH || 'main').trim();
-const backupOn = /^[\w.-]+\/[\w.-]+$/.test(BACKUP_REPO) && !!BACKUP_TOKEN;
+// Va nel repository di questo sito, su un ramo a parte. Il repository è pubblico, quindi i file sono
+// CIFRATI (AES-256-GCM) con una chiave ricavata da STRIPE_SECRET_KEY (o BACKUP_KEY): senza, sono illeggibili.
+const BACKUP_REPO = String(process.env.BACKUP_REPO || 'l13291221-cmyk/Soldi-bunker-').trim();
+const BACKUP_TOKEN = String(process.env.BACKUP_TOKEN || '').trim(); // token con Contents = Read and write su quel repository
+const BACKUP_BRANCH = String(process.env.BACKUP_BRANCH || 'backup-dati').trim();
+const BACKUP_SECRET = String(process.env.BACKUP_KEY || process.env.STRIPE_SECRET_KEY || '');
+const backupKey = crypto.createHash('sha256').update('nerodoro-backup:' + BACKUP_SECRET).digest();
+const backupOn = /^[\w.-]+\/[\w.-]+$/.test(BACKUP_REPO) && !!BACKUP_TOKEN && BACKUP_SECRET.length >= 16;
+function encryptBackup(text) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', backupKey, iv);
+  const data = Buffer.concat([c.update(text, 'utf8'), c.final()]);
+  return JSON.stringify({ v: 1, alg: 'aes-256-gcm', iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), data: data.toString('base64') });
+}
+function decryptBackup(text) {
+  const e = JSON.parse(text);
+  const d = crypto.createDecipheriv('aes-256-gcm', backupKey, Buffer.from(e.iv, 'base64'));
+  d.setAuthTag(Buffer.from(e.tag, 'base64'));
+  return Buffer.concat([d.update(Buffer.from(e.data, 'base64')), d.final()]).toString('utf8');
+}
+const encName = name => name.replace(/\.json$/, '.enc.json');
 const BACKUP_FILES = {
   'orders.json': { file: () => DB_FILE, get: () => orders, set: v => { orders = v; } },
   'siti-pronti.json': { file: () => POOL_FILE, get: () => pool, set: v => { pool = v; } },
@@ -1357,8 +1400,8 @@ const BACKUP_FILES = {
 };
 const backupState = { enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastOk: null, lastError: null, restored: [] };
 const backupShas = {}, backupSent = {};
-async function backupApi(method, file, body) {
-  const url = `${process.env.BACKUP_API || 'https://api.github.com'}/repos/${BACKUP_REPO}/contents/${file}` + (method === 'GET' ? `?ref=${encodeURIComponent(BACKUP_BRANCH)}` : '');
+async function backupApi(method, file, body, rawPath) {
+  const url = `${process.env.BACKUP_API || 'https://api.github.com'}/repos/${BACKUP_REPO}` + (rawPath !== undefined ? rawPath : `/contents/${encName(file)}` + (method === 'GET' ? `?ref=${encodeURIComponent(BACKUP_BRANCH)}` : ''));
   const r = await fetch(url, {
     method, headers: { Authorization: `Bearer ${BACKUP_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'nerodoro-studio', 'X-GitHub-Api-Version': '2022-11-28' },
     ...(body && { body: JSON.stringify(body) }),
@@ -1373,14 +1416,28 @@ function backupSoon() {
   clearTimeout(backupTimer);
   backupTimer = setTimeout(runBackup, 5000);
 }
+let branchReady = false;
+async function ensureBranch() {
+  if (branchReady) return;
+  try { await backupApi('GET', null, null, `/git/ref/heads/${BACKUP_BRANCH}`); }
+  catch (err) {
+    if (err.status !== 404) throw err;
+    // Il ramo dei backup non esiste ancora: lo crea partendo dal ramo principale
+    const repo = await backupApi('GET', null, null, '');
+    const base = await backupApi('GET', null, null, `/git/ref/heads/${repo.default_branch}`);
+    await backupApi('POST', null, { ref: `refs/heads/${BACKUP_BRANCH}`, sha: base.object.sha }, '/git/refs');
+  }
+  branchReady = true;
+}
 async function runBackup() {
   if (backupRunning) { backupAgain = true; return; }
   backupRunning = true;
   try {
+    await ensureBranch();
     for (const [name, f] of Object.entries(BACKUP_FILES)) {
       const text = JSON.stringify(f.get(), null, 2);
       if (backupSent[name] === text) continue;
-      const put = sha => backupApi('PUT', name, { message: `Backup ${name} ${new Date().toISOString()}`, branch: BACKUP_BRANCH, content: Buffer.from(text).toString('base64'), ...(sha && { sha }) });
+      const put = sha => backupApi('PUT', name, { message: `Backup ${name} ${new Date().toISOString()}`, branch: BACKUP_BRANCH, content: Buffer.from(encryptBackup(text)).toString('base64'), ...(sha && { sha }) });
       let res;
       try { res = await put(backupShas[name]); }
       catch (err) {
@@ -1411,7 +1468,10 @@ async function restoreBackup() {
         let remote;
         try { remote = await backupApi('GET', name); } catch (err) { if (err.status === 404) continue; throw err; }
         backupShas[name] = remote.sha;
-        const text = Buffer.from(remote.content || '', 'base64').toString('utf8');
+        const raw = Buffer.from(remote.content || '', 'base64').toString('utf8');
+        let text = '';
+        try { text = raw.trim() ? decryptBackup(raw) : ''; }
+        catch { throw new Error(`Backup ${name} illeggibile: è cambiata la chiave Stripe? Metti quella vecchia in BACKUP_KEY su Render`); }
         if (!text.trim()) continue;
         // Unisce: quello che c'è su GitHub più quello creato qui nel frattempo (vince la copia di qui)
         const remoteData = JSON.parse(text), local = f.get();
@@ -1440,11 +1500,11 @@ async function restoreBackup() {
 }
 app.get('/api/admin/backup', requireAdmin, (req, res) => res.json(backupState));
 app.post('/api/admin/backup', requireAdmin, async (req, res) => {
-  if (!backupOn) return res.status(400).json({ error: 'Backup non configurato: su Render mancano BACKUP_REPO e BACKUP_TOKEN' });
+  if (!backupOn) return res.status(400).json({ error: 'Backup non configurato: su Render manca BACKUP_TOKEN' });
   if (!backupState.ready) return res.status(503).json({ error: 'Sto ancora leggendo il backup da GitHub, riprova tra poco' });
   clearTimeout(backupTimer); await runBackup();
   res.json(backupState);
 });
 
-if (backupOn) restoreBackup(); else console.warn('⚠️  Backup su GitHub non attivo (BACKUP_REPO e BACKUP_TOKEN): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
+if (backupOn) restoreBackup(); else console.warn('⚠️  Backup su GitHub non attivo (manca BACKUP_TOKEN): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
 app.listen(PORT, () => console.log(`Nerodoro Studio attivo su ${BASE_URL}`));

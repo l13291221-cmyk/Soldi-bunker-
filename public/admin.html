@@ -417,7 +417,7 @@
     box.hidden = false;
     if (!b.enabled) {
       box.style.borderColor = 'var(--red)';
-      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo.</b> A ogni Manual Deploy o riavvio di Render perdi ordini e siti pronti. Su Render metti BACKUP_REPO e BACKUP_TOKEN (vedi README).</span>';
+      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo.</b> A ogni Manual Deploy o riavvio di Render perdi ordini e siti pronti. Serve solo un token: su Render metti BACKUP_TOKEN (vedi README).</span>';
       return;
     }
     const ok = b.ready && !b.lastError;

@@ -80,24 +80,21 @@ Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegame
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
 ## Backup automatico su GitHub (importante con Render gratuito)
-Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Con il backup, pochi secondi dopo ogni modifica
-ordini (con accettazioni, dati dei clienti e tutto ciò che serve per le ricevute), siti pronti e sveglia siti vengono copiati
-in un **repository GitHub privato**; all'avvio, se mancano, vengono ripresi da lì (e uniti a quelli nuovi).
-1. Su GitHub crea un repository **Private** (es. `nerodoro-dati`), spuntando «Add a README» così non è vuoto.
-   Non usare questo repository del sito: è pubblico e chiunque vedrebbe email, telefoni e token dei clienti.
-2. Crea un token fine-grained: Repository access → Only select repositories → `nerodoro-dati`;
-   Permissions → Contents = Read and write. Nient'altro.
-3. Su Render → Environment: `BACKUP_REPO=l13291221-cmyk/nerodoro-dati`, `BACKUP_TOKEN=github_pat_…` (facoltativo `BACKUP_BRANCH`, predefinito `main`).
-4. Manual Deploy. In cima all'admin compare «☁️ Backup su GitHub attivo» con l'ora dell'ultimo salvataggio.
+Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Con il backup, pochi secondi dopo ogni modifica ordini
+(con accettazioni, disdette, dati dei clienti e tutto ciò che serve per le ricevute), siti pronti e sveglia siti vengono copiati
+in **questo repository, sul ramo `backup-dati`** (creato da solo); all'avvio, se mancano, vengono ripresi da lì e uniti ai nuovi.
+Il repository è pubblico, quindi i file (`*.enc.json`) sono **cifrati** con AES-256-GCM e una chiave ricavata da
+`STRIPE_SECRET_KEY`: senza quella chiave nessuno può leggerli. Se un giorno cambi la chiave Stripe, metti quella vecchia in `BACKUP_KEY`.
+1. Crea un token fine-grained: Repository access → Only select repositories → `Soldi-bunker-`; Permissions → **Contents = Read and write**.
+2. Su Render → Environment: `BACKUP_TOKEN=github_pat_…` → Manual Deploy.
+3. In cima all'admin compare «☁️ Backup su GitHub attivo» con l'ora dell'ultimo salvataggio.
+(Facoltativi: `BACKUP_REPO`, `BACKUP_BRANCH`, `BACKUP_KEY`.)
 
 ## Assistenza con pagamento diretto
-1. Stripe → **Payment Links** → nuovo link: prodotto «Assistenza sito web», **20 € al mese (ricorrente)**.
-   Spunta «Richiedi ai clienti di accettare i termini di servizio» (Impostazioni → Pubblico: metti `BASE_URL/condizioni`).
-2. Nel link, «Dopo il pagamento» → **Non mostrare la pagina di conferma, reindirizza a**:
-   `https://nerodoro-studio.onrender.com/assistenza?session_id={CHECKOUT_SESSION_ID}`
-3. Su Render → `ASSISTENZA_LINK=https://buy.stripe.com/...` → Manual Deploy.
-Nella home «Attiva l'assistenza» porta al pagamento. Dopo il pagamento il cliente vede l'**attestato** con la data di scadenza
-(presa da Stripe, si aggiorna a ogni rinnovo) e lo manda su WhatsApp: aprendo il link vedi se è attiva e fino a quando.
+Il link di pagamento dell'assistenza (20 €/mese, ricorrente, solo carta) **lo crea il sito da solo su Stripe** al primo avvio
+con la chiave Stripe e poi lo ritrova. Nella home «Attiva l'assistenza» porta lì; dopo il pagamento il cliente vede l'**attestato**
+con la data di scadenza presa da Stripe (si aggiorna a ogni rinnovo) e lo manda su WhatsApp: aprendo il link vedi se è attiva.
+Se preferisci un tuo Payment Link, mettilo in `ASSISTENZA_LINK`.
 
 ## Siti pronti
 Nell'admin, sezione **🌐 Siti pronti**, incolli le copie del sito già online, una per riga: `link PIN token`
