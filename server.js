@@ -718,7 +718,7 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
         }, ...(o.amount > 0 ? [oneOff] : [])],
         subscription_data: { metadata: { orderId: o.id }, description: o.months > 1 ? `Sito web (codice ${formatCode(o.id)})` : `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
         custom_text: { submit: { message: o.months > 1
-          ? `${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Condizioni: ${BASE_URL}/condizioni`
+          ? `${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Vincoli: condizioni ${BASE_URL}/condizioni`
           : `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
       } : {
         mode: 'payment',
