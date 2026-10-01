@@ -53,6 +53,10 @@
     .led { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #555; }
     .led.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
     .led.ko { background: var(--red); box-shadow: 0 0 10px var(--red); }
+    .pool-add { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 10px; }
+    .pool-add label { font-size: .8rem; margin-bottom: 4px; display: block; }
+    .pool-add input { width: 100%; }
+    @media (max-width: 700px) { .pool-add { grid-template-columns: 1fr; } }
     .mon-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
     @media (max-width: 700px) { .mon-add { grid-template-columns: 1fr; } .mon { flex-wrap: wrap; } .mon .st { text-align: left; } }
     @media (max-width: 640px) {
@@ -153,12 +157,16 @@
   <section id="pronti" class="panel" style="margin-top:22px;padding:24px">
     <h3 style="margin-bottom:4px">🌐 Siti pronti</h3>
     <p class="muted small" style="margin:0 0 14px">Copie del sito già online. Quando un cliente paga riceve <b>da solo</b> il primo sito libero (link, PIN e token) e qui risulta usato.
-      Una riga per sito: <code>link PIN token</code> separati da spazi (PIN e token facoltativi). Come crearle: <a href="/guida" style="color:var(--gold-2)">guida</a>.</p>
+      Il token il cliente lo trova nella sua pagina e lo incolla nel pannello del sito. Come crearle: <a href="/guida" style="color:var(--gold-2)">guida</a>.</p>
     <div id="poolInfo" class="meta" style="margin-bottom:10px"></div>
     <div id="poolList"></div>
     <form id="poolForm" style="margin-top:14px">
-      <textarea name="text" rows="5" style="width:100%;font-family:ui-monospace,monospace;font-size:.85rem" placeholder="https://l13291221-cmyk.github.io/sito-01/ 482915 github_pat_...&#10;https://l13291221-cmyk.github.io/sito-02/ 730164 github_pat_..."></textarea>
-      <button class="btn btn-gold btn-sm" type="submit" style="margin-top:8px">+ Aggiungi siti</button>
+      <div class="pool-add">
+        <div><label>Link del sito</label><input name="url" required placeholder="https://l13291221-cmyk.github.io/sito-01/"></div>
+        <div><label>PIN</label><input name="pin" inputmode="numeric" maxlength="6" value="123456"></div>
+        <div><label>Token</label><input name="token" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
+      </div>
+      <button class="btn btn-gold btn-sm" type="submit" style="margin-top:10px">+ Aggiungi sito</button>
       <p class="err" id="poolErr" style="margin:8px 0 0"></p>
     </form>
   </section>
@@ -370,10 +378,13 @@
     e.preventDefault();
     const err = document.getElementById('poolErr'); err.textContent = '';
     try {
-      const d = await api('/api/admin/siti-pronti', { method: 'POST', body: JSON.stringify({ text: e.target.text.value }) });
-      e.target.text.value = '';
-      toast(`Aggiunti ${d.added} siti${d.skipped ? ` (${d.skipped} già presenti)` : ''}`);
-      if (d.bad.length) err.textContent = 'Righe non valide: ' + d.bad.join(' · ');
+      const f = e.target;
+      if (f.token.value.trim() && !/^(github_pat_|ghp_)\w+$/.test(f.token.value.trim())) { err.textContent = 'Il token deve iniziare con github_pat_'; return; }
+      if (f.pin.value.trim() && !/^\d{6}$/.test(f.pin.value.trim())) { err.textContent = 'Il PIN deve avere 6 cifre'; return; }
+      const d = await api('/api/admin/siti-pronti', { method: 'POST', body: JSON.stringify({ url: f.url.value, pin: f.pin.value, token: f.token.value }) });
+      if (!d.added) { err.textContent = 'Questo link è già nella lista o è già di un cliente.'; return; }
+      f.url.value = ''; f.token.value = ''; f.url.focus();
+      toast('Sito aggiunto ✓');
       refreshPool(d);
     } catch (x) { if (x.message !== '401') err.textContent = x.message; }
   });

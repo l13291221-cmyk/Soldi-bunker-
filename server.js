@@ -484,7 +484,9 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
 
 app.get('/api/admin/siti-pronti', requireAdmin, (req, res) => res.json({ sites: poolView() }));
 app.post('/api/admin/siti-pronti', requireAdmin, (req, res) => {
-  const { out, bad } = parsePoolLines(req.body && req.body.text);
+  const b = req.body || {};
+  // Dal modulo con i tre campi (link, PIN, token) oppure da più righe incollate
+  const { out, bad } = b.url !== undefined ? parsePoolLines([b.url, b.pin, b.token].map(v => String(v || '').trim()).join(' ')) : parsePoolLines(b.text);
   if (!out.length) return res.status(400).json({ error: bad.length ? 'Nessun link valido. Controlla: ' + bad[0] : 'Incolla almeno un link' });
   let added = 0;
   for (const x of out) {
