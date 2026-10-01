@@ -281,7 +281,6 @@
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
           ${l.social ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.social)}" target="_blank" rel="noopener">Social</a>` : ''}
-          <a class="btn btn-ghost btn-sm" href="/admin?nuovo=${encodeURIComponent(l.name)}&tel=${encodeURIComponent(tel)}">+ Ordine</a>
         </div>
         <div class="status">${STATUSES.map(([k, t]) => `<button data-s="${k}" class="${(n.s || '') === k ? 'on' : ''}">${t}</button>`).join('')}</div>
         <input class="note" placeholder="Appunti (es. richiamare lunedì, parlare con il titolare)" value="${escapeHtml(n.t || '')}">
