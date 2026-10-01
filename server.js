@@ -581,7 +581,7 @@ app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
     res.json({ url });
   } catch (err) {
     console.error('Klarna error:', err.message);
-    res.status(500).json({ error: 'Klarna non è disponibile in questo momento. Puoi pagare con carta.' });
+    res.status(500).json({ error: 'Klarna non è disponibile in questo momento. Riprova tra qualche minuto.' });
   }
 });
 

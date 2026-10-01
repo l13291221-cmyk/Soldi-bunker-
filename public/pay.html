@@ -103,7 +103,7 @@
   function renderUnpaid(o) {
     const sub = o.monthly > 0;
     card.innerHTML = `
-      ${cancelled || klarnaFailed ? '<div class="note">Pagamento annullato o non approvato. Nessun addebito effettuato: puoi riprovare, anche con carta.</div>' : ''}
+      ${cancelled || klarnaFailed ? '<div class="note">Pagamento annullato o non approvato. Nessun addebito effettuato: puoi riprovare.</div>' : ''}
       <span class="kicker">Riepilogo ordine</span>
       <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
       <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
@@ -119,20 +119,20 @@
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
         <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
         : `
-        <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Pagamento con Klarna in ${o.rateMonths} rate</small></span></div>`}
+        <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Totale ${formatMoney(o.amount, o.currency)} in ${o.rateMonths} rate con Klarna</small></span></div>`}
       </div>
       <label class="accept" style="display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:.95rem;cursor:pointer">
         <input type="checkbox" id="accept" style="width:20px;height:20px;flex:none"><span>Accetto le condizioni</span>
       </label>
       <button class="btn btn-gold" id="payBtn" style="width:100%" disabled>${payLabel(o)}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
-      <p class="muted small" style="text-align:center;margin:0">Prima di pagare leggi le condizioni: in fondo c'è il dettaglio del pagamento. Poi verrai reindirizzato su Stripe. ${o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.'}</p>`;
+      <p class="muted small" style="text-align:center;margin:0">Prima di pagare leggi le condizioni: in fondo c'è il dettaglio del pagamento. Poi verrai reindirizzato ${sub ? 'su Stripe' : 'su Klarna'}. ${o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.'}</p>`;
     const acc = document.getElementById('accept');
     acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
     // Prima le condizioni complete (con il dettaglio del pagamento in fondo) e la seconda casella, poi Stripe
     document.getElementById('payBtn').addEventListener('click', () => openTerms(o));
   }
-  function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Paga ora (carta o a rate)'; }
+  function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Paga a rate con Klarna'; }
 
   async function checkout(b, errEl, approve) {
     const label = b.textContent;
@@ -178,7 +178,7 @@
             <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>` : `
             <input type="email" id="klarnaEmail" placeholder="La tua email (serve a Klarna)" autocomplete="email" inputmode="email" style="margin:0 0 10px">
             <button class="btn btn-gold" id="sheetKlarna" style="width:100%" disabled>Paga ${formatMoney(o.rateMonthly, o.currency)} al mese con Klarna</button>
-            <button class="btn btn-ghost" id="sheetPay" style="width:100%;margin-top:8px" disabled>Oppure paga tutto con carta</button>`}
+            ${klarnaFailed ? '<button class="btn btn-ghost" id="sheetPay" style="width:100%;margin-top:8px" disabled>Klarna non ha approvato? Paga con carta</button>' : ''}`}
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
             <p class="muted small" style="text-align:center;margin:0">${o.monthly > 0 ? 'Verrai reindirizzato su Stripe per pagare in sicurezza.' : 'Con Klarna vai direttamente sulla pagina di Klarna: rata esatta e approvazione le vedi lì prima di confermare.'}</p>
           </div>
@@ -202,13 +202,13 @@
     wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
     // la prima casella («Accetto le condizioni») è già spuntata nel riepilogo
     const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve'), kl = wrap.querySelector('#sheetKlarna');
-    approve.addEventListener('change', () => { pay.disabled = !approve.checked; if (kl) kl.disabled = !approve.checked; });
+    approve.addEventListener('change', () => { if (pay) pay.disabled = !approve.checked; if (kl) kl.disabled = !approve.checked; });
     if (kl) kl.addEventListener('click', () => klarna(kl, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#klarnaEmail').value));
     // sfumatura in basso finché c'è ancora testo da scorrere (condizioni e seconda casella)
     const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
     const boxes = wrap.querySelectorAll('.fade-end');
     boxes.forEach(el => { el.addEventListener('scroll', () => atEnd(el), { passive: true }); atEnd(el); });
-    pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked));
+    if (pay) pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked));
 
     // Testo completo con pacchetto, prezzo e rate di questo ordine: è lo stesso salvato come prova
     const slot = wrap.querySelector('.terms-slot');
