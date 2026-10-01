@@ -201,6 +201,18 @@ Pulsanti: **💬 Scrivi su WhatsApp** e **✉️ Manda email** con il messaggio 
 **💳 Crea link per pagare** (link Stripe per saldare con la carta, che finisce da solo nel messaggio; quando paga il riquadro torna
 a posto) e **Segna come risolto**.
 
+## 💬 Risposte pronte (`/risposte`)
+Nell'admin («Risposte pronte», anche dalla pagina del bot) i messaggi già scritti, con **Copia**, **WhatsApp** e **Email**:
+- **Domande e obiezioni**: «Quanto costa?», «Ci penso», «Abbiamo già Facebook», «Abbiamo già un sito», «Costa troppo»,
+  «C'è un vincolo?» (risposta chiara: 24 mesi), «Chi siete?», «Posso modificarlo io?», «Come si paga?»…
+- **Dopo X giorni**: nessuna risposta (una volta sola), video visto ma nessuna risposta, «ci penso», volevano pagare ma non l'hanno fatto.
+- **Nuovi clienti**: benvenuto con cosa serve (logo, foto, menu, orari), sito pronto, «come va?», recensione e passaparola.
+- **Chi non paga**: canone non pagato (gentile), sollecito, mesi che mancano dopo la chiusura e **⚖️ ultimo avviso prima delle vie
+  legali** (15 giorni, poi avvocato e decreto ingiuntivo con interessi e spese, con la possibilità di pagare a rate).
+In alto si scrivono i dati del cliente (nome, locale, numero, importo, mesi, link per pagare, data) e finiscono in tutti i messaggi;
+da un riquadro rosso di «Abbonamenti venduti» il pulsante «⚖️ Solleciti e ultimo avviso» apre la pagina già compilata.
+I testi si possono cambiare: le modifiche restano salvate sul telefono.
+
 ## Condizioni e prova di accettazione
 Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo (dove vede canone e **«Vincolo 24 mesi»**, senza il totale), poi si apre
 un foglio con le condizioni complete (con il dettaglio del pagamento in fondo) e spunta la **seconda casella**: dichiara di acquistare

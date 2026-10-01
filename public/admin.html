@@ -116,6 +116,7 @@
       <a href="/bot" class="btn btn-ghost btn-sm" title="Bot WhatsApp">🤖 Bot</a>
       <a href="/guida" class="btn btn-ghost btn-sm">📋 <span class="lg">Guida cliente</span><span class="sm">Guida</span></a>
       <a href="#abbonamenti" class="hide-sm">Abbonamenti</a>
+      <a href="/risposte" class="hide-sm">Risposte pronte</a>
       <a href="#calcolo" class="hide-sm">Calcolatore</a>
       <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>
@@ -137,7 +138,7 @@
   </div>
 
   <div class="panel" id="abbonamenti" style="margin-bottom:22px">
-    <h3>📋 Abbonamenti venduti</h3>
+    <h3 style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">📋 Abbonamenti venduti <a href="/risposte" class="btn btn-ghost btn-sm">💬 Risposte pronte</a></h3>
     <p class="subs-sum" id="subsSum"></p>
     <div id="subs"></div>
   </div>
@@ -569,7 +570,8 @@
           ${tel ? `<a class="btn btn-wa btn-sm" href="https://wa.me/${tel}${msg ? '?text=' + encodeURIComponent(msg) : ''}" target="_blank" rel="noopener">💬 Scrivi su WhatsApp</a>` : ''}
           ${mail ? `<a class="btn btn-ghost btn-sm" href="mailto:${encodeURIComponent(mail)}?subject=${encodeURIComponent('Sito ' + o.restaurant + (iss ? ': canoni da saldare' : ''))}&body=${encodeURIComponent(msg)}">✉️ Manda email</a>` : ''}
           ${iss && iss.kind !== 'dispute' && !(o.residuo && !o.residuo.paidAt) ? `<button class="btn btn-gold btn-sm" data-residuo>💳 Crea link per pagare ${formatMoney(iss.amount, currency)}</button>` : ''}
-          ${iss ? `<a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">🧾 Prova di accettazione</a><button class="btn btn-ghost btn-sm" data-risolto>Segna come risolto</button>` : ''}
+          ${iss ? `<a class="btn btn-ghost btn-sm" href="/risposte?${new URLSearchParams({ nome: who(o).split(' ')[0] || '', attivita: o.restaurant, tel: tel ? '+' + tel : '', importo: formatMoney(iss.amount || 0, currency), mesi: String(iss.months || ''), link: o.residuo && !o.residuo.paidAt ? o.residuo.url : '', data: day((o.acceptance && o.acceptance.at) || o.termsAcceptedAt || o.paidAt), sitocliente: o.siteUrl || '' })}#pagamenti">⚖️ Solleciti e ultimo avviso</a>
+            <a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">🧾 Prova di accettazione</a><button class="btn btn-ghost btn-sm" data-risolto>Segna come risolto</button>` : ''}
         </div>
       </div>`;
     }).join('') : '<div class="empty" style="padding:16px">Ancora nessun abbonamento venduto.</div>';
