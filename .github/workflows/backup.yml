@@ -1,0 +1,47 @@
+# Backup di ordini, siti pronti e sveglia siti del sito su Render.
+# Ogni ora scarica i dati (già cifrati dal sito) e li salva sul ramo backup-dati.
+# Non serve nessuna chiave: usa il permesso che GitHub Actions dà già a questo repository.
+# Per salvare subito (es. prima di un Manual Deploy): Actions → Backup dati → Run workflow.
+name: Backup dati
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup-dati
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITE: https://nerodoro-studio.onrender.com
+    steps:
+      - name: Scarica i dati cifrati dal sito
+        run: |
+          mkdir -p out
+          # Render gratuito può dormire o riavviarsi: ritenta per qualche minuto
+          curl -fsS --retry 8 --retry-delay 20 --retry-all-errors --max-time 90 "$SITE/api/backup-export" -o export.json
+          node -e '
+            const d = require("./export.json"), fs = require("fs");
+            const names = Object.keys(d.files || {});
+            if (!names.length) { console.error("Risposta senza file"); process.exit(1); }
+            for (const n of names) { if (!/^[\w.-]+\.enc\.json$/.test(n)) process.exit(1); fs.writeFileSync("out/" + n, d.files[n]); }
+            console.log("File:", names.join(", "));
+          '
+
+      - name: Salva sul ramo backup-dati
+        run: |
+          git init -q b && cd b
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 origin backup-dati; then git checkout -q -B backup-dati FETCH_HEAD; else git checkout -q --orphan backup-dati; fi
+          mkdir -p backup && cp ../out/*.enc.json backup/
+          git add backup
+          if git diff --cached --quiet; then echo "Nessuna modifica"; exit 0; fi
+          git -c user.name="backup-dati" -c user.email="backup-dati@users.noreply.github.com" commit -qm "Backup $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git push -q origin backup-dati

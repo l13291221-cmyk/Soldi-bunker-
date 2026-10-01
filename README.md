@@ -79,16 +79,16 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
-## Backup automatico su GitHub (importante con Render gratuito)
-Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Con il backup, pochi secondi dopo ogni modifica ordini
-(con accettazioni, disdette, dati dei clienti e tutto ciò che serve per le ricevute), siti pronti e sveglia siti vengono copiati
-in **questo repository, sul ramo `backup-dati`** (creato da solo); all'avvio, se mancano, vengono ripresi da lì e uniti ai nuovi.
-Il repository è pubblico, quindi i file (`*.enc.json`) sono **cifrati** con AES-256-GCM e una chiave ricavata da
+## Backup automatico su GitHub (nessuna chiave da impostare)
+Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Ogni ora l'azione **Backup dati**
+(`.github/workflows/backup.yml`) scarica dal sito ordini (con accettazioni, disdette, dati dei clienti e tutto ciò che serve
+per le ricevute), siti pronti (con PIN e token) e sveglia siti, e li salva sul ramo **`backup-dati`** di questo repository.
+Usa il permesso che GitHub Actions ha già: non serve nessun token. Dopo un deploy il sito riprende tutto da lì da solo.
+Il repository è pubblico, quindi i file (`backup/*.enc.json`) sono **cifrati** (AES-256-GCM) con una chiave ricavata da
 `STRIPE_SECRET_KEY`: senza quella chiave nessuno può leggerli. Se un giorno cambi la chiave Stripe, metti quella vecchia in `BACKUP_KEY`.
-1. Crea un token fine-grained: Repository access → Only select repositories → `Soldi-bunker-`; Permissions → **Contents = Read and write**.
-2. Su Render → Environment: `BACKUP_TOKEN=github_pat_…` → Manual Deploy.
-3. In cima all'admin compare «☁️ Backup su GitHub attivo» con l'ora dell'ultimo salvataggio.
-(Facoltativi: `BACKUP_REPO`, `BACKUP_BRANCH`, `BACKUP_KEY`.)
+- L'azione con l'orario funziona solo quando il file è sul ramo **main** del repository.
+- Prima di un Manual Deploy, per salvare subito: GitHub → Actions → Backup dati → **Run workflow** (o «Salva ora» nell'admin).
+- Se il sito su Render ha un altro indirizzo, cambia `SITE` nel file dell'azione.
 
 ## Assistenza con pagamento diretto
 Il link di pagamento dell'assistenza (20 €/mese, ricorrente, solo carta) **lo crea il sito da solo su Stripe** al primo avvio

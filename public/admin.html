@@ -417,17 +417,13 @@
     box.hidden = false;
     if (!b.enabled) {
       box.style.borderColor = 'var(--red)';
-      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo.</b> A ogni Manual Deploy o riavvio di Render perdi ordini e siti pronti. Serve solo un token: su Render metti BACKUP_TOKEN (vedi README).</span>';
+      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo:</b> su Render manca la chiave Stripe (STRIPE_SECRET_KEY).</span>';
       return;
     }
     const ok = b.ready && !b.lastError;
     box.style.borderColor = ok ? 'rgba(74,222,128,.35)' : 'var(--red)';
-    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup non riuscito: ' + escapeHtml(b.lastError) : '☁️ Backup su GitHub attivo'}${b.lastOk ? ' · ultimo salvataggio ' + new Date(b.lastOk).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
-      <button class="btn btn-ghost btn-sm" id="bkNow">Salva ora</button>`;
-    document.getElementById('bkNow').onclick = async () => {
-      try { await api('/api/admin/backup', { method: 'POST' }); toast('Backup salvato ✓'); } catch (x) { if (x.message !== '401') toast(x.message); }
-      refreshBackup();
-    };
+    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup: ' + escapeHtml(b.lastError) : '☁️ Backup automatico ogni ora su GitHub'}${b.lastExport ? ' · ultimo ' + new Date(b.lastExport).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
+      <a class="btn btn-ghost btn-sm" href="${escapeHtml(b.actionsUrl)}" target="_blank" rel="noopener">Salva ora</a>`;
   }
   async function refreshPool(data) {
     const { sites } = data || await api('/api/admin/siti-pronti');
