@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Risposte pronte — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 28px 0 80px; display: grid; gap: 16px; }
+    .box { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-width: 0; scroll-margin-top: 130px; }
+    .box h2 { font: 600 1.1rem var(--sans); letter-spacing: 0; margin: 0 0 4px; }
+    .box > p { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+    .fields label { font-size: .78rem; margin-bottom: 4px; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; position: sticky; top: 64px; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); padding: 10px 0; }
+    .tab { padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font: 500 .86rem var(--sans); cursor: pointer; text-decoration: none; }
+    .tab:hover { color: var(--text); border-color: var(--gold); }
+    .msg { border-top: 1px solid var(--line); padding: 14px 0; }
+    .msg:first-of-type { border-top: 0; }
+    .msg h3 { font: 600 .98rem var(--sans); letter-spacing: 0; margin: 0 0 2px; }
+    .msg .when { color: var(--muted); font-size: .82rem; margin: 0 0 8px; }
+    .msg textarea { min-height: 120px; font-size: 15px; line-height: 1.5; resize: vertical; }
+    .msg .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+    .btn-wa { background: #25d366; color: #fff; }
+    .edited { color: var(--gold-2); font-size: .78rem; }
+    .warnbox { border: 1px solid rgba(248,113,113,.4); background: rgba(248,113,113,.07); color: var(--text); border-radius: 12px; padding: 12px 14px; font-size: .88rem; margin: 0 0 12px; }
+    .warnbox b { color: var(--red); }
+    .tip { border: 1px solid var(--line); background: var(--bg-2); border-radius: 12px; padding: 10px 12px; font-size: .85rem; color: var(--muted); margin-top: 8px; }
+    @media (max-width: 640px) { .page { padding-top: 18px; } .msg .acts .btn { flex: 1 1 auto; } }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Risposte pronte</a>
+    <nav class="nav">
+      <a href="/bot" class="btn btn-ghost btn-sm hide-sm">🤖 Bot</a>
+      <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <section class="box">
+    <h2>👤 Dati del cliente (facoltativi)</h2>
+    <p>Scrivili qui e finiscono da soli in tutti i messaggi. Con il numero, «WhatsApp» apre direttamente la sua chat. I testi si possono cambiare: le modifiche restano salvate su questo telefono.</p>
+    <div class="fields">
+      <div><label for="f-nome">Nome del titolare</label><input id="f-nome" placeholder="Es. Mario"></div>
+      <div><label for="f-attivita">Nome del locale</label><input id="f-attivita" placeholder="Es. Pizzeria Da Mario"></div>
+      <div><label for="f-tel">Numero WhatsApp (con +)</label><input id="f-tel" inputmode="tel" placeholder="+39 333 1234567"></div>
+      <div><label for="f-importo">Importo da saldare</label><input id="f-importo" placeholder="Es. 1.121 €"></div>
+      <div><label for="f-mesi">Mesi che mancano</label><input id="f-mesi" inputmode="numeric" placeholder="Es. 19"></div>
+      <div><label for="f-link">Link per pagare (dall'admin)</label><input id="f-link" placeholder="https://buy.stripe.com/…"></div>
+      <div><label for="f-data">Data in cui ha accettato</label><input id="f-data" placeholder="Es. 12/10/2026"></div>
+      <div><label for="f-sitocliente">Link del suo sito</label><input id="f-sitocliente" placeholder="https://…"></div>
+    </div>
+  </section>
+
+  <nav class="tabs" aria-label="Sezioni">
+    <a class="tab" href="#domande">❓ Domande e obiezioni</a>
+    <a class="tab" href="#dopo">⏰ Dopo X giorni</a>
+    <a class="tab" href="#clienti">🎉 Nuovi clienti</a>
+    <a class="tab" href="#pagamenti">💳 Chi non paga</a>
+  </nav>
+
+  <div id="sections"></div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  // {nome} {attivita} {tel} {importo} {mesi} {link} {data} {sitocliente} vengono dai campi in alto;
+  // {base} {premium} {sito} {demo} {firma} dal sito e dalle impostazioni del bot
+  const SECTIONS = [
+    { id: 'domande', title: '❓ Domande e obiezioni', intro: 'Cosa rispondere quando ti scrivono. Tono gentile, frasi corte: su WhatsApp nessuno legge i papiri.', items: [
+      { id: 'costo', title: '«Quanto costa?»', text: 'Ci sono due abbonamenti:\n✅ *Base – {base} al mese*: sito completo, menu, foto, orari, mappa, pulsante WhatsApp e pannello per cambiare tutto da soli dal telefono.\n⭐ *Premium – {premium} al mese*: tutto il Base più l\'indirizzo vostro (www.vostronome.it) e il QR code da stampare.\n\nNessun costo per creare il sito: si attiva qui in un minuto 👉 {sito}' },
+      { id: 'pensare', title: '«Ci devo pensare» / «Ci penso»', text: 'Certo, nessuna fretta 🙂 Intanto vi lascio l\'esempio da guardare con calma: {demo}\n\nSe vi viene qualche dubbio scrivetemi pure, rispondo volentieri. Vi riscrivo io tra qualche giorno?' },
+      { id: 'social', title: '«Abbiamo già Facebook / Instagram»', text: 'Sono utilissimi! Però chi cerca su Google «ristorante vicino a me» trova prima chi ha un sito: lì ci sono menu, orari, mappa e il pulsante per scrivervi su WhatsApp, tutto in un posto solo.\n\nI social li colleghiamo al sito, così lavorano insieme e vi portano più clienti.' },
+      { id: 'giasito', title: '«Abbiamo già un sito»', text: 'Ottimo! Ho dato un\'occhiata: oggi quasi tutti cercano dal telefono, e se il sito è lento o si legge male, il cliente va da un\'altra parte in 3 secondi.\n\nIl nostro è fatto prima di tutto per lo smartphone e lo aggiornate da soli. Guardate la differenza: {demo}' },
+      { id: 'caro', title: '«Costa troppo» / «Non ho soldi»', text: 'Capisco, ogni spesa va pensata. Facciamo due conti: il Base sono meno di 2 € al giorno, meno di un caffè, e basta un tavolo in più al mese per ripagarlo.\n\nUn sito fatto da un\'agenzia di solito costa migliaia di euro tutti subito; qui non c\'è nessun costo iniziale e dentro c\'è già tutto.' },
+      { id: 'vincolo', title: '«C\'è un vincolo?» / «Per quanto tempo?»', text: 'Sì, l\'abbonamento ha un vincolo di 24 mesi, scritto chiaramente prima di pagare: è quello che ci permette di non chiedervi nessun costo iniziale per creare il sito.\n\nDopo i 24 mesi continua mese per mese e lo disdite quando volete.', note: 'Se te lo chiedono, rispondi sempre in modo chiaro: chi sa del vincolo prima di pagare poi non contesta.' },
+      { id: 'fiducia', title: '«Chi siete?» / «È una truffa?»', text: 'Giusta domanda, fate bene a chiedere! Sono {firma} di Nerodoro Studio, facciamo siti per locali.\n\nIl pagamento passa da Stripe, il sistema usato da milioni di aziende: i dati della carta non li vediamo nemmeno noi. Qui vedete un sito fatto da noi: {demo}\n\nSe preferite ci sentiamo al telefono, così vi spiego tutto a voce.' },
+      { id: 'modifica', title: '«Posso modificarlo io?»', text: 'Sì! Dal telefono, con il pannello riservato, cambiate menu, prezzi, foto e orari quando volete: ci vuole un minuto e va online da solo. Vi mando anche le istruzioni passo passo.' },
+      { id: 'tempi', title: '«Quanto ci vuole?»', text: 'Subito dopo l\'attivazione ricevete il link del sito. Poi lo personalizziamo con i vostri testi, foto e menu: di solito pochi giorni lavorativi da quando ci mandate il materiale.' },
+      { id: 'differenza', title: '«Che differenza c\'è tra Base e Premium?»', text: 'Il *Base* ({base} al mese) ha tutto il sito: menu, foto, orari, mappa, pulsante WhatsApp e il pannello per modificarlo da soli.\n\nIl *Premium* ({premium} al mese) in più ha l\'indirizzo tutto vostro, www.vostronome.it (dominio incluso il primo anno), e il QR code da stampare su menu, vetrina e biglietti.' },
+      { id: 'pagare', title: '«Come si paga?»', text: 'È semplicissimo:\n1️⃣ Andate su {sito}\n2️⃣ Scegliete Base o Premium e scrivete il nome del locale\n3️⃣ Inserite i dati e pagate con la carta (anche Apple Pay o Google Pay)\n\nOggi pagate solo il primo mese, poi l\'addebito è automatico ogni mese. Subito dopo ricevete il link del vostro sito.' },
+      { id: 'chiamata', title: '«Mi chiami?» / «Possiamo sentirci?»', text: 'Certo! A che ora vi va bene? Vi chiamo io a questo numero 🙂' },
+      { id: 'email', title: '«Mandatemi tutto per email»', text: 'Certo! A quale indirizzo? Vi mando l\'esempio, i prezzi e come si attiva.' },
+      { id: 'no', title: '«No, non ci interessa»', text: 'Nessun problema, grazie per avermi risposto! Se un giorno vi servisse sono qui. Buon lavoro 🙂', note: 'Il bot li mette già negli archiviati: non riscrivere più a chi ha detto no.' },
+    ] },
+    { id: 'dopo', title: '⏰ Messaggi dopo X giorni', intro: 'Da mandare a mano quando passa il tempo indicato. Un solo promemoria per volta: insistere fa bloccare il numero.', items: [
+      { id: 'noresp', title: 'Nessuna risposta al primo messaggio', when: 'Dopo 3-4 giorni · una volta sola', text: 'Buongiorno! Vi riscrivo solo per sapere se avete visto il mio messaggio: vi interessa vedere un esempio di sito per {attivita}? Se no, nessun problema 🙂' },
+      { id: 'video', title: 'Hanno ricevuto video e prezzi ma non rispondono', when: 'Dopo 2 giorni', text: 'Buongiorno! Avete avuto modo di guardare il video? Se vi va vi spiego in due minuti come funziona, anche al telefono 🙂' },
+      { id: 'pensato', title: 'Avevano detto «ci penso»', when: 'Dopo 4-5 giorni', text: 'Buongiorno! Ci avete pensato? Se c\'è qualche dubbio ditemi pure, sono qui per chiarire. Intanto l\'esempio è sempre qui: {demo}' },
+      { id: 'quasi', title: 'Volevano attivare ma non hanno pagato', when: 'Dopo 1 giorno', text: 'Buongiorno! Ieri mi dicevate che volevate attivare il sito: avete avuto problemi con il pagamento? Se volete vi guido passo passo, ci vogliono due minuti 🙂\n👉 {sito}' },
+      { id: 'ultimo', title: 'Ultimo tentativo', when: 'Dopo 2-3 settimane · poi basta', text: 'Buongiorno, è l\'ultima volta che vi disturbo 🙂 Se in futuro vorrete un sito per {attivita}, scrivetemi pure qui. Buon lavoro!' },
+    ] },
+    { id: 'clienti', title: '🎉 Nuovi clienti', intro: 'Dopo il pagamento: farli sentire seguiti è il modo migliore perché restino e vi mandino altri clienti.', items: [
+      { id: 'benvenuto', title: 'Appena hanno pagato', when: 'Subito', text: 'Benvenuti {nome}! 🎉 Grazie per la fiducia.\n\nPer personalizzare il sito di {attivita} mi servono:\n• il logo (se c\'è)\n• 5-10 foto del locale e dei piatti\n• il menu con i prezzi\n• orari, indirizzo e link dei social\n\nPotete mandarmi tutto qui su WhatsApp, anche un po\' alla volta.' },
+      { id: 'pronto', title: 'Il sito è pronto', when: 'Quando è online', text: 'Il sito di {attivita} è online! 🎉 👉 {sitocliente}\n\nPer modificarlo dal telefono: aprite il sito, toccate «Amministratore» e inserite il PIN che trovate nella pagina del vostro ordine. Per qualsiasi cosa scrivetemi qui.' },
+      { id: 'settimana', title: 'Come va?', when: 'Dopo 7 giorni', text: 'Buongiorno {nome}! Come va con il sito? È tutto chiaro con il pannello per le modifiche? Se serve una mano sono qui 🙂' },
+      { id: 'recensione', title: 'Recensione e passaparola', when: 'Dopo 1 mese', text: 'Buongiorno {nome}! Spero che il sito vi stia portando qualche cliente in più 🙂 Se vi trovate bene, mi fareste un grande favore consigliandomi a qualche collega o lasciando due righe di recensione. Grazie di cuore!' },
+    ] },
+    { id: 'pagamenti', title: '💳 Chi non paga', intro: 'In ordine: prima gentile, poi fermo, poi l\'ultimo avviso. Nell\'admin, «Abbonamenti venduti» → «Crea link per pagare» ti dà il link da mettere qui.', warn: true, items: [
+      { id: 'canone1', title: 'Canone del mese non pagato', when: 'Appena il riquadro diventa rosso', text: 'Buongiorno {nome}, le scrivo da Nerodoro Studio: il pagamento del canone per il sito di {attivita} non è andato a buon fine, probabilmente la carta è scaduta o è stata cambiata. Può controllare? Se preferisce può pagare qui con la carta: {link}\n\nGrazie mille!' },
+      { id: 'canone2', title: 'Canone ancora non pagato', when: 'Dopo 7 giorni', text: 'Buongiorno {nome}, le riscrivo perché il canone del sito di {attivita} risulta ancora da pagare. Può saldarlo qui in un minuto: {link}\n\nSe c\'è qualche problema mi scriva pure, lo risolviamo insieme.' },
+      { id: 'residuo1', title: 'Ha chiuso senza pagare i mesi che mancano', when: 'Primo messaggio', text: 'Buongiorno {nome}, le scrivo da Nerodoro Studio. L\'abbonamento del sito di {attivita} risulta chiuso prima della fine del vincolo di 24 mesi accettato all\'attivazione (condizioni, punto 12): mancano {mesi} canoni, in tutto {importo}.\n\nPuò saldare qui con la carta: {link}\n\nSe c\'è un problema mi scriva pure, troviamo insieme una soluzione.' },
+      { id: 'residuo2', title: 'Sollecito', when: 'Dopo 7 giorni senza risposta', text: 'Buongiorno {nome}, non avendo ricevuto risposta le ricordo che per il sito di {attivita} restano da saldare {importo} ({mesi} canoni fino alla fine del vincolo di 24 mesi, punto 12 delle condizioni accettate il {data}).\n\nLa prego di provvedere entro 7 giorni da questo link: {link}\n\nSe ha difficoltà a pagare tutto insieme, mi scriva: possiamo concordare delle rate.' },
+      { id: 'diffida', title: '⚖️ Ultimo avviso prima delle vie legali', when: 'Dopo altri 7-10 giorni · meglio anche per email o PEC', text: 'Gentile {nome},\n\nnonostante i nostri precedenti messaggi, risulta ancora da saldare l\'importo di {importo} per l\'abbonamento al sito web di {attivita}: {mesi} canoni fino alla fine del vincolo di 24 mesi, come previsto al punto 12 delle condizioni che ha accettato e approvato in modo specifico il {data}.\n\nLa invitiamo a saldare entro 15 giorni da oggi, con la carta, da questo link: {link}\n\nTrascorso questo termine senza il pagamento, saremo costretti ad affidare la pratica al nostro legale per il recupero del credito in via giudiziale (decreto ingiuntivo davanti al giudice), con l\'aggiunta degli interessi di mora e delle spese legali e di recupero a Suo carico, come previsto per i contratti tra imprese (D.Lgs. 231/2002).\n\nPreferiremmo davvero evitarlo: se ha difficoltà a pagare tutto in una volta, ci scriva entro la stessa data e troviamo insieme una soluzione, anche a rate.\n\nCordiali saluti,\n{firma}\nNerodoro Studio', note: 'Mandalo solo se l\'importo è davvero dovuto e se sei pronto a passare la pratica a un avvocato o a un\'agenzia di recupero crediti: è un avviso serio, non un bluff. Va bene per i clienti con le condizioni per le aziende (partita IVA). Per email o PEC (posta certificata, ha valore legale) usa il pulsante «Email». Fai sempre uno screenshot di quello che mandi.' },
+      { id: 'grazie', title: 'Ha pagato', when: 'Appena arriva il pagamento', text: 'Buongiorno {nome}, il pagamento è arrivato: grazie mille! Per qualsiasi cosa sono qui 🙂' },
+    ] },
+  ];
+
+  const LS = 'nerodoro-risposte';
+  let edits = {};
+  try { edits = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { edits = {}; }
+  const saveEdits = () => { try { localStorage.setItem(LS, JSON.stringify(edits)); } catch {} };
+  const site = { base: '59 €', premium: '99 €', sito: location.origin + '/#prezzi', demo: 'https://l13291221-cmyk.github.io/Ristorante-/', firma: 'Simone' };
+  const FIELDS = ['nome', 'attivita', 'tel', 'importo', 'mesi', 'link', 'data', 'sitocliente'];
+  const val = k => document.getElementById('f-' + k).value.trim();
+
+  // Testo con i dati: i campi vuoti diventano parole generiche, così il messaggio resta sensato
+  function fill(t) {
+    const v = {
+      nome: val('nome'), attivita: val('attivita') || 'il vostro locale', importo: val('importo') || '[importo]', mesi: val('mesi') || '[mesi]',
+      link: val('link') || '[link per pagare]', data: val('data') || '[data]', sitocliente: val('sitocliente') || '[link del sito]', ...site,
+    };
+    return t.replace(/\{(\w+)\}/g, (m, k) => k in v ? v[k] : m)
+      .replace(/(Buongiorno|Benvenuti) ([,!])/g, '$1$2').replace(/Gentile ,/g, 'Gentile cliente,').replace(/\bdi il vostro locale/g, 'del vostro locale');
+  }
+
+  function render() {
+    document.getElementById('sections').innerHTML = SECTIONS.map(s => `
+      <section class="box" id="${s.id}">
+        <h2>${s.title}</h2>
+        <p>${escapeHtml(s.intro)}</p>
+        ${s.warn ? '<div class="warnbox"><b>Prima di tutto:</b> la maggior parte di chi non paga ha solo la carta scaduta o cambiata. Scrivi lo stesso giorno, in modo gentile: quasi sempre basta. L\'ultimo avviso usalo solo dopo i solleciti.</div>' : ''}
+        ${s.items.map(m => `
+          <div class="msg" data-id="${m.id}">
+            <h3>${escapeHtml(m.title)}</h3>
+            ${m.when ? `<p class="when">⏰ ${escapeHtml(m.when)}</p>` : ''}
+            <textarea aria-label="${escapeHtml(m.title)}">${escapeHtml(fill(edits[m.id] ?? m.text))}</textarea>
+            ${m.note ? `<div class="tip">💡 ${escapeHtml(m.note)}</div>` : ''}
+            <div class="acts">
+              <button class="btn btn-ghost btn-sm" data-copy>📋 Copia</button>
+              <button class="btn btn-wa btn-sm" data-wa>💬 WhatsApp</button>
+              ${s.id === 'pagamenti' ? '<button class="btn btn-ghost btn-sm" data-mail>✉️ Email</button>' : ''}
+              ${edits[m.id] != null ? '<button class="btn btn-ghost btn-sm" data-reset>Ripristina</button><span class="edited">modificato</span>' : ''}
+            </div>
+          </div>`).join('')}
+      </section>`).join('');
+  }
+  const findMsg = id => SECTIONS.flatMap(s => s.items).find(m => m.id === id);
+
+  document.getElementById('sections').addEventListener('click', async e => {
+    const box = e.target.closest('.msg');
+    if (!box) return;
+    const m = findMsg(box.dataset.id), text = box.querySelector('textarea').value;
+    if (e.target.closest('[data-copy]')) {
+      try { await navigator.clipboard.writeText(text); toast('Copiato: incollalo nella chat'); } catch { box.querySelector('textarea').select(); toast('Tieni premuto e copia'); }
+    } else if (e.target.closest('[data-wa]')) {
+      const tel = val('tel').replace(/\D/g, '').replace(/^00/, '');
+      window.open(`https://wa.me/${tel}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    } else if (e.target.closest('[data-mail]')) {
+      const subject = m.id === 'diffida' ? `Ultimo avviso prima delle vie legali – ${val('attivita') || 'sito web'}` : `Sito web ${val('attivita')}: pagamento`;
+      location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    } else if (e.target.closest('[data-reset]')) {
+      delete edits[m.id]; saveEdits(); render(); toast('Testo originale ripristinato');
+    }
+  });
+  // Se cambi un testo lo salvo (con i segnaposto al posto dei dati, così funziona anche per il prossimo cliente)
+  document.getElementById('sections').addEventListener('change', e => {
+    const box = e.target.closest('.msg');
+    if (!box || e.target.tagName !== 'TEXTAREA') return;
+    let t = e.target.value;
+    // dati del cliente, prezzi e link tornano segnaposto: così il testo vale anche per il prossimo cliente
+    for (const k of FIELDS) { const v = val(k); if (v.length > 2) t = t.split(v).join('{' + k + '}'); }
+    for (const k of ['sito', 'demo', 'base', 'premium', 'firma']) if (String(site[k]).length > 2) t = t.split(site[k]).join('{' + k + '}');
+    for (const k of ['importo', 'mesi', 'data']) t = t.split('[' + k + ']').join('{' + k + '}');
+    t = t.split('[link per pagare]').join('{link}').split('[link del sito]').join('{sitocliente}');
+    edits[box.dataset.id] = t; saveEdits(); render(); toast('Testo salvato su questo telefono');
+  });
+  // I dati del cliente aggiornano tutti i messaggi mentre scrivi
+  FIELDS.forEach(k => document.getElementById('f-' + k).addEventListener('input', () => {
+    document.querySelectorAll('.msg').forEach(box => {
+      const m = findMsg(box.dataset.id);
+      box.querySelector('textarea').value = fill(edits[m.id] ?? m.text);
+    });
+  }));
+
+  const api = async url => { const r = await fetch(url); if (r.status === 401) { location.href = '/'; throw new Error('401'); } return r.json(); };
+  (async () => {
+    const me = await api('/api/admin/me').catch(() => ({}));
+    if (!me.admin) { location.href = '/'; return; }
+    // Dati dall'admin (es. «Abbonamenti venduti» → «Altri messaggi»)
+    const q = new URLSearchParams(location.search);
+    FIELDS.forEach(k => { if (q.get(k)) document.getElementById('f-' + k).value = q.get(k); });
+    try {
+      const c = await api('/api/config');
+      const eur = cents => (cents / 100).toLocaleString('it-IT', { minimumFractionDigits: cents % 100 ? 2 : 0 }) + ' €';
+      if (c.packages) { site.base = eur(c.packages.base.monthly); site.premium = eur(c.packages.premium.monthly); }
+    } catch {}
+    try {
+      const b = await api('/api/admin/bot');
+      if (b.config) { site.demo = b.config.demoUrl || site.demo; site.firma = b.config.firma || site.firma; }
+    } catch {}
+    render();
+    document.body.classList.add('ready');
+    if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+  })();
+</script>
+</body>
+</html>
