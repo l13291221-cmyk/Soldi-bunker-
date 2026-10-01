@@ -278,7 +278,7 @@ function escapeHtml(s) {
 function approvalText(o) {
   const b2b = 'Dichiaro di acquistare per la mia attività, come impresa o professionista con partita IVA, e non come consumatore.';
   if (o.monthly && o.package !== 'assistenza') {
-    return `${b2b} Approvo in modo specifico, ai sensi degli artt. 1341 e 1342 del Codice civile, i punti 6 e 12 delle condizioni: abbonamento di ${euro(o.monthly / 100)} al mese addebitato in automatico sulla stessa carta, con VINCOLO DI ${o.months} MESI (in tutto ${euro(o.monthly * o.months / 100)}); nessun diritto di recesso; se disdico prima della fine del vincolo, o smetto di pagare, sono dovuti tutti i canoni che mancano alla fine del vincolo, che mi vengono addebitati subito in una volta sola.`;
+    return `${b2b} Approvo in modo specifico, ai sensi degli artt. 1341 e 1342 del Codice civile, i punti 6 e 12 delle condizioni: abbonamento di ${euro(o.monthly / 100)} al mese addebitato in automatico sulla stessa carta, con VINCOLO DI ${o.months} MESI; nessun diritto di recesso; se disdico prima della fine del vincolo, o smetto di pagare, sono dovuti tutti i canoni che mancano alla fine del vincolo, che mi vengono addebitati subito in una volta sola.`;
   }
   if (o.package === 'assistenza') {
     return `${b2b} Approvo l'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).`;
@@ -807,7 +807,7 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
         }, ...(o.amount > 0 ? [oneOff] : [])],
         subscription_data: { metadata: { orderId: o.id }, description: o.months > 1 ? `Sito web, vincolo ${o.months} mesi (codice ${formatCode(o.id)})` : `Assistenza mensile, disdici quando vuoi (codice ${formatCode(o.id)})` },
         custom_text: { submit: { message: o.months > 1
-          ? `Abbonamento con VINCOLO DI ${o.months} MESI: ${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta (in tutto ${euro(o.monthly * o.months / 100)}). Se disdici prima, i mesi che mancano vengono addebitati subito. Condizioni: ${BASE_URL}/condizioni`
+          ? `Abbonamento con VINCOLO DI ${o.months} MESI: ${euro(o.monthly / 100)} al mese addebitati ogni mese sulla stessa carta. Se disdici prima, i mesi che mancano vengono addebitati subito. Condizioni: ${BASE_URL}/condizioni`
           : `Assistenza: ${euro(o.monthly / 100)} al mese, addebitati ogni mese sulla stessa carta. Disdici quando vuoi. Condizioni: ${BASE_URL}/condizioni` } },
       } : {
         mode: 'payment',

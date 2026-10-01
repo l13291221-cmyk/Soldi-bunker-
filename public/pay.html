@@ -119,8 +119,7 @@
         ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
         <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
         ${o.months > 1
-          ? `<div class="row"><span class="muted">Durata</span><span><b style="color:var(--gold-2)">Vincolo ${o.months} mesi</b></span></div>
-        <div class="row"><span class="muted">Totale nei ${o.months} mesi</span><span>${formatMoney(o.monthly * o.months, o.currency)}</span></div>`
+          ? `<div class="row"><span class="muted">Durata</span><span><b style="color:var(--gold-2)">Vincolo ${o.months} mesi</b></span></div>`
           : '<div class="row"><span class="muted">Durata</span><span>Disdici quando vuoi</span></div>'}
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
         <p class="muted small" style="margin:6px 0 0">${o.months > 1
