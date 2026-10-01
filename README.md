@@ -61,6 +61,49 @@ Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser
 Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: apre WhatsApp con un messaggio già scritto,
 personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
 (IT, EN, FR, ES, DE) e 3 versioni che si alternano. Il limite di messaggi al giorno si sceglie (30, 50, 75 o 100, predefinito 100); ogni 30 messaggi in un'ora consiglia una pausa.
+Se il bot WhatsApp ha già scritto a un'attività, nella scheda compare «🤖 …»; se scrivi tu a mano, il bot non le scriverà più.
+
+## 🤖 Bot WhatsApp (messaggi automatici)
+Nell'admin, pulsante **🤖 Bot** (`/bot`): il sito scrive **da solo** dal vostro WhatsApp Business alle attività senza sito,
+con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle fasce orarie**, tutti i giorni, finché è acceso.
+
+**Come si attiva (una volta sola)**
+1. Apri `/bot` → scrivi il numero del WhatsApp Business con il prefisso (es. `39 333 1234567`) → **Collega con codice**.
+2. Sul telefono: WhatsApp Business → ⋮ / Impostazioni → **Dispositivi collegati** → **Collega un dispositivo** →
+   **Collega con il numero di telefono** → scrivi il codice che vedi sulla pagina. (Oppure inquadra il QR da un altro schermo.)
+3. Controlla le impostazioni (zone, tipi di attività, fasce orarie, il tuo nome) e premi **Salva**.
+4. Premi **Manda prova** con un tuo numero personale per vedere come arriva il messaggio.
+5. Accendi l'interruttore in alto. Fine: il bot lavora da solo, anche a pagina chiusa.
+
+**Cosa fa**
+- Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
+  tutta Italia) e, se c'è `GOOGLE_PLACES_KEY`, **Google Maps** (cellulari, città per città: più città e quartieri scrivi, più ne trova).
+  Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove.
+- Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
+- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il messaggio (gli stessi di «Trova clienti»,
+  personalizzati con nome e problema del sito, oppure messaggi vostri).
+- **A ognuno scrive una volta sola**, mai due. Chi risponde compare in **📬 Risposte** (e nell'app, dove rispondete voi);
+  chi scrive «no», «non ci interessa», «stop»… viene segnato come non interessato.
+- Facoltativo: **risposta automatica a chi dice «sì»** (es. il link a un esempio), una volta sola e solo se nessuno ha già risposto dal telefono.
+- Ogni giorno sceglie a caso quanti messaggi mandare (tra «da» e «a», predefinito 25-30) e li sparge a caso nelle fasce orarie
+  (predefinito 9:30-12:30 e 15:00-19:30, ora italiana, dal lunedì al sabato), con almeno 4 minuti tra uno e l'altro.
+- **Partenza graduale**: i primi 4 giorni manda 10, 15, 20, 25 messaggi. Se WhatsApp avvisa o limita le chat nuove,
+  il bot dimezza o si mette in pausa da solo fino a quando WhatsApp lo permette di nuovo.
+
+**Da sapere**
+- Il bot si collega come «dispositivo collegato» (come WhatsApp Web, nella lista appare «Chrome (Ubuntu)»), con la libreria
+  [Baileys](https://github.com/WhiskeySockets/Baileys). Non è l'API ufficiale di Meta: WhatsApp può limitare o bloccare i numeri
+  che scrivono a tanti sconosciuti e ricevono segnalazioni. Usate un numero di lavoro e non alzate troppo i messaggi al giorno.
+- Il telefono può restare spento, ma aprite WhatsApp Business almeno una volta ogni 14 giorni, altrimenti WhatsApp scollega i dispositivi.
+- Privacy: per la legge italiana i messaggi pubblicitari automatici richiedono di norma il consenso. Scrivere solo a chi ha
+  pubblicato il WhatsApp come contatto dell'attività, una volta sola e smettendo al primo «no», riduce il problema ma non lo elimina.
+- Su Render gratuito il server deve restare sveglio: ci pensa già la «Sveglia siti» (auto-ping ogni 5 minuti).
+
+**Backup del bot**: il collegamento a WhatsApp e l'elenco di chi ha già ricevuto il messaggio sono salvati (cifrati come gli altri
+backup) dall'azione **Backup dati** sul ramo **`backup-bot`**, che tiene **solo l'ultima copia** (cambiano a ogni messaggio:
+con la cronologia il repository crescerebbe di continuo). Dopo un deploy o un riavvio il sito li riprende e il bot riparte da solo.
+L'azione con l'orario funziona solo dal ramo **main**: copiate su main il file `.github/workflows/backup.yml` di questo ramo,
+altrimenti la pagina del bot mostra un avviso e a ogni riavvio di Render bisogna ricollegare WhatsApp.
 
 ## Pacchetti
 - **Base** (`PREZZO`, default 990 €): sito web completo (assistenza non inclusa).
@@ -89,6 +132,7 @@ Il repository è pubblico, quindi i file (`backup/*.enc.json`) sono **cifrati** 
 - L'azione con l'orario funziona solo quando il file è sul ramo **main** del repository.
 - Prima di un Manual Deploy, per salvare subito: GitHub → Actions → Backup dati → **Run workflow** (o «Salva ora» nell'admin).
 - Se il sito su Render ha un altro indirizzo, cambia `SITE` nel file dell'azione.
+- I dati del bot WhatsApp vanno sul ramo **`backup-bot`** (solo l'ultima copia, vedi «Bot WhatsApp»).
 
 ## Assistenza con pagamento diretto
 Il link di pagamento dell'assistenza (20 €/mese, ricorrente, solo carta) **lo crea il sito da solo su Stripe** al primo avvio

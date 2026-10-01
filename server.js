@@ -1153,35 +1153,38 @@ async function googleLeads(type, city) {
   return out.map(leadFromGoogle).filter(Boolean);
 }
 
-app.get('/api/admin/leads', requireAdmin, async (req, res) => {
-  if (req.query.source === 'google') {
-    if (!GOOGLE_PLACES_KEY) return res.status(400).json({ error: 'Google Maps non è attivo: manca la chiave GOOGLE_PLACES_KEY su Render.' });
-    const city = String(req.query.city || '').trim().slice(0, 60);
-    const type = GOOGLE_QUERY[req.query.type] ? req.query.type : 'ristoranti';
-    if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome della zona' });
-    const key = ['google', city.toLowerCase(), type].join('|');
+// Errore con il codice HTTP da rispondere (lo usano la pagina Trova clienti e il bot WhatsApp)
+const leadError = (status, message, detail) => Object.assign(new Error(message), { status, detail });
+// Cerca le attività di una zona: q = { source, scope, city, type, need } come nella pagina Trova clienti
+async function searchLeads(q) {
+  if (q.source === 'google') {
+    if (!GOOGLE_PLACES_KEY) throw leadError(400, 'Google Maps non è attivo: manca la chiave GOOGLE_PLACES_KEY su Render.');
+    const city = String(q.city || '').trim().slice(0, 60);
+    const type = GOOGLE_QUERY[q.type] ? q.type : 'ristoranti';
+    if (city.length < 2) throw leadError(400, 'Scrivi il nome della zona');
+    const key = ['google', city.toLowerCase(), type, q.need].join('|');
     const cached = leadCache.get(key);
-    if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type, source: 'google' });
+    if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return { leads: cached.leads, city, type, source: 'google' };
     try {
       let leads = await googleLeads(type, city);
-      if (req.query.need === 'wa') leads = leads.filter(l => l.whatsapps.length);
-      else if (req.query.need !== 'all') leads = leads.filter(l => l.phones.length);
+      if (q.need === 'wa') leads = leads.filter(l => l.whatsapps.length);
+      else if (q.need !== 'all') leads = leads.filter(l => l.phones.length);
       leadCache.set(key, { at: Date.now(), leads });
-      return res.json({ leads, city, type, source: 'google' });
+      return { leads, city, type, source: 'google' };
     } catch (err) {
       console.error('Google Places error:', err.message);
-      return res.status(502).json({ error: 'Google Maps non risponde.', detail: err.message });
+      throw leadError(502, 'Google Maps non risponde.', err.message);
     }
   }
-  const scope = SCOPES[req.query.scope] ? req.query.scope : 'comune';
-  const city = scope === 'italia' ? 'Italia' : String(req.query.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
-  const type = LEAD_TYPES[req.query.type] ? req.query.type : 'ristoranti';
-  let need = NEED_TAGS[req.query.need] ? req.query.need : 'phone';
+  const scope = SCOPES[q.scope] ? q.scope : 'comune';
+  const city = scope === 'italia' ? 'Italia' : String(q.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
+  const type = LEAD_TYPES[q.type] ? q.type : 'ristoranti';
+  let need = NEED_TAGS[q.need] ? q.need : 'phone';
   if (need === 'all' && scope !== 'comune') need = 'phone'; // zone grandi: solo chi ha un contatto
-  if (city.length < 2) return res.status(400).json({ error: 'Scrivi il nome della zona' });
+  if (city.length < 2) throw leadError(400, 'Scrivi il nome della zona');
   const key = [city.toLowerCase(), type, scope, need].join('|');
   const cached = leadCache.get(key);
-  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return res.json({ leads: cached.leads, city, type, scope, need });
+  if (cached && Date.now() - cached.at < 60 * 60 * 1000) return { leads: cached.leads, city, type, scope, need };
 
   let areaPart;
   if (scope === 'italia') {
@@ -1196,11 +1199,11 @@ app.get('/api/admin/leads', requireAdmin, async (req, res) => {
 rel["boundary"="administrative"]["admin_level"~"^(8|9|10)$"]["name"~"${cityRe}",i](area.it);
 map_to_area->.a;`;
     } else {
-      return res.status(404).json({ error: `Non trovo la ${SCOPES[scope].label.toLowerCase()} "${city}". Scrivila per intero, es. "Emilia-Romagna" o "Bologna".` });
+      throw leadError(404, `Non trovo la ${SCOPES[scope].label.toLowerCase()} "${city}". Scrivila per intero, es. "Emilia-Romagna" o "Bologna".`);
     }
   }
   const sc = SCOPES[scope];
-  const parts = LEAD_TYPES[type].q.flatMap(q => NEED_TAGS[need].map(t => q + t + '(area.a);'));
+  const parts = LEAD_TYPES[type].q.flatMap(lq => NEED_TAGS[need].map(t => lq + t + '(area.a);'));
   const query = `[out:json][timeout:${sc.timeout}][maxsize:268435456];
 ${areaPart}
 (${parts.join('')});
@@ -1216,11 +1219,15 @@ out tags center ${sc.limit};`;
       return true;
     });
     leadCache.set(key, { at: Date.now(), leads });
-    res.json({ leads, city, type, scope, need });
+    return { leads, city, type, scope, need };
   } catch (err) {
     console.error('Overpass error:', err.message);
-    res.status(502).json({ error: 'Il servizio mappe non risponde, riprova tra un minuto.', detail: err.message.slice(0, 400) });
+    throw leadError(502, 'Il servizio mappe non risponde, riprova tra un minuto.', err.message.slice(0, 400));
   }
+}
+app.get('/api/admin/leads', requireAdmin, async (req, res) => {
+  try { res.json(await searchLeads(req.query)); }
+  catch (err) { res.status(err.status || 500).json({ error: err.message, ...(err.detail && { detail: err.detail }) }); }
 });
 // Controllo qualità del sito di un'attività: trova i siti "da rifare"
 const dns = require('dns').promises;
@@ -1423,9 +1430,28 @@ const BACKUP_FILES = {
   'monitors.json': { file: () => MONITORS_FILE, get: () => monitors, set: v => { monitors = v; } },
 };
 const backupState = {
-  enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastExport: null, lastError: null, restored: [],
+  enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastExport: null, lastBotExport: null, lastError: null, restored: [],
   actionsUrl: `https://github.com/${BACKUP_REPO}/actions/workflows/backup.yml`,
 };
+
+// ---------- Bot WhatsApp: scrive da solo 20-30 messaggi al giorno ai clienti trovati (pagina /bot) ----------
+const bot = require('./bot')({
+  dataDir: path.join(__dirname, 'data'),
+  isReady: () => backupState.ready,
+  searchLeads, checkSite,
+  leadTypes: () => LEAD_TYPES,
+  googleOn: () => !!GOOGLE_PLACES_KEY,
+  messages: require('./public/messages.js'),
+  siteUrl: BASE_URL,
+});
+bot.routes(app, requireAdmin);
+// I dati del bot (contatti già scritti e collegamento a WhatsApp) cambiano a ogni messaggio:
+// vanno sul ramo BACKUP_BOT_BRANCH, che tiene solo l'ultima copia, così il repository non si gonfia
+const BACKUP_BOT_BRANCH = String(process.env.BACKUP_BOT_BRANCH || 'backup-bot').trim();
+const BACKUP_SETS = [
+  { name: 'dati', branch: BACKUP_BRANCH, files: BACKUP_FILES },
+  { name: 'bot', branch: BACKUP_BOT_BRANCH, files: bot.backupFiles },
+];
 function backupSoon() {} // il salvataggio lo fa l'azione di GitHub ogni ora
 
 // I dati cifrati per l'azione di GitHub. Finché la ripresa all'avvio non è riuscita risponde 503:
@@ -1433,18 +1459,22 @@ function backupSoon() {} // il salvataggio lo fa l'azione di GitHub ogni ora
 app.get('/api/backup-export', (req, res) => {
   if (!backupOn) return res.status(503).json({ error: 'Backup non attivo: manca STRIPE_SECRET_KEY' });
   if (!backupState.ready) return res.status(503).json({ error: 'Sto ancora riprendendo il backup, riprova tra poco' });
+  // ?set=bot → i file del bot (per il ramo backup-bot); senza → ordini, siti pronti e sveglia siti
+  const set = BACKUP_SETS.find(x => x.name === req.query.set) || BACKUP_SETS[0];
   const files = {};
-  for (const [name, f] of Object.entries(BACKUP_FILES)) files[encName(name)] = encryptBackup(JSON.stringify(f.get(), null, 2));
-  backupState.lastExport = new Date().toISOString();
-  res.set('Cache-Control', 'no-store').json({ at: backupState.lastExport, files });
+  for (const [name, f] of Object.entries(set.files)) files[encName(name)] = encryptBackup(JSON.stringify(f.get(), null, 2));
+  const at = new Date().toISOString();
+  if (set.name === 'bot') backupState.lastBotExport = at; else backupState.lastExport = at;
+  res.set('Cache-Control', 'no-store').json({ at, set: set.name, files });
 });
 
 // All'avvio: riprende i file dal ramo backup-dati (lettura pubblica, nessuna chiave) e li unisce a quelli di qui
 async function restoreBackup() {
-  const base = `${process.env.BACKUP_RAW || 'https://raw.githubusercontent.com'}/${BACKUP_REPO}/${BACKUP_BRANCH}/backup`;
+  const rawHost = process.env.BACKUP_RAW || 'https://raw.githubusercontent.com';
+  const all = BACKUP_SETS.flatMap(set => Object.entries(set.files).map(([name, f]) => [name, f, `${rawHost}/${BACKUP_REPO}/${set.branch}/backup`]));
   for (let attempt = 1; ; attempt++) {
     try {
-      for (const [name, f] of Object.entries(BACKUP_FILES)) {
+      for (const [name, f, base] of all) {
         const r = await fetch(`${base}/${encName(name)}?t=${Date.now()}`, { cache: 'no-store' });
         if (r.status === 404) continue;
         if (!r.ok) throw new Error(`GitHub ${r.status}`);
@@ -1477,5 +1507,6 @@ async function restoreBackup() {
 }
 app.get('/api/admin/backup', requireAdmin, (req, res) => res.json(backupState));
 
+bot.start();
 if (backupOn) restoreBackup(); else console.warn('⚠️  Backup non attivo (manca STRIPE_SECRET_KEY): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
 app.listen(PORT, () => console.log(`Nerodoro Studio attivo su ${BASE_URL}`));

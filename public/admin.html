@@ -91,15 +91,23 @@
     .codebox small { display: block; color: var(--muted); font-size: .75rem; letter-spacing: 1px; text-transform: uppercase; }
     details.more { border: 0; padding: 0; margin-top: 12px; }
     details.more summary { font-weight: 500; font-size: .85rem; color: var(--muted); }
+    /* Telefono: etichette corte, così i pulsanti in alto stanno tutti nella barra */
+    .topbar .sm { display: none; }
+    @media (max-width: 760px) {
+      .topbar .lg { display: none; } .topbar .sm { display: inline; }
+      .topbar .nav { gap: 6px; }
+      .topbar .nav .btn-sm { padding: 7px 9px; font-size: .8rem; white-space: nowrap; }
+    }
   </style>
 </head>
 <body>
 <header class="topbar">
   <div class="wrap">
-    <a href="/" class="brand"><span class="brand-mark">N</span>Admin</a>
+    <a href="/" class="brand"><span class="brand-mark">N</span><span class="lg">Admin</span></a>
     <nav class="nav">
-      <a href="/clienti" class="btn btn-gold btn-sm">🔎 Trova clienti</a>
-      <a href="/guida" class="btn btn-ghost btn-sm">📋 Guida cliente</a>
+      <a href="/clienti" class="btn btn-gold btn-sm">🔎 <span class="lg">Trova clienti</span><span class="sm">Clienti</span></a>
+      <a href="/bot" class="btn btn-ghost btn-sm" title="Bot WhatsApp">🤖 Bot</a>
+      <a href="/guida" class="btn btn-ghost btn-sm">📋 <span class="lg">Guida cliente</span><span class="sm">Guida</span></a>
       <a href="#calcolo" class="hide-sm">Calcolatore</a>
       <a href="#sveglia" class="hide-sm">Sveglia siti</a>
       <a href="/" class="hide-sm">Vedi sito</a>

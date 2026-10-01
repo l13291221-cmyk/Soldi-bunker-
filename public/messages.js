@@ -1,6 +1,7 @@
 // Messaggi WhatsApp pronti per i potenziali clienti, in più lingue.
 // Ogni lingua ha 3 versioni che si alternano, così i messaggi non sono tutti identici.
-window.LEAD_MESSAGES = (function () {
+// Lo usano la pagina Trova clienti (browser) e il bot WhatsApp sul server (require).
+const LEAD_MESSAGES = (function () {
   // Come descrivere il "problema" dell'attività in ogni lingua
   const PROBLEMS = {
     it: {
@@ -115,7 +116,9 @@ window.LEAD_MESSAGES = (function () {
   }
 
   return {
-    build,
+    build, problem,
     languages: [['it', '🇮🇹 Italiano'], ['en', '🇬🇧 English'], ['fr', '🇫🇷 Français'], ['es', '🇪🇸 Español'], ['de', '🇩🇪 Deutsch']],
   };
 })();
+if (typeof module === 'object' && module.exports) module.exports = LEAD_MESSAGES;
+else window.LEAD_MESSAGES = LEAD_MESSAGES;

@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Bot WhatsApp — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 28px 0 80px; display: grid; gap: 16px; }
+    .box { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-width: 0; }
+    .box h2 { font: 600 1.1rem var(--sans); letter-spacing: 0; margin: 0 0 12px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .row > .grow { flex: 1 1 200px; min-width: 0; }
+    .bothead { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+    .switch { position: relative; width: 74px; height: 42px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); cursor: pointer; padding: 0; }
+    .switch::after { content: ''; position: absolute; top: 4px; left: 4px; width: 32px; height: 32px; border-radius: 50%; background: var(--muted); transition: .2s; }
+    .switch.on { background: rgba(37,211,102,.2); border-color: #25d366; }
+    .switch.on::after { left: 36px; background: #25d366; }
+    .bothead h1 { font-size: 1.5rem; margin: 0; }
+    .bothead .note { color: var(--muted); margin: 2px 0 0; font-size: .95rem; }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 14px; }
+    .stat { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+    .stat b { display: block; font-size: 1.35rem; color: var(--text); }
+    .stat span { font-size: .75rem; color: var(--muted); }
+    .bar { height: 8px; border-radius: 99px; background: var(--bg-2); border: 1px solid var(--line); overflow: hidden; margin-top: 12px; }
+    .bar i { display: block; height: 100%; background: #25d366; width: 0; transition: width .4s; }
+    .ok { color: var(--green); } .bad { color: var(--red); } .warnc { color: var(--gold-2); }
+    .alert { border-radius: 12px; padding: 12px 14px; font-size: .9rem; margin-top: 12px; }
+    .alert.red { border: 1px solid rgba(248,113,113,.4); background: rgba(248,113,113,.08); color: var(--red); }
+    .alert.gold { border: 1px solid rgba(214,177,106,.4); background: rgba(214,177,106,.08); color: var(--gold-2); }
+    .alert.grey { border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); }
+    .code { font: 700 2rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 4px; color: var(--gold-2); text-align: center; margin: 10px 0; }
+    .steps { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+    .qr { display: block; margin: 12px auto 0; width: 240px; max-width: 100%; border-radius: 12px; background: #fff; padding: 8px; }
+    select { width: 100%; padding: 13px 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); font: 400 16px var(--sans); outline: none; }
+    textarea { min-height: 96px; resize: vertical; font-size: 16px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { margin-top: 14px; }
+    .field small { display: block; color: var(--muted); font-size: .8rem; margin-top: 4px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); font: 500 .84rem var(--sans); cursor: pointer; }
+    .chip.on { color: #1a1408; background: var(--gold); border-color: var(--gold); }
+    .chip:disabled { opacity: .4; cursor: not-allowed; }
+    .check { display: flex; gap: 10px; align-items: flex-start; color: var(--text); font-size: .92rem; margin: 8px 0 0; cursor: pointer; }
+    .check input { width: 20px; height: 20px; margin-top: 2px; flex: 0 0 auto; accent-color: var(--gold); }
+    .check small { color: var(--muted); display: block; font-size: .8rem; }
+    .item { border-top: 1px solid var(--line); padding: 12px 0; }
+    .item:first-child { border-top: 0; padding-top: 0; }
+    .item .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .item h4 { margin: 0; font-size: .98rem; overflow-wrap: anywhere; }
+    .item .meta { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+    .item .msg { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: .88rem; margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .item.new { background: rgba(37,211,102,.06); border-radius: 10px; padding-left: 10px; padding-right: 10px; }
+    .tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid var(--line); color: var(--muted); background: var(--bg-2); }
+    .tag.g { color: var(--green); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.1); }
+    .tag.r { color: var(--red); border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.1); }
+    .tag.y { color: var(--gold-2); border-color: rgba(214,177,106,.35); background: rgba(214,177,106,.1); }
+    .btn-wa { background: #25d366; color: #fff; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    details summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+    .empty { color: var(--muted); font-size: .9rem; }
+    .muted-list { color: var(--muted); font-size: .88rem; margin: 6px 0 0; padding-left: 18px; }
+    @media (max-width: 700px) {
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .grid2 { grid-template-columns: 1fr; }
+      .page { padding-top: 18px; }
+      .row .btn { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Bot WhatsApp</a>
+    <nav class="nav">
+      <a href="/clienti" class="btn btn-ghost btn-sm hide-sm">🔎 Trova clienti</a>
+      <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <section class="box">
+    <div class="bothead">
+      <button class="switch" id="switch" aria-label="Accendi o spegni il bot"></button>
+      <div>
+        <h1 id="title">Bot WhatsApp</h1>
+        <p class="note" id="note">Carico…</p>
+      </div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="stats">
+      <div class="stat"><b id="sToday">0</b><span>oggi</span></div>
+      <div class="stat"><b id="sTotal">0</b><span>scritti in tutto</span></div>
+      <div class="stat"><b id="sReplies">0</b><span>hanno risposto</span></div>
+      <div class="stat"><b id="sNo">0</b><span>non interessati</span></div>
+      <div class="stat"><b id="sQueue">0</b><span>in coda</span></div>
+    </div>
+    <div id="heroAlerts"></div>
+  </section>
+
+  <section class="box" id="waBox">
+    <h2>📱 Il tuo WhatsApp Business</h2>
+    <div id="waBody"></div>
+  </section>
+
+  <section class="box">
+    <h2>📬 Risposte <span class="tag g" id="newReplies" hidden></span></h2>
+    <p class="muted small" style="margin:-4px 0 12px">Le vedi anche nell'app WhatsApp Business: rispondi tu da lì. Chi scrive «no», «non ci interessa», «stop»… non viene più contattato.</p>
+    <div id="replies"></div>
+  </section>
+
+  <section class="box">
+    <h2>⏭️ Prossimi in coda</h2>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="searchBtn">🔎 Cerca nuovi clienti adesso</button>
+      <button class="btn btn-ghost btn-sm" id="sendNowBtn">📤 Manda il prossimo adesso</button>
+    </div>
+    <p class="muted small" id="lastSearch" style="margin:10px 0 0"></p>
+    <div id="queue" style="margin-top:12px"></div>
+  </section>
+
+  <section class="box">
+    <h2>⚙️ Impostazioni</h2>
+    <form id="cfg" autocomplete="off">
+      <div class="field">
+        <label for="zones">Zone dove cercare (una per riga)</label>
+        <textarea id="zones" rows="6" placeholder="italia&#10;Monza&#10;provincia: Bergamo&#10;regione: Lombardia"></textarea>
+        <small>Un comune per riga (es. «Monza» o «Milano Navigli»), oppure «provincia: Bergamo», «regione: Lombardia», «italia». Con «italia» OpenStreetMap cerca in tutta Italia in un colpo solo; le città servono per Google Maps (massimo 60 attività per ricerca: più città e quartieri scrivi, più clienti trova). Il bot cerca una zona alla volta e rifà la stessa ricerca dopo 30 giorni per trovare le attività nuove.</small>
+      </div>
+      <div class="field">
+        <label>Tipi di attività</label>
+        <div class="chips" id="types"></div>
+        <small>I messaggi già pronti parlano di «locali» e «ristoranti»: se scegli anche parrucchieri, negozi… scrivi qui sotto messaggi tuoi più generici.</small>
+      </div>
+      <div class="field">
+        <label>Dove cercare</label>
+        <label class="check"><input type="checkbox" id="osm"><span>OpenStreetMap: solo chi ha scritto il suo WhatsApp<small>Gratis. Sono le attività che dichiarano di usare WhatsApp.</small></span></label>
+        <label class="check"><input type="checkbox" id="google"><span>Google Maps: cellulari delle attività<small id="googleNote">Prima di scrivere il bot controlla che il numero abbia davvero WhatsApp. Usa la chiave Google (quota gratuita mensile, poi a pagamento).</small></span></label>
+      </div>
+      <div class="field grid2">
+        <div><label for="min">Messaggi al giorno: da</label><input id="min" type="number" min="1" max="60" inputmode="numeric"></div>
+        <div><label for="max">a</label><input id="max" type="number" min="1" max="60" inputmode="numeric"></div>
+      </div>
+      <small class="muted" style="display:block;margin-top:4px;font-size:.8rem">Ogni giorno il bot sceglie a caso un numero in questo intervallo. Oltre 30 al giorno a sconosciuti il rischio di blocco del numero sale molto.</small>
+      <label class="check"><input type="checkbox" id="warmup"><span>Partenza graduale (consigliata)<small>I primi 4 giorni manda 10, 15, 20, 25 messaggi, poi il numero scelto. Un numero che scrive subito a tanti sconosciuti viene bloccato.</small></span></label>
+      <div class="field">
+        <label for="hours">Fasce orarie (ora italiana)</label>
+        <input id="hours" placeholder="9:30-12:30, 15:00-19:30">
+        <small>I messaggi vengono sparsi a caso dentro queste fasce. Evita l'ora di pranzo e cena: i locali sono pieni e non leggono.</small>
+      </div>
+      <div class="field">
+        <label>Giorni</label>
+        <div class="chips" id="days"></div>
+      </div>
+      <div class="field grid2">
+        <div><label for="lang">Lingua dei messaggi</label><select id="lang"></select></div>
+        <div><label for="firma">Il tuo nome nel messaggio</label><input id="firma" maxlength="40" placeholder="Es. Luca"></div>
+      </div>
+      <div class="field">
+        <label for="templates">Messaggi tuoi (facoltativo, uno per riga: si alternano)</label>
+        <textarea id="templates" rows="4" placeholder="Ciao {nome}! Sono {firma}, faccio siti web per attività della zona. Ho visto che {problema}: posso mandarvi un esempio? 🙂"></textarea>
+        <small>Vuoto = i messaggi già pronti (gli stessi di Trova clienti). Puoi usare {nome} (nome dell'attività), {problema} (es. «non avete ancora un sito web»), {firma}. Niente link nel primo messaggio: sembrano spam.</small>
+      </div>
+      <div class="field">
+        <label for="autoReply">Risposta automatica a chi dice «sì» (facoltativo)</label>
+        <textarea id="autoReply" rows="3" placeholder="Perfetto! Ecco un esempio di sito come lo faremmo per voi: https://... Se vi piace vi preparo una prova gratuita con il vostro nome 🙂"></textarea>
+        <small>Mandata una volta sola, 1-2 minuti dopo un «sì», «ok», «certo», «mandate»… e solo se nessuno ha già risposto a mano dal telefono. Vuoto = nessuna risposta automatica. Puoi usare {nome}, {firma}, {sito}.</small>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn btn-gold" type="submit" id="saveBtn">Salva impostazioni</button>
+        <span class="muted small" id="saveNote"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="box">
+    <h2>📤 Messaggi mandati</h2>
+    <div id="sent"></div>
+  </section>
+
+  <section class="box">
+    <h2>⚠️ Da sapere</h2>
+    <ul class="muted-list">
+      <li>Il bot usa il tuo WhatsApp Business come «dispositivo collegato» (come WhatsApp Web): i messaggi partono dal tuo numero e li vedi nell'app. Il telefono può restare spento, ma apri WhatsApp Business almeno una volta ogni 14 giorni (altrimenti WhatsApp scollega i dispositivi) e non scollegare «Chrome (Ubuntu)» dai dispositivi collegati.</li>
+      <li>WhatsApp non ama i programmi che scrivono da soli e blocca i numeri che ricevono tante segnalazioni. Per questo il bot scrive a ognuno <b>una volta sola</b>, con messaggi brevi e diversi, sparsi nella giornata, e si ferma da solo se WhatsApp limita le chat nuove. Il rischio di blocco però non è zero: usa un numero di lavoro, non quello personale.</li>
+      <li>Per la legge italiana sulla privacy i messaggi pubblicitari automatici richiedono di norma il consenso. Scrivere solo a chi ha pubblicato il suo WhatsApp come contatto dell'attività e smettere al primo «no» riduce il problema, ma non lo elimina: se hai dubbi chiedi a un consulente.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const DAYS = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Gio'], [5, 'Ven'], [6, 'Sab'], [0, 'Dom']];
+  const STATUS = { inviato: ['Scritto', ''], risposto: ['Ha risposto', 'g'], no: ['Non interessato', 'r'], 'senza-wa': ['Senza WhatsApp', ''], errore: ['Errore', 'r'], invio: ['In invio', 'y'], saltato: ['Saltato', ''], 'a mano': ['Scritto a mano', ''] };
+  let S = null, formLoaded = false, timer = null, busy = false;
+
+  async function api(url, opts = {}) {
+    const r = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Errore');
+    return d;
+  }
+  const when = t => t ? new Date(t).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  const fmtNum = n => '+' + String(n || '').replace(/^(\d{2})(\d{3})(\d+)$/, '$1 $2 $3');
+  const waLink = n => 'https://wa.me/' + String(n || '').replace(/\D/g, '');
+
+  async function load() {
+    try { S = await api('/api/admin/bot'); }
+    catch (err) { if (err.message !== '401') document.getElementById('note').textContent = 'Errore: ' + err.message; return; }
+    if (!S.ready) { document.getElementById('note').textContent = 'Il sito sta riprendendo i dati dal backup, un attimo…'; schedule(3000); return; }
+    render();
+    schedule(S.wa.status === 'linking' || S.wa.status === 'connecting' ? 3000 : 30000);
+  }
+  function schedule(ms) { clearTimeout(timer); timer = setTimeout(load, ms); }
+
+  function render() {
+    const t = S.today, st = S.stats;
+    document.getElementById('switch').classList.toggle('on', S.enabled);
+    document.getElementById('title').textContent = S.enabled ? 'Bot acceso' : 'Bot spento';
+    document.getElementById('note').textContent = S.note;
+    document.getElementById('bar').style.width = (t.target ? Math.min(100, t.sent / t.target * 100) : 0) + '%';
+    document.getElementById('sToday').textContent = `${t.sent}/${t.target || '–'}`;
+    document.getElementById('sTotal').textContent = st.total;
+    document.getElementById('sReplies').textContent = st.replies;
+    document.getElementById('sNo').textContent = st.no;
+    document.getElementById('sQueue').textContent = S.queueLength;
+    const alerts = [];
+    if (t.warmupDay) alerts.push(`<div class="alert grey">🌱 Partenza graduale: giorno ${t.warmupDay} di 4, oggi al massimo ${t.target} messaggi.</div>`);
+    if (S.exhausted && S.enabled) alerts.push('<div class="alert gold">Ho già scritto a tutti quelli trovati nelle tue zone. Aggiungi zone o tipi di attività nelle impostazioni (le stesse ricerche si rifanno dopo 30 giorni).</div>');
+    if (backupWarn) alerts.push(`<div class="alert gold">${backupWarn}</div>`);
+    document.getElementById('heroAlerts').innerHTML = alerts.join('');
+    renderWa(); renderReplies(); renderQueue(); renderSent();
+    if (!formLoaded) fillForm();
+  }
+
+  function renderWa() {
+    const w = S.wa, box = document.getElementById('waBody');
+    const err = w.error ? `<div class="alert red">${escapeHtml(w.error)}</div>` : '';
+    let limits = '';
+    if (w.lock && w.lock.isActive) limits += `<div class="alert red">⛔ WhatsApp ha limitato i messaggi a persone nuove${w.lock.timeEnforcementEnds ? ' fino al ' + when(w.lock.timeEnforcementEnds) : ''}. Il bot è in pausa da solo.</div>`;
+    if (w.cap && w.cap.total_quota) limits += `<div class="alert ${/WARNING|CAPPED/.test(w.cap.capping_status || '') ? 'gold' : 'grey'}">Chat nuove usate in questo periodo: ${w.cap.used_quota || 0} su ${w.cap.total_quota}${w.cap.capping_status && w.cap.capping_status !== 'NONE' ? ' · stato: ' + escapeHtml(w.cap.capping_status) : ''}</div>`;
+    if (w.status === 'open') {
+      box.innerHTML = `<p style="margin:0"><b class="ok">✅ Collegato</b>${w.me ? ` · ${escapeHtml(fmtNum(w.me.id))}${w.me.name && w.me.name !== '~' ? ' (' + escapeHtml(w.me.name) + ')' : ''}` : ''}</p>
+        ${limits}${err}
+        <div class="field"><label for="testPhone">Manda una prova a un tuo numero (vedi come arriva il messaggio)</label>
+          <div class="row"><input class="grow" id="testPhone" inputmode="tel" placeholder="39 333 1234567"><button class="btn btn-ghost btn-sm" id="testBtn">Manda prova</button></div></div>
+        <div class="row" style="margin-top:14px"><button class="btn btn-danger btn-sm" id="unlinkBtn">Scollega WhatsApp</button></div>`;
+    } else if (w.status === 'linking') {
+      box.innerHTML = `${w.code ? `<p style="margin:0">Scrivi questo codice nel telefono con il WhatsApp Business:</p><div class="code">${escapeHtml(w.code.replace(/^(.{4})(.{4})$/, '$1-$2'))}</div>
+        <ol class="steps"><li>Apri <b>WhatsApp Business</b> sul telefono</li><li>Tocca <b>⋮</b> (Android) o <b>Impostazioni</b> (iPhone) → <b>Dispositivi collegati</b></li><li><b>Collega un dispositivo</b> → <b>Collega con il numero di telefono</b></li><li>Scrivi il codice qui sopra</li></ol>`
+        : w.qr ? '' : '<p class="muted" style="margin:0">Mi collego a WhatsApp…</p>'}
+        ${w.qr ? `<details ${w.code ? '' : 'open'}><summary>${w.code ? 'Oppure inquadra il QR da un altro telefono o computer' : 'Inquadra il QR: WhatsApp Business → Dispositivi collegati → Collega un dispositivo'}</summary><img class="qr" src="${w.qr}" alt="QR per collegare WhatsApp"></details>` : ''}
+        ${err}
+        <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" id="cancelBtn">Annulla</button><span class="muted small">Il codice vale qualche minuto.</span></div>`;
+    } else if (w.linked) {
+      box.innerHTML = `<p style="margin:0"><b class="warnc">⏳ Mi sto ricollegando…</b>${w.me ? ' · ' + escapeHtml(fmtNum(w.me.id)) : ''}</p>${limits}${err}
+        <div class="row" style="margin-top:14px"><button class="btn btn-ghost btn-sm" id="relinkBtn">Riprova adesso</button><button class="btn btn-danger btn-sm" id="unlinkBtn">Scollega</button></div>`;
+    } else {
+      box.innerHTML = `${err}<p class="muted" style="margin:0 0 10px">Collega il WhatsApp Business da cui partono i messaggi. Serve una volta sola: poi il bot si ricollega da solo.</p>
+        <label for="linkPhone">Numero del WhatsApp Business, con prefisso</label>
+        <div class="row"><input class="grow" id="linkPhone" inputmode="tel" placeholder="39 333 1234567"><button class="btn btn-wa" id="linkBtn">Collega con codice</button></div>
+        <p style="margin:10px 0 0"><button class="btn btn-ghost btn-sm" id="qrBtn">Collega con QR (da un altro schermo)</button></p>`;
+    }
+  }
+
+  function renderReplies() {
+    const list = S.replies, seen = S.repliesSeenAt;
+    const fresh = list.filter(r => r.at > seen).length;
+    const tag = document.getElementById('newReplies');
+    tag.hidden = !fresh; tag.textContent = fresh + ' nuove';
+    document.getElementById('replies').innerHTML = list.length ? list.map(r => `
+      <div class="item ${r.at > seen ? 'new' : ''}">
+        <div class="top"><div><h4>${escapeHtml(r.name || fmtNum(r.n))}</h4><div class="meta">${escapeHtml(fmtNum(r.n))} · ${when(r.at)}</div></div>
+          ${r.no ? '<span class="tag r">Non interessato</span>' : '<span class="tag g">Ha risposto</span>'}</div>
+        <div class="msg">${escapeHtml(r.text)}</div>
+        <div class="actions"><a class="btn btn-wa btn-sm" href="${waLink(r.n)}" target="_blank" rel="noopener">💬 Apri chat</a></div>
+      </div>`).join('') : '<p class="empty">Ancora nessuna risposta.</p>';
+    if (fresh && document.visibilityState === 'visible') api('/api/admin/bot/replies/seen', { method: 'POST' }).catch(() => {});
+  }
+
+  function siteTag(l) {
+    if (!l.website) return l.social ? '<span class="tag y">Solo social</span>' : '<span class="tag g">Senza sito</span>';
+    if (!l.checked) return '<span class="tag">Controllo sito…</span>';
+    return '<span class="tag r">Sito brutto</span>';
+  }
+  function renderQueue() {
+    const ls = S.lastSearch;
+    document.getElementById('lastSearch').textContent = S.refilling ? `Sto cercando: ${ls.label}…`
+      : ls.at ? `Ultima ricerca ${when(ls.at)}: ${ls.label} → ${ls.error ? 'errore: ' + ls.error : `${ls.added} nuovi in coda (su ${ls.found} con WhatsApp mai contattati)`}` : '';
+    document.getElementById('queue').innerHTML = S.queue.length ? S.queue.map(l => `
+      <div class="item">
+        <div class="top"><div><h4>${escapeHtml(l.name)}</h4>
+          <div class="meta">${escapeHtml([l.kind, l.address || l.zone].filter(Boolean).join(' · '))}</div>
+          <div class="meta">🟢 ${escapeHtml(fmtNum(l.wa))}${l.waGuess ? ' · cellulare da Google, controllo WhatsApp prima di scrivere' : ' · WhatsApp dichiarato'}</div>
+          ${l.reasons && l.reasons.length ? `<div class="meta bad">⚠️ ${l.reasons.map(escapeHtml).join(' · ')}</div>` : ''}</div>
+          ${siteTag(l)}</div>
+        <details style="margin-top:8px"><summary>Messaggio che riceverà</summary><div class="msg">${escapeHtml(l.preview)}</div></details>
+        <div class="actions">
+          ${l.maps ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>` : ''}
+          ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
+          <button class="btn btn-ghost btn-sm" data-skip="${escapeHtml(l.wa)}">Non scrivergli</button>
+        </div>
+      </div>`).join('') + (S.queueLength > S.queue.length ? `<p class="muted small">…e altri ${S.queueLength - S.queue.length}.</p>` : '')
+      : `<p class="empty">${S.refilling ? 'Sto cercando nuovi clienti…' : 'La coda è vuota. Il bot cerca da solo quando è acceso, oppure premi «Cerca nuovi clienti adesso».'}</p>`;
+  }
+
+  function renderSent() {
+    document.getElementById('sent').innerHTML = S.sent.length ? S.sent.map(m => {
+      const [label, cls] = STATUS[m.s] || ['', ''];
+      return `<div class="item"><div class="top"><div><h4>${escapeHtml(m.name || fmtNum(m.n))}</h4><div class="meta">${escapeHtml(fmtNum(m.n))} · ${when(m.at)}${m.kind ? ' · ' + escapeHtml(m.kind) : ''}</div></div>
+        ${label ? `<span class="tag ${cls}">${label}</span>` : ''}</div>
+        <details style="margin-top:6px"><summary>Testo</summary><div class="msg">${escapeHtml(m.text)}</div></details></div>`;
+    }).join('') : '<p class="empty">Ancora nessun messaggio.</p>';
+  }
+
+  function fillForm() {
+    const c = S.config;
+    formLoaded = true;
+    document.getElementById('zones').value = c.zones;
+    document.getElementById('types').innerHTML = S.types.map(t => `<button type="button" class="chip ${c.types.includes(t.id) ? 'on' : ''}" data-type="${t.id}">${escapeHtml(t.label)}</button>`).join('');
+    document.getElementById('osm').checked = c.osm;
+    const g = document.getElementById('google');
+    g.checked = c.google && S.google; g.disabled = !S.google;
+    if (!S.google) document.getElementById('googleNote').textContent = 'Da attivare: serve la chiave GOOGLE_PLACES_KEY su Render (vedi Trova clienti).';
+    document.getElementById('min').value = c.min;
+    document.getElementById('max').value = c.max;
+    document.getElementById('warmup').checked = c.warmup;
+    document.getElementById('hours').value = c.hours;
+    document.getElementById('days').innerHTML = DAYS.map(([d, l]) => `<button type="button" class="chip ${c.days.includes(d) ? 'on' : ''}" data-day="${d}">${l}</button>`).join('');
+    document.getElementById('lang').innerHTML = S.languages.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+    document.getElementById('lang').value = c.lang;
+    document.getElementById('firma').value = c.firma;
+    document.getElementById('templates').value = c.templates;
+    document.getElementById('autoReply').value = c.autoReply;
+  }
+
+  document.getElementById('cfg').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (chip) chip.classList.toggle('on');
+  });
+  document.getElementById('cfg').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    try {
+      S = await api('/api/admin/bot/config', { method: 'PUT', body: {
+        zones: document.getElementById('zones').value,
+        types: [...document.querySelectorAll('#types .chip.on')].map(b => b.dataset.type),
+        osm: document.getElementById('osm').checked,
+        google: document.getElementById('google').checked,
+        min: document.getElementById('min').value, max: document.getElementById('max').value,
+        warmup: document.getElementById('warmup').checked,
+        hours: document.getElementById('hours').value,
+        days: [...document.querySelectorAll('#days .chip.on')].map(b => +b.dataset.day),
+        lang: document.getElementById('lang').value,
+        firma: document.getElementById('firma').value,
+        templates: document.getElementById('templates').value,
+        autoReply: document.getElementById('autoReply').value,
+      } });
+      formLoaded = false; render();
+      toast('Impostazioni salvate');
+    } catch (err) { if (err.message !== '401') toast(err.message); }
+    btn.disabled = false;
+  });
+
+  async function act(fn, okMsg) {
+    if (busy) return;
+    busy = true;
+    try { const d = await fn(); if (okMsg) toast(typeof okMsg === 'function' ? okMsg(d) : okMsg); }
+    catch (err) { if (err.message !== '401') toast(err.message); }
+    busy = false;
+    load();
+  }
+
+  document.getElementById('switch').addEventListener('click', () => {
+    if (!S || !S.ready) return;
+    if (!S.enabled && !S.wa.linked) { toast('Prima collega WhatsApp qui sotto'); document.getElementById('waBox').scrollIntoView({ behavior: 'smooth' }); return; }
+    act(() => api('/api/admin/bot/toggle', { method: 'POST', body: { enabled: !S.enabled } }), S.enabled ? 'Bot spento' : 'Bot acceso 🚀');
+  });
+  document.getElementById('waBody').addEventListener('click', e => {
+    const id = e.target.id;
+    if (id === 'linkBtn' || id === 'qrBtn') {
+      const phone = id === 'linkBtn' ? document.getElementById('linkPhone').value.replace(/\D/g, '') : '';
+      if (id === 'linkBtn' && phone.length < 10) { toast('Scrivi il numero con il prefisso, es. 39 333 1234567'); return; }
+      act(() => api('/api/admin/bot/link', { method: 'POST', body: { phone } }));
+    }
+    if (id === 'cancelBtn') act(() => api('/api/admin/bot/link/cancel', { method: 'POST' }));
+    if (id === 'relinkBtn') act(() => api('/api/admin/bot/link', { method: 'POST', body: {} }));
+    if (id === 'unlinkBtn' && confirm('Scollegare WhatsApp? Il bot si ferma finché non lo ricolleghi.')) act(() => api('/api/admin/bot/unlink', { method: 'POST' }), 'WhatsApp scollegato');
+    if (id === 'testBtn') {
+      const phone = document.getElementById('testPhone').value.replace(/\D/g, '');
+      act(() => api('/api/admin/bot/test', { method: 'POST', body: { phone } }), 'Prova mandata: guarda WhatsApp');
+    }
+  });
+  document.getElementById('queue').addEventListener('click', e => {
+    const b = e.target.closest('[data-skip]');
+    if (b) act(() => api('/api/admin/bot/skip', { method: 'POST', body: { wa: b.dataset.skip } }), 'Tolto dalla coda: non gli scriverà');
+  });
+  document.getElementById('searchBtn').addEventListener('click', () => act(() => api('/api/admin/bot/search', { method: 'POST' }), 'Cerco nuovi clienti: ci vuole qualche minuto'));
+  document.getElementById('sendNowBtn').addEventListener('click', () => {
+    if (!confirm('Mandare subito il prossimo messaggio della coda? Conta nei messaggi di oggi.')) return;
+    act(() => api('/api/admin/bot/send-now', { method: 'POST' }), d => d.skipped ? 'Quel numero non ha WhatsApp: saltato' : 'Messaggio mandato ✅');
+  });
+
+  // Il backup del bot lo fa l'azione di GitHub ogni 5 minuti: avviso se non è mai arrivata
+  let backupWarn = '';
+  async function checkBackup() {
+    try {
+      const b = await api('/api/admin/backup');
+      backupWarn = b.enabled && b.ready && !b.lastBotExport && (b.lastExport || Date.now() - startedAt > 20 * 60e3)
+        ? 'Il backup del bot non è ancora stato salvato. Se dopo 15-20 minuti questo avviso resta, l\'azione «Backup dati» su GitHub è vecchia: copia il file .github/workflows/backup.yml di questo ramo sul ramo main. Senza backup, a ogni riavvio di Render il bot perde il collegamento e la lista di chi ha già ricevuto il messaggio.'
+        : '';
+    } catch { backupWarn = ''; }
+  }
+  const startedAt = Date.now();
+
+  api('/api/admin/me').then(async d => {
+    if (!d.admin) { location.href = '/'; return; }
+    document.body.classList.add('ready');
+    await checkBackup();
+    load();
+    setInterval(checkBackup, 5 * 60e3);
+  }).catch(() => {});
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S) load(); });
+</script>
+</body>
+</html>

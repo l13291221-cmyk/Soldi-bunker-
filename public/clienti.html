@@ -85,6 +85,7 @@
   <div class="wrap">
     <a href="/admin" class="brand"><span class="brand-mark">N</span>Trova clienti</a>
     <nav class="nav">
+      <a href="/bot" class="btn btn-ghost btn-sm">🤖 Bot WhatsApp</a>
       <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
     </nav>
   </div>
@@ -217,6 +218,10 @@
   // Numeri WhatsApp validi (le ricerche vecchie potevano avere più numeri incollati insieme)
   const waList = l => (l.whatsapps || (l.whatsapp ? [l.whatsapp] : [])).filter(n => { const d = n.replace(/\D/g, ''); return d.length >= 9 && d.length <= 13; });
   const hasWa = l => waList(l).length > 0 || l.phones.some(isMobile);
+  // Numeri a cui ha già scritto il bot WhatsApp (o qualcuno a mano da qui): nessuno riceve due messaggi
+  let botContacted = {};
+  const botHit = l => [...waList(l), ...l.phones].map(n => botContacted[n.replace(/\D/g, '')]).find(Boolean);
+  const BOT_LABEL = { inviato: 'il bot gli ha scritto', invio: 'il bot gli ha scritto', risposto: 'ha risposto al bot', no: 'ha detto no al bot', 'senza-wa': 'il bot ha visto che non ha WhatsApp', 'a mano': 'già scritto su WhatsApp', saltato: 'tolto dalla coda del bot', errore: 'il bot non è riuscito a scrivergli' };
 
   async function api(url, timeoutMs = 20000) {
     const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
@@ -242,7 +247,7 @@
       .filter(l => !filters.wa || hasWa(l))
       .filter(l => !filters.waOnly || waList(l).length)
       .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
-      .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
+      .filter(l => !filters.hideDone || !((notes[l.id] && notes[l.id].s) || botHit(l)))
       .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
   }
   // Ordine: senza sito, solo social, sito brutto, sito ok
@@ -271,6 +276,7 @@
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
             ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp${l.waGuess ? ' (probabile, è un cellulare)' : ''}: ${escapeHtml(n)}</div>`).join('')}
             ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
+            ${botHit(l) ? `<div class="meta" style="color:var(--gold-2)">🤖 ${BOT_LABEL[botHit(l).s] || 'già contattato'} (${new Date(botHit(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })})</div>` : ''}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
@@ -331,12 +337,17 @@
     }
     if (sentLastHour() >= BURST && !confirm(`Hai scritto a ${sentLastHour()} attività nell'ultima ora. Meglio fare una pausa di mezz'ora: tanti messaggi di fila fanno bloccare il numero. Mandare lo stesso?`)) return;
     if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
+    if (botHit(l) && !confirm(`Attenzione: ${BOT_LABEL[botHit(l).s] || 'già contattato'}. Scrivere di nuovo?`)) return;
     if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
       firma: firmaIn.value.trim(), sito: location.origin,
     });
-    window.open('https://wa.me/' + waList(l)[0].replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    const waNum = waList(l)[0].replace(/\D/g, '');
+    window.open('https://wa.me/' + waNum + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    // Lo dico al bot, così non gli scrive anche lui
+    botContacted[waNum] ||= { s: 'a mano', at: Date.now() };
+    fetch('/api/admin/bot/contacted', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wa: waNum, name: l.name }) }).catch(() => {});
     daily.n++; daily.total++;
     daily.times = [...(daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000), Date.now()];
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
@@ -473,6 +484,7 @@
         document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.body.classList.add('ready');
+    api('/api/admin/bot/contacted').then(x => { botContacted = x.contacted || {}; render(); }).catch(() => {});
     // Riapro subito l'ultima ricerca salvata, senza aspettare
     if (searches.length) openSearch(searches[0]); else renderSaved();
   });
