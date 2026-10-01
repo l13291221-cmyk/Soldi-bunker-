@@ -38,7 +38,7 @@
         <h1>La tua attività merita un sito <em>all'altezza</em> del tuo lavoro.</h1>
         <p class="lead">Creiamo siti web eleganti per ristoranti, negozi, saloni, studi e professionisti: contatti su WhatsApp, prenotazioni, Google Maps e tutto quello che serve per farti trovare. Tu pensi ai clienti, al resto pensiamo noi.</p>
         <div class="hero-cta">
-          <a href="#codice" class="btn btn-gold">Ho un codice ordine →</a>
+          <a href="#prezzi" class="btn btn-gold">Vedi i pacchetti →</a>
           <a href="https://wa.me/27710933377?text=Ciao%20Nerodoro%20Studio!%20Vorrei%20informazioni%20per%20un%20sito%20web." class="btn btn-ghost js-wa" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.4-.2z"/></svg> Scrivici su WhatsApp</a>
         </div>
         <div class="trust">
@@ -110,7 +110,7 @@
       </div>
       <div class="grid-3 steps">
         <div class="card step"><h3>Ci sentiamo</h3><p>Ci scrivi su WhatsApp e scegli il pacchetto. Prepariamo il sito con il nome della tua attività.</p></div>
-        <div class="card step"><h3>Attivi l'abbonamento</h3><p>Ricevi il tuo codice personale e attivi l'abbonamento con la carta, tramite Stripe.</p></div>
+        <div class="card step"><h3>Attivi l'abbonamento</h3><p>Scegli il pacchetto, scrivi il nome della tua attività e attivi con la carta, tramite Stripe.</p></div>
         <div class="card step"><h3>Sei online</h3><p>Subito dopo il pagamento ricevi il link del tuo nuovo sito, pronto da condividere.</p></div>
       </div>
     </div>
@@ -134,7 +134,7 @@
             <li>Pannello per modificare menu, foto e prezzi da soli, dal telefono</li>
             <li>Perfetto da smartphone</li>
           </ul>
-          <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Base.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-ghost js-wa js-plan" data-plan="Base" target="_blank" rel="noopener">Scegli Base</a>
+          <a href="#prezzi" class="btn btn-ghost js-buy" data-pkg="base" data-name="Base">Scegli Base</a>
         </div>
         <div class="plan plan-hot">
           <span class="plan-badge">Il più scelto</span>
@@ -148,7 +148,7 @@
             <li>QR code pronto da stampare (menu, vetrina, biglietti)</li>
             <li>Dominio incluso per il primo anno</li>
           </ul>
-          <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Premium.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-gold js-wa js-plan" data-plan="Premium" target="_blank" rel="noopener">Scegli Premium</a>
+          <a href="#prezzi" class="btn btn-gold js-buy" data-pkg="premium" data-name="Premium">Scegli Premium</a>
         </div>
       </div>
 
@@ -159,7 +159,7 @@
         <ul class="checks" data-features="assistenza"></ul>
         <a href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Assistenza.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" class="btn btn-ghost js-wa js-plan" data-plan="Assistenza" target="_blank" rel="noopener">Chiedi l'assistenza</a>
       </div>
-      <div style="margin-top:18px;padding:14px 16px;border:1px solid rgba(214,177,106,.35);border-radius:14px;background:rgba(214,177,106,.08);font-size:.95rem"><b>Come si attiva:</b> premi il pacchetto che vuoi e scrivici su WhatsApp. Ti mandiamo il tuo <b>codice personale</b>: per pagare serve quel codice, da inserire qui sotto nella sezione «Hai ricevuto un codice?».</div>
+      <div style="margin-top:18px;padding:14px 16px;border:1px solid rgba(214,177,106,.35);border-radius:14px;background:rgba(214,177,106,.08);font-size:.95rem"><b>Come si attiva:</b> premi il pacchetto che vuoi, scrivi il nome della tua attività e attivi con la carta. Il link del tuo sito arriva subito, insieme al tuo <b>codice personale</b>: conservalo, serve per ritrovare il sito e per gestire l'abbonamento.</div>
       <p class="muted small" style="margin-top:14px"><a href="/condizioni" style="color:var(--gold-2)">Leggi le condizioni</a>.</p>
     </div>
   </section>
@@ -168,12 +168,12 @@
     <div class="wrap">
       <div class="offer">
         <div class="offer-l">
-          <span class="kicker">Il tuo ordine</span>
-          <h2 style="font-size:clamp(1.7rem,3vw,2.3rem)">Hai ricevuto un <em>codice</em> su WhatsApp?</h2>
-          <p class="muted">Per pagare serve il <b>codice personale</b> che ti mandiamo noi su WhatsApp. Non ce l'hai ancora? <a class="js-plan" data-plan="Base" href="https://wa.me/27710933377?text=Ciao%21%20Vorrei%20prendere%20l%27abbonamento%20Base.%20Mi%20mandi%20il%20codice%20per%20poter%20pagare%3F" target="_blank" rel="noopener" style="color:var(--gold-2)">Chiedilo qui</a>. Poi inseriscilo qui sotto per vedere il riepilogo e passare al pagamento sicuro.</p>
+          <span class="kicker">Sei già cliente?</span>
+          <h2 style="font-size:clamp(1.7rem,3vw,2.3rem)">Ritrova il tuo <em>sito</em></h2>
+          <p class="muted">Inserisci il tuo codice personale (es. K7M2-P9QX) per ritrovare il link del tuo sito, il PIN del pannello e il tuo abbonamento.</p>
           <form class="code-form" id="codeForm" autocomplete="off">
             <input id="codeInput" class="code-input" placeholder="XXXX-XXXX" maxlength="9" required aria-label="Codice ordine" autocapitalize="characters" spellcheck="false">
-            <button class="btn btn-gold" type="submit" id="codeBtn">Vai al pagamento →</button>
+            <button class="btn btn-gold" type="submit" id="codeBtn">Apri il mio ordine →</button>
           </form>
           <p class="err" id="codeErr" style="margin:10px 0 0"></p>
         </div>
@@ -181,7 +181,7 @@
           <span class="kicker" style="margin:0">Come si paga</span>
           <div class="price-note">Sicuro,<br>in un minuto.</div>
           <ul class="checks" style="margin:0">
-            <li>Il codice contiene già il pacchetto scelto</li>
+            <li>Scegli il pacchetto e attivi in un minuto</li>
             <li>Abbonamento con carta, vincolo 24 mesi</li>
             <li>Link del sito subito dopo il pagamento</li>
             <li><b>Menu, foto e prezzi li cambi tu dal telefono</b></li>
@@ -216,20 +216,53 @@
 </footer>
 
 <nav class="mbar" aria-label="Azioni rapide">
-  <a href="#codice" class="btn btn-gold">Ho un codice</a>
+  <a href="#prezzi" class="btn btn-gold">Scegli il pacchetto</a>
   <a href="https://wa.me/27710933377?text=Ciao%20Nerodoro%20Studio!%20Vorrei%20informazioni%20per%20un%20sito%20web." class="btn btn-ghost js-wa" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.4-.2z"/></svg> WhatsApp</a>
 </nav>
 
 <script src="/common.js"></script>
 <script>
   document.getElementById('y').textContent = new Date().getFullYear();
-  // Barra in basso (telefono): si nasconde quando si è già nella sezione del codice
+  // Barra in basso (telefono): si nasconde quando si è già nella sezione dei prezzi
   document.body.classList.add('has-mbar');
   const mbar = document.querySelector('.mbar');
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(([e]) => mbar.classList.toggle('hide', e.isIntersecting), { threshold: 0.25 })
-      .observe(document.getElementById('codice'));
+      .observe(document.getElementById('prezzi'));
   }
+  // «Scegli Base/Premium»: nome dell'attività e subito al riepilogo con condizioni e pagamento
+  function openBuy(pkg, name) {
+    const wrap = document.createElement('div');
+    wrap.className = 'buy-wrap';
+    wrap.innerHTML = `
+      <div class="buy-bg" data-close></div>
+      <form class="buy-box" role="dialog" aria-modal="true" aria-labelledby="buyT">
+        <button type="button" class="buy-x" data-close aria-label="Chiudi">✕</button>
+        <span class="kicker">Pacchetto ${escapeHtml(name)}</span>
+        <h3 id="buyT" style="margin:6px 0 4px">Come si chiama la tua attività?</h3>
+        <p class="muted small" style="margin:0 0 14px">Poi vedi il riepilogo con prezzo, vincolo e condizioni, e attivi con la carta.</p>
+        <input name="n" required maxlength="120" autocomplete="organization" placeholder="Es. Pizzeria Bella Napoli" style="width:100%">
+        <button class="btn btn-gold" style="width:100%;margin-top:12px">Continua →</button>
+        <p class="err" style="margin:10px 0 0"></p>
+      </form>`;
+    document.body.appendChild(wrap);
+    const f = wrap.querySelector('form'), err = wrap.querySelector('.err');
+    const close = () => wrap.remove();
+    wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
+    f.n.focus();
+    f.addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = f.querySelector('.btn'); btn.disabled = true; err.textContent = '';
+      try {
+        const r = await fetch('/api/acquista', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ package: pkg, restaurant: f.n.value }) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.id) { location.href = '/paga/' + d.id; return; }
+        err.textContent = d.error || 'Errore, riprova.';
+      } catch { err.textContent = 'Errore di connessione, riprova.'; }
+      btn.disabled = false;
+    });
+  }
+  document.querySelectorAll('.js-buy').forEach(a => a.addEventListener('click', e => { e.preventDefault(); openBuy(a.dataset.pkg, a.dataset.name); }));
   fetch('/api/config').then(r => r.json()).then(c => {
     // Prezzi e contenuti dei pacchetti presi dal server (si cambiano da Render: PREZZO, PREZZO_PREMIUM e CANONE_ASSISTENZA)
     for (const [k, p] of Object.entries(c.packages || {})) {

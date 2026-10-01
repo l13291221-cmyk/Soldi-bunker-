@@ -96,6 +96,12 @@ con la chiave Stripe e poi lo ritrova. Nella home «Attiva l'assistenza» porta 
 con la data di scadenza presa da Stripe (si aggiorna a ogni rinnovo) e lo manda su WhatsApp: aprendo il link vedi se è attiva.
 Se preferisci un tuo Payment Link, mettilo in `ASSISTENZA_LINK`.
 
+## Acquisto diretto dal sito
+Nella home «Scegli Base» / «Scegli Premium» chiedono solo il nome dell'attività e portano subito al riepilogo
+(condizioni, vincolo, nome, email, telefono e pagamento con carta): nessun codice da mandare. Dopo il pagamento il cliente
+riceve il primo sito pronto e il suo codice personale (per ritrovarlo e per chiudere l'abbonamento). Nell'admin questi ordini
+hanno «🛒 Dal sito». Massimo 5 ordini all'ora per indirizzo. Gli ordini creati dall'admin con il codice funzionano come prima.
+
 ## Siti pronti
 Nell'admin, sezione **🌐 Siti pronti**, incolli le copie del sito già online, una per riga: `link PIN token`
 (PIN e token facoltativi). Quando un cliente paga, se il suo ordine non ha già un link, riceve **da solo** il primo sito

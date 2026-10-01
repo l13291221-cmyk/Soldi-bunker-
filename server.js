@@ -782,6 +782,29 @@ app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
   }
 });
 
+// Acquisto diretto dal sito: il cliente sceglie il pacchetto, scrive il nome della sua attività e va subito
+// al riepilogo (condizioni, vincolo, dati e pagamento), senza aspettare un codice. Massimo 5 ordini all'ora per IP.
+const buyHits = new Map();
+app.post('/api/acquista', (req, res) => {
+  const now = Date.now(), ip = req.ip;
+  const hits = (buyHits.get(ip) || []).filter(t => now - t < 60 * 60 * 1000);
+  if (hits.length >= 5) return res.status(429).json({ error: 'Troppe richieste. Riprova tra un po\' o scrivici su WhatsApp.' });
+  const b = req.body || {};
+  const pkg = ['base', 'premium'].includes(b.package) ? b.package : null;
+  const restaurant = String(b.restaurant || '').trim().slice(0, 120);
+  if (!pkg) return res.status(400).json({ error: 'Pacchetto non valido' });
+  if (restaurant.length < 2) return res.status(400).json({ error: 'Scrivi il nome della tua attività.' });
+  buyHits.set(ip, [...hits, now]);
+  const P = PACKAGES[pkg], id = newCode();
+  orders[id] = {
+    id, restaurant, description: P.description, package: pkg, amount: 0,
+    monthly: P.monthly, months: P.months, siteUrl: '', phone: '', paid: false,
+    source: 'sito', createdAt: new Date().toISOString(),
+  };
+  saveOrders();
+  res.json({ id, code: formatCode(id) });
+});
+
 // Testo che il cliente vede e accetta prima di chiudere
 function disdettaText(o, pen) {
   if (pen.recesso) return `Chiudo l'abbonamento entro ${RECESSO_GIORNI} giorni dall'attivazione (recesso): non mi vengono addebitati i mesi del vincolo. Il sito viene messo offline.`;

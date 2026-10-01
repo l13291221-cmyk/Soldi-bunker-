@@ -312,3 +312,9 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 .terms-box { background: rgba(214,177,106,.1); border: 1px solid rgba(214,177,106,.45); border-radius: 14px; padding: 14px 16px; margin: 12px 0; }
 .terms-box p { margin: 0; }
 .terms-box p + p { margin-top: 8px; }
+
+/* Finestra «Scegli il pacchetto» */
+.buy-wrap { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; }
+.buy-bg { position: absolute; inset: 0; background: rgba(0,0,0,.65); }
+.buy-box { position: relative; width: min(420px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; box-shadow: 0 30px 80px -30px #000; }
+.buy-x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; }
