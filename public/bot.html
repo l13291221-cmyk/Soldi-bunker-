@@ -68,6 +68,8 @@
     details summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
     .addrow { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 14px; }
     .addrow .full { grid-column: 1 / -1; margin: 0; }
+    .phonerow { display: grid; grid-template-columns: 112px 1fr; gap: 8px; }
+    .phonerow select { padding-left: 10px; padding-right: 6px; }
     .nums { width: 100%; border-collapse: collapse; font-size: .9rem; }
     .nums th { text-align: left; color: var(--muted); font-weight: 500; font-size: .78rem; padding: 8px 8px; border-bottom: 1px solid var(--line); }
     .nums td { padding: 12px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -149,7 +151,14 @@
     <h2>📱 Numeri WhatsApp da cui scrive il bot</h2>
     <p class="muted small" style="margin:-4px 0 12px">Scrivi il numero del WhatsApp Business e collegalo una volta con il codice. Ogni numero con «Scrive» acceso manda i suoi messaggi al giorno. Se cambi numero, aggiungi quello nuovo: il vecchio si spegne da solo (resta collegato per vedere le risposte) e puoi eliminarlo quando vuoi.</p>
     <form id="addForm" class="addrow" autocomplete="off">
-      <div><label for="addPhone">Numero WhatsApp Business</label><input id="addPhone" inputmode="tel" placeholder="39 333 1234567" required></div>
+      <div><label for="addPhone">Numero WhatsApp Business</label>
+        <div class="phonerow"><select id="addCc" aria-label="Prefisso">
+          <option value="39">🇮🇹 +39</option><option value="27">🇿🇦 +27</option><option value="44">🇬🇧 +44</option>
+          <option value="41">🇨🇭 +41</option><option value="33">🇫🇷 +33</option><option value="49">🇩🇪 +49</option>
+          <option value="34">🇪🇸 +34</option><option value="351">🇵🇹 +351</option><option value="40">🇷🇴 +40</option>
+          <option value="355">🇦🇱 +355</option><option value="1">🇺🇸 +1</option><option value="55">🇧🇷 +55</option>
+          <option value="971">🇦🇪 +971</option><option value="">Altro: scrivi +prefisso nel numero</option>
+        </select><input id="addPhone" inputmode="tel" placeholder="333 1234567" required></div></div>
       <div><label for="addLabel">Nome (facoltativo)</label><input id="addLabel" maxlength="40" placeholder="Es. Numero 2"></div>
       <button class="btn btn-wa" type="submit" id="addBtn">➕ Aggiungi e collega</button>
       <label class="check full"><input type="checkbox" id="addOnly" checked><span>Scrive solo questo numero (spegne gli altri)</span></label>
@@ -191,6 +200,7 @@
         <label>Dove cercare</label>
         <label class="check"><input type="checkbox" id="osm"><span>OpenStreetMap: solo chi ha scritto il suo WhatsApp<small>Gratis. Sono le attività che dichiarano di usare WhatsApp.</small></span></label>
         <label class="check"><input type="checkbox" id="google"><span>Google Maps: cellulari delle attività<small id="googleNote">Prima di scrivere il bot controlla che il numero abbia davvero WhatsApp. Usa la chiave Google (quota gratuita mensile, poi a pagamento).</small></span></label>
+        <label class="check"><input type="checkbox" id="autoCities"><span>Finite le zone, continua da solo con le altre città d'Italia<small id="autoNote">Su Google Maps, dalle più grandi alle più piccole: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.</small></span></label>
       </div>
       <div class="field grid2">
         <div><label for="min">Messaggi al giorno: da</label><input id="min" type="number" min="1" max="60" inputmode="numeric"></div>
@@ -438,6 +448,8 @@
     const g = document.getElementById('google');
     g.checked = c.google && S.google; g.disabled = !S.google;
     if (!S.google) document.getElementById('googleNote').textContent = 'Da attivare: serve la chiave GOOGLE_PLACES_KEY su Render (vedi Trova clienti).';
+    document.getElementById('autoCities').checked = c.autoCities;
+    document.getElementById('autoNote').textContent = `Su Google Maps, ${S.comuni.toLocaleString('it-IT')} comuni dai più grandi ai più piccoli: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.`;
     document.getElementById('min').value = c.min;
     document.getElementById('max').value = c.max;
     document.getElementById('warmup').checked = c.warmup;
@@ -472,6 +484,7 @@
         zones: document.getElementById('zones').value,
         osm: document.getElementById('osm').checked,
         google: document.getElementById('google').checked,
+        autoCities: document.getElementById('autoCities').checked,
         min: document.getElementById('min').value, max: document.getElementById('max').value,
         warmup: document.getElementById('warmup').checked,
         hours: document.getElementById('hours').value,
@@ -505,13 +518,21 @@
   });
   document.getElementById('addForm').addEventListener('submit', e => {
     e.preventDefault();
-    const phone = document.getElementById('addPhone').value;
-    if (phone.replace(/\D/g, '').length < 9) { toast('Scrivi il numero con il prefisso, es. 39 333 1234567'); return; }
+    const phone = document.getElementById('addPhone').value, cc = document.getElementById('addCc').value;
+    if (phone.replace(/\D/g, '').length < 6) { toast('Scrivi il numero, es. 333 1234567'); return; }
+    if (!cc && !/^\s*(\+|00)/.test(phone)) { toast('Scrivi il numero con il + e il prefisso, es. +27 71 093 3377'); return; }
     act(async () => {
-      await api('/api/admin/bot/numbers', { method: 'POST', body: { phone, label: document.getElementById('addLabel').value, only: document.getElementById('addOnly').checked } });
+      await api('/api/admin/bot/numbers', { method: 'POST', body: { phone, cc, label: document.getElementById('addLabel').value, only: document.getElementById('addOnly').checked } });
       document.getElementById('addPhone').value = ''; document.getElementById('addLabel').value = '';
     }, 'Numero aggiunto: scrivi il codice nel telefono');
   });
+  // Prefisso: ricordo l'ultimo scelto e cambio l'esempio nel campo
+  const CC_EX = { 39: '333 1234567', 27: '071 093 3377', 44: '07700 900123', 41: '079 123 45 67', 33: '06 12 34 56 78', 49: '0151 23456789', 34: '612 34 56 78', 1: '201 555 0123', '': '+27 71 093 3377' };
+  const ccSel = document.getElementById('addCc');
+  try { const last = localStorage.getItem('bot-cc'); if (last !== null && [...ccSel.options].some(o => o.value === last)) ccSel.value = last; } catch {}
+  const ccHint = () => { document.getElementById('addPhone').placeholder = CC_EX[ccSel.value] || 'Numero'; };
+  ccSel.addEventListener('change', () => { try { localStorage.setItem('bot-cc', ccSel.value); } catch {} ccHint(); });
+  ccHint();
   document.getElementById('numbers').addEventListener('click', e => {
     const b = e.target.closest('[data-act]'), tr = e.target.closest('[data-id]');
     if (!b || !tr) return;
@@ -525,7 +546,7 @@
       case 'cancel': return act(() => api(u + '/link/cancel', { method: 'POST' }));
       case 'toggle': return act(() => api(u, { method: 'PATCH', body: { enabled: !n.enabled } }), n.enabled ? `${who} non scrive più` : `${who} scrive ✅`);
       case 'test': {
-        const phone = prompt(`A quale numero mando la prova da ${who}? (con prefisso, es. 39 333 1234567)`);
+        const phone = prompt(`A quale numero mando la prova da ${who}? Scrivilo con il + e il prefisso, es. +39 333 1234567 o +27 71 093 3377`);
         if (phone) act(() => api(u + '/test', { method: 'POST', body: { phone } }), 'Prova mandata: guarda WhatsApp');
         return;
       }

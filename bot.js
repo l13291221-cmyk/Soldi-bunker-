@@ -15,6 +15,7 @@ const DEFAULTS = {
   types: ['ristoranti', 'pizzerie', 'bar'],
   osm: true, // OpenStreetMap: solo chi ha scritto il suo WhatsApp
   google: true, // Google Maps (se c'è la chiave): cellulari, prima di scrivere controllo che abbiano WhatsApp
+  autoCities: true, // finite le zone, continua con gli altri comuni d'Italia su Google Maps
   min: 25, max: 30, // messaggi al giorno (ogni giorno un numero a caso tra i due)
   hours: '9:30-12:30, 15:00-19:30',
   days: [1, 2, 3, 4, 5, 6], // 0 = domenica
@@ -62,6 +63,9 @@ function categoryOf(lead) {
 }
 const blocks = s => String(s || '').split(/\n\s*-{3,}\s*\n/).map(x => x.trim()).filter(Boolean);
 const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+// Finite le zone scelte, il bot continua da solo con i comuni italiani dal più grande (solo Google Maps:
+// OpenStreetMap con «italia» li copre già tutti)
+const COMUNI = (() => { try { return require('./comuni-italia.json').comuni || []; } catch { return []; } })();
 const WARMUP = [10, 15, 20, 25];
 const MIN_GAP_MS = 4 * 60 * 1000; // mai due messaggi a meno di 4 minuti
 const QUEUE_MIN = 40, QUEUE_MAX = 3000;
@@ -99,11 +103,17 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (a, b) => Math.floor(rand(a, b + 1));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const digitsOf = n => String(n || '').replace(/\D/g, '');
-// Numero scritto a mano → cifre con il prefisso: «333 123 4567» → 393331234567, «06…» → 3906…, «+39…» e «0039…» → 39…
-function normPhone(raw) {
-  let d = digitsOf(raw).replace(/^00/, '');
-  if (/^3\d{8,9}$/.test(d) || /^0[1-9]\d{4,10}$/.test(d)) d = '39' + d; // cellulare o fisso italiano senza prefisso
-  return d;
+// Numero scritto a mano → cifre con il prefisso internazionale (cc = prefisso scelto, es. 39, 27, 44).
+// «+27 71…» o «0027 71…» restano così; con +39: «333 123 4567» → 393331234567, «06…» → 3906…;
+// con gli altri prefissi lo 0 iniziale del numero nazionale si toglie: +27 e «071 093 3377» → 27710933377
+function normPhone(raw, cc = '39') {
+  const s = String(raw || '').trim();
+  const d = digitsOf(s);
+  if (/^(\+|00)/.test(s)) return d.replace(/^00/, '');
+  cc = digitsOf(cc) || '39';
+  if (cc === '39') return /^3\d{8,9}$/.test(d) || /^0[1-9]\d{4,10}$/.test(d) ? '39' + d : d;
+  if (d.startsWith(cc) && d.length - cc.length >= 8) return d; // c'era già il prefisso, senza il +
+  return cc + d.replace(/^0/, '');
 }
 const jidUser = jid => digitsOf(String(jid || '').split('@')[0].split(':')[0]);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -482,6 +492,10 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       if (c.osm && (!italia || z.scope === 'italia')) out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'wa' });
       if (c.google && googleOn() && z.scope !== 'italia') out.push({ source: 'google', city: z.city, type, need: 'wa' });
     }
+    if (c.google && googleOn() && c.autoCities) {
+      const mine = new Set(zones.map(z => z.city.toLowerCase()));
+      for (const city of COMUNI) if (!mine.has(city.toLowerCase())) for (const type of c.types) out.push({ source: 'google', city, type, need: 'wa' });
+    }
     return out;
   }
   const jobKey = j => [j.source, j.scope || '', j.city.toLowerCase(), j.type].join('|');
@@ -855,6 +869,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       types: Object.entries(leadTypes()).map(([id, t]) => ({ id, label: t.label })),
       languages: messages.languages,
       google: googleOn(),
+      comuni: COMUNI.length,
       tz: TZ,
     };
   }
@@ -866,6 +881,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (Array.isArray(b.types)) out.types = b.types.filter(t => leadTypes()[t]);
     if (b.osm !== undefined) out.osm = !!b.osm;
     if (b.google !== undefined) out.google = !!b.google;
+    if (b.autoCities !== undefined) out.autoCities = !!b.autoCities;
     const num = (v, d) => { const n = Math.round(+v); return Number.isFinite(n) ? Math.min(60, Math.max(1, n)) : d; };
     if (b.min !== undefined) out.min = num(b.min, c.min);
     if (b.max !== undefined) out.max = num(b.max, c.max);
@@ -897,7 +913,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
   function routes(app, requireAdmin) {
     const ready = (req, res, next) => isReady() ? next() : res.status(503).json({ error: 'Sto ancora riprendendo i dati, riprova tra qualche secondo' });
     const r = '/api/admin/bot';
-    const PHONE_ERR = 'Scrivi il numero con il prefisso, es. 39 333 1234567';
+    const PHONE_ERR = 'Numero non valido: scegli il prefisso (+39, +27, +44…) e scrivi il numero, es. 333 1234567';
     const findRow = (req, res, next) => { req.row = rowOf(req.params.id); return req.row ? next() : res.status(404).json({ error: 'Numero non trovato' }); };
     const only = keep => numbers().forEach(n => { if (n !== keep && n.enabled) { n.enabled = false; } });
     app.get(r, requireAdmin, (req, res) => res.json(isReady() ? status() : { ready: false }));
@@ -905,7 +921,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     // Tabella dei numeri: aggiungi (e collega subito con il codice), accendi/spegni, collega, scollega, elimina
     app.post(r + '/numbers', requireAdmin, ready, async (req, res) => {
       const b = req.body || {};
-      const phone = normPhone(b.phone);
+      const phone = normPhone(b.phone, b.cc);
       if (phone.length < 10 || phone.length > 15) return res.status(400).json({ error: PHONE_ERR });
       if (numbers().some(n => n.phone === phone)) return res.status(400).json({ error: 'Questo numero è già nella tabella' });
       if (numbers().length >= 10) return res.status(400).json({ error: 'Massimo 10 numeri: elimina quelli che non usi più' });
