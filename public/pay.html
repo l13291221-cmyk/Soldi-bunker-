@@ -95,7 +95,7 @@
         <input type="checkbox" id="accept" style="width:20px;height:20px;margin-top:2px;flex:none">
         <span>Ho letto e accetto le <a href="/condizioni" target="_blank" rel="noopener" style="color:var(--gold-2)">condizioni</a>${o.months > 1 ? `: vincolo minimo di <b>${o.months} mesi</b>. Se disdico prima, pago comunque i mesi che mancano alla fine del vincolo.` : ': addebito mensile automatico, disdetta quando voglio.'}</span>
       </label>` : ''}
-      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? 'Attiva con carta' : 'Paga ora (carta o 3 rate)'}</button>
+      <button class="btn btn-gold" id="payBtn" style="width:100%" ${sub ? 'disabled' : ''}>${sub ? 'Attiva con carta' : 'Paga ora (carta o a rate)'}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
       <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe. ${o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.'}</p>`;
     const acc = document.getElementById('accept');
