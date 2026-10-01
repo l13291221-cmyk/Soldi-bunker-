@@ -34,7 +34,7 @@
     .pay-line small { display: block; margin-top: 2px; }
     /* Foglio delle condizioni: si apre dal basso a metà schermo e si scorre */
     .sheet-bg { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.6); opacity: 0; transition: opacity .25s; }
-    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; margin: 0 auto; width: min(640px, 100%); height: 62vh; height: 62dvh;
+    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; margin: 0 auto; width: min(640px, 100%); max-height: 62vh; max-height: 62dvh;
       display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0;
       box-shadow: 0 -20px 60px -20px #000; transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
     .sheet-open .sheet-bg { opacity: 1; }
@@ -44,15 +44,19 @@
     .sheet-head h2 { font-size: 1.25rem; margin: 0; }
     .sheet-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 1.2rem; cursor: pointer; }
     .sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 20px calc(24px + env(safe-area-inset-bottom)); }
-    .sheet-body .terms-body > p.muted:first-child { margin-top: 14px; }
-    .sheet-pay { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    /* Condizioni in un riquadro piccolo: si vede solo l'inizio, il resto (dettaglio del pagamento in fondo) si legge scorrendo */
+    .terms-frame { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); overflow: hidden; }
+    .terms-slot { max-height: 8em; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 14px; font-size: .85rem; }
+    .terms-slot .terms-body > p.muted:first-child { margin-top: 10px; }
+    .terms-slot .terms-body h2 { font-size: 1rem; margin: 18px 0 6px; }
+    .fade-end { -webkit-mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); }
+    .fade-end.end { -webkit-mask-image: none; mask-image: none; }
+    .sheet-pay { margin-top: 16px; }
     /* Seconda casella: si vede metà del testo, il resto si legge scorrendo nel riquadro.
        Scorrere non serve per pagare: basta spuntare il quadratino */
     .approve-row { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; font-size: .9rem; }
     .approve-row input { width: 20px; height: 20px; margin-top: 2px; flex: none; cursor: pointer; }
-    .approve-text { flex: 1; min-width: 0; max-height: 6em; line-height: 1.5; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; color: var(--muted);
-      -webkit-mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); }
-    .approve-text.end { -webkit-mask-image: none; mask-image: none; }
+    .approve-text { flex: 1; min-width: 0; max-height: 6em; line-height: 1.5; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; color: var(--muted); }
     body.sheet-lock { overflow: hidden; }
     .guide { text-align: left; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
     .guide h3 { font: 600 1.05rem var(--sans); margin: 0 0 10px; letter-spacing: 0; }
@@ -149,10 +153,10 @@
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1">
         <div class="sheet-head"><h2 id="sheetTitle">Condizioni del servizio</h2><button class="sheet-x" data-close aria-label="Chiudi">✕</button></div>
         <div class="sheet-body">
-          <div class="terms-slot"><div class="spinner"></div></div>
+          <div class="terms-frame"><div class="terms-slot fade-end" tabindex="0" aria-label="Testo delle condizioni"><div class="spinner"></div></div></div>
           <div class="sheet-pay">
             <div class="approve-row">
-              <input type="checkbox" id="approve" aria-labelledby="approveText"><div class="approve-text" id="approveText" tabindex="0">${escapeHtml(o.approvalText || '')}</div>
+              <input type="checkbox" id="approve" aria-labelledby="approveText"><div class="approve-text fade-end" id="approveText" tabindex="0">${escapeHtml(o.approvalText || '')}</div>
             </div>
             <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
@@ -179,11 +183,10 @@
     // la prima casella («Accetto le condizioni») è già spuntata nel riepilogo
     const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve');
     approve.addEventListener('change', () => { pay.disabled = !approve.checked; });
-    // sfumatura in basso finché c'è ancora testo da scorrere
-    const txt = wrap.querySelector('.approve-text');
-    const atEnd = () => txt.classList.toggle('end', txt.scrollTop + txt.clientHeight >= txt.scrollHeight - 2);
-    txt.addEventListener('scroll', atEnd, { passive: true });
-    atEnd();
+    // sfumatura in basso finché c'è ancora testo da scorrere (condizioni e seconda casella)
+    const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
+    const boxes = wrap.querySelectorAll('.fade-end');
+    boxes.forEach(el => { el.addEventListener('scroll', () => atEnd(el), { passive: true }); atEnd(el); });
     pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked));
 
     // Testo completo con pacchetto, prezzo e rate di questo ordine: è lo stesso salvato come prova
@@ -196,6 +199,7 @@
     } catch {
       slot.innerHTML = `<div class="terms-body"><p class="muted" style="margin-top:14px">Non riesco a caricare il testo completo: leggilo <a href="/condizioni" target="_blank" rel="noopener">qui</a> prima di pagare.</p></div>`;
     }
+    atEnd(slot);
   }
 
   // Istruzioni per gestire il sito dal telefono, con PIN e token da copiare
