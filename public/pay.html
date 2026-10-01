@@ -137,12 +137,12 @@
   }
   function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Richiedi il noleggio'; }
 
-  async function checkout(b, errEl, approve) {
+  async function checkout(b, errEl, approve, cliente) {
     const label = b.textContent;
     b.disabled = true; b.textContent = 'Reindirizzamento…';
     const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve }),
+      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve, cliente }),
     }).catch(() => null);
     const d = r ? await r.json().catch(() => ({})) : {};
     if (d.url) { location.href = d.url; return; }
@@ -194,6 +194,11 @@
               <input type="checkbox" id="approve" aria-labelledby="approveText"><div class="approve-text fade-end" id="approveText" tabindex="0">${escapeHtml(o.approvalText || '')}</div>
             </div>
             ${o.monthly > 0 ? `
+            <div class="nol-form">
+              <input id="cNome" placeholder="Nome e cognome del titolare" autocomplete="name">
+              <input id="cEmail" type="email" placeholder="Email" autocomplete="email" inputmode="email">
+              <input id="cTel" type="tel" placeholder="Telefono (WhatsApp)" autocomplete="tel" inputmode="tel">
+            </div>
             <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>` : `
             <div class="nol-form">
               <input id="nRs" placeholder="Nome dell'attività (ragione sociale)" autocomplete="organization">
@@ -232,7 +237,9 @@
     const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
     const boxes = wrap.querySelectorAll('.fade-end');
     boxes.forEach(el => { el.addEventListener('scroll', () => atEnd(el), { passive: true }); atEnd(el); });
-    if (pay) pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked));
+    if (pay) pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#cNome') && {
+      nome: wrap.querySelector('#cNome').value, email: wrap.querySelector('#cEmail').value, telefono: wrap.querySelector('#cTel').value,
+    }));
 
     // Testo completo con pacchetto, prezzo e rate di questo ordine: è lo stesso salvato come prova
     const slot = wrap.querySelector('.terms-slot');

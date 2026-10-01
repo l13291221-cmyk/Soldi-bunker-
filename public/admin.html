@@ -221,7 +221,10 @@
 
   function waLink(o) {
     const home = location.origin + '/#codice';
-    const msg = `Ciao! Ecco il codice per il sito web di ${o.restaurant}:\n\n*${o.code}*\n\nVai su ${home} , inserisci il codice nella sezione "Hai ricevuto un codice?" e completa il pagamento. Subito dopo riceverai il link del tuo nuovo sito.`;
+    const abbo = o.monthly && o.package !== 'assistenza'
+      ? `\n\nAbbonamento: ${formatMoney(o.monthly, currency)} al mese con la carta, vincolo ${o.months} mesi (tutto scritto nelle condizioni, che vedi prima di pagare).`
+      : '';
+    const msg = `Ciao! Ecco il codice per il sito web di ${o.restaurant}:\n\n*${o.code}*\n\nVai su ${home} , inserisci il codice nella sezione "Hai ricevuto un codice?", lascia email e telefono e attiva con la carta. Subito dopo riceverai il link del tuo nuovo sito.${abbo}\n\nConserva il codice: ti serve anche per ritrovare il sito e gestire l'abbonamento.`;
     const phone = (o.phone || '').replace(/\D/g, '');
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   }

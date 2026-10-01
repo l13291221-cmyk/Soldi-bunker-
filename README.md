@@ -84,6 +84,8 @@ Base e Premium sono **abbonamenti mensili con carta** (Stripe), con vincolo di `
 - Canoni: `CANONE_BASE` (predefinito 60) e `CANONE_PREMIUM` (predefinito 99), in euro al mese.
 - Il cliente vede canone, «Vincolo 24 mesi» e «Oggi paghi»; nelle condizioni (punto 12) c'è il totale del vincolo e cosa
   succede se disdice prima, e lo approva con la seconda casella.
+- Prima di Stripe il cliente scrive **nome e cognome, email e telefono** sulla nostra pagina: Stripe li riceve già compilati
+  (il cliente Stripe viene creato con quei dati) e non li richiede.
 - **Disdetta**: dalla pagina del suo ordine (codice + email usata per pagare). Prima della fine del vincolo vede l'importo
   esatto (mesi che mancano × canone): gli viene addebitato subito sulla carta dell'abbonamento e poi l'abbonamento si chiude.
   Se l'addebito non riesce l'abbonamento **resta attivo**. Dopo il vincolo si chiude a fine mese, senza costi.

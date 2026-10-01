@@ -148,9 +148,9 @@ function markPaid(orderId, session) {
   }
   const cd = session.customer_details || {};
   o.payer = {
-    name: cd.name || null,
-    email: cd.email || null,
-    phone: cd.phone || null,
+    name: cd.name || (o.cliente && o.cliente.nome) || null,
+    email: cd.email || (o.cliente && o.cliente.email) || null,
+    phone: cd.phone || (o.cliente && o.cliente.telefono) || null,
     address: cd.address || null,
     taxIds: (cd.tax_ids || []).map(t => ({ type: t.type, value: t.value })),
     stripeCustomerId: typeof session.customer === 'string' ? session.customer : (session.customer && session.customer.id) || null,
@@ -465,6 +465,7 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
     'PAGAMENTO (dati inseriti dal cliente su Stripe)',
     `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
     `Importo incassato: ${p.amountPaid != null ? euro(p.amountPaid / 100) : '—'}`,
+    ...(o.cliente ? [`Dati inseriti prima del pagamento: ${o.cliente.nome} · ${o.cliente.email} · ${o.cliente.telefono}`] : []),
     `Metodo: ${p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method || '—'}`,
     ...(o.noleggio ? [`Richiesta di noleggio: ${o.noleggio.mesi} mesi da ${euro(o.noleggio.rata / 100)} · ${o.noleggio.ragioneSociale}, P.IVA ${o.noleggio.piva}, referente ${o.noleggio.referente}, ${o.noleggio.email}, ${o.noleggio.telefono} · stato: ${o.noleggio.stato}`] : []),
     `Nome: ${p.name || '—'}`, `Email: ${p.email || '—'}`, `Telefono: ${p.phone || '—'}`, `Indirizzo di fatturazione: ${addr || '—'}`,
@@ -534,6 +535,15 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   if (req.body.approve !== true) {
     return res.status(400).json({ error: 'Per pagare spunta anche l\'approvazione dei punti indicati.' });
   }
+  // Abbonamenti: nome, email e telefono si chiedono qui, prima di Stripe (che li riceve già compilati)
+  let cliente = null;
+  if (o.monthly) {
+    const c = req.body.cliente || {}, t = (v, n) => String(v || '').trim().slice(0, n);
+    cliente = { nome: t(c.nome, 120), email: t(c.email, 200).toLowerCase(), telefono: t(c.telefono, 20).replace(/[^\d+]/g, '') };
+    if (cliente.nome.length < 3) return res.status(400).json({ error: 'Scrivi nome e cognome del titolare.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) return res.status(400).json({ error: 'Email non valida.' });
+    if (cliente.telefono.replace(/\D/g, '').length < 8) return res.status(400).json({ error: 'Numero di telefono non valido.' });
+  }
   const oneOff = {
     quantity: 1,
     price_data: {
@@ -549,8 +559,19 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
     o.acceptance = acceptanceFor(o, req);
     o.termsAcceptedAt = o.acceptance.at;
     o.termsAcceptedIp = o.acceptance.ip;
+    let customer = null;
+    if (cliente) {
+      o.cliente = cliente;
+      const data = { name: cliente.nome, email: cliente.email, phone: cliente.telefono, metadata: { orderId: o.id, attivita: o.restaurant } };
+      customer = o.stripeCustomerId
+        ? (await stripe.customers.update(o.stripeCustomerId, data)).id
+        : (await stripe.customers.create(data)).id;
+      o.stripeCustomerId = customer;
+    }
     saveOrders();
     const session = await stripe.checkout.sessions.create({
+      // Cliente già creato con email e telefono: Stripe non li richiede
+      ...(customer ? { customer, customer_update: { name: 'auto', address: 'auto' } } : { phone_number_collection: { enabled: true } }),
       ...(o.monthly ? {
         mode: 'subscription',
         // Solo carta (Apple Pay e Google Pay compresi): serve per addebitare i mesi che mancano se disdice prima del vincolo
@@ -579,7 +600,6 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
       }),
       // Dati del cliente per la prova di accettazione e la ricevuta
       billing_address_collection: 'required',
-      phone_number_collection: { enabled: true },
       tax_id_collection: { enabled: true },
       metadata: { orderId: o.id },
       client_reference_id: o.id,
