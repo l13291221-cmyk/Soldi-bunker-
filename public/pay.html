@@ -87,7 +87,7 @@
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
         <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
         : `
-        <div class="row"><span class="muted">Pagamento</span><span style="text-align:right">Unico, oppure 3 rate da ${formatMoney(Math.ceil(o.amount / 3), o.currency)}<br><small class="muted">senza interessi con Klarna</small></span></div>
+        <div class="row"><span class="muted">Pagamento</span><span style="text-align:right">Unico, oppure a rate con Klarna<br><small class="muted">3 rate da ${formatMoney(Math.ceil(o.amount / 3), o.currency)} senza interessi, o fino a 36 rate: rata, eventuali interessi (TAN/TAEG) e approvazione li indica Klarna prima di confermare</small></span></div>
         <div class="row" style="align-items:center"><span class="muted">Totale</span><span class="total">${formatMoney(o.amount, o.currency)}</span></div>`}
       </div>
       ${sub ? `

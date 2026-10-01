@@ -81,6 +81,7 @@ e i link si compilano da soli; le spunte restano salvate sul telefono.
 
 ## Pagamento in 3 rate (Klarna)
 Sul sito e nella pagina di pagamento c'è scritto che Base e Premium si possono pagare anche in 3 rate senza interessi con Klarna.
+Klarna mostra al cliente 3 rate senza interessi o il finanziamento fino a 36 rate (con eventuali interessi, previa approvazione).
 Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Il codice non va cambiato:
 Stripe Checkout mostra da solo i metodi attivi. Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna.
 
