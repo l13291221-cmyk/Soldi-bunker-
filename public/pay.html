@@ -284,7 +284,7 @@
         <h3 style="margin:0 0 8px">Il tuo abbonamento</h3>
         <p class="muted small" style="margin:0 0 4px">${formatMoney(o.monthly, o.currency)} al mese · stato: <b>${escapeHtml(o.subStatus)}</b></p>
         ${o.months > 1 && fine ? `<p class="muted small" style="margin:0 0 12px">Vincolo di ${o.months} mesi, fino al ${fine}.</p>` : ''}
-        ${!chiuso && o.disdetta ? '<button class="btn btn-ghost btn-sm" id="disBtn">Disdici l\'abbonamento</button>' : ''}
+        ${!chiuso && o.disdetta ? `<a class="btn btn-ghost btn-sm" href="/disdici?codice=${encodeURIComponent(o.code)}">Chiudi l'abbonamento</a>` : ''}
       </div>`;
   }
   function openDisdetta(o) {
@@ -347,6 +347,13 @@
       : `
         <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
       ${subBox(o)}
+      ${o.monthly && o.subStatus !== 'chiuso' ? `
+      <div style="margin-top:22px;padding:18px;border:2px solid var(--red);border-radius:16px;background:rgba(248,113,113,.08);text-align:center">
+        <div style="color:var(--red);font-weight:700;font-size:1.15rem;line-height:1.35">SALVATI QUESTO CODICE<br>per poter annullare il tuo abbonamento</div>
+        <div style="font:700 1.9rem ui-monospace,monospace;letter-spacing:3px;margin:10px 0;color:var(--text)">${escapeHtml(o.code)}</div>
+        <button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.code)}">Copia codice</button>
+        <p class="muted small" style="margin:10px 0 0">Per chiudere l'abbonamento: sito Nerodoro Studio → «Chiudi abbonamento» in alto → inserisci questo codice.</p>
+      </div>` : ''}
       <p class="muted small" style="margin:22px 0 0">Conserva questa pagina e il codice ${escapeHtml(o.code)}: ti servono per ritrovare il link e per gestire l'abbonamento.</p>`;
     const dis = document.getElementById('disBtn');
     if (dis) dis.addEventListener('click', () => openDisdetta(o));

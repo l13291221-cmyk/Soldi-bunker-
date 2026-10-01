@@ -104,8 +104,11 @@ function monthsBetween(a, b) {
   if (b.getDate() < a.getDate()) m--;
   return Math.max(0, m);
 }
+const RECESSO_GIORNI = 14;
 function penaltyOf(o, now = new Date()) {
   if (!o.monthly || !o.paidAt || !(o.months > 1)) return { months: 0, amount: 0 };
+  // Entro 14 giorni dall'attivazione vale il recesso (punto 6): si chiude senza addebitare il vincolo
+  if (now - new Date(o.paidAt) < RECESSO_GIORNI * 864e5) return { months: 0, amount: 0, recesso: true };
   const charged = Math.min(o.months, monthsBetween(new Date(o.paidAt), now) + 1);
   const months = Math.max(0, o.months - charged);
   return { months, amount: months * o.monthly };
@@ -475,6 +478,7 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
       o.payer.method = 'noleggio';
     }
   }
+  if (b.siteClosed === true && o.siteToClose) { o.siteToClose = false; o.siteClosedAt = new Date().toISOString(); }
   if (b.amount !== undefined && !o.paid) {
     const cents = parseAmount(b.amount);
     if (cents === null) return res.status(400).json({ error: 'Prezzo non valido' });
@@ -533,6 +537,7 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
     'PAGAMENTO (dati inseriti dal cliente su Stripe)',
     `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
     `Importo incassato: ${p.amountPaid != null ? euro(p.amountPaid / 100) : '—'}`,
+    ...(o.cancellation ? [`Disdetta: ${when(o.cancellation.at)} · IP ${o.cancellation.ip} · addebitati ${euro(o.cancellation.amount / 100)} (${o.cancellation.months} mesi) · accettato: «${o.cancellation.text}»`] : []),
     ...(o.cliente ? [`Dati inseriti prima del pagamento: ${o.cliente.nome} · ${o.cliente.email} · ${o.cliente.telefono}`] : []),
     `Metodo: ${p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method || '—'}`,
     ...(o.noleggio ? [`Richiesta di noleggio: ${o.noleggio.mesi} mesi da ${euro(o.noleggio.rata / 100)} · ${o.noleggio.ragioneSociale}, P.IVA ${o.noleggio.piva}, referente ${o.noleggio.referente}, ${o.noleggio.email}, ${o.noleggio.telefono} · stato: ${o.noleggio.stato}`] : []),
@@ -719,6 +724,25 @@ app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
   }
 });
 
+// Testo che il cliente vede e accetta prima di chiudere
+function disdettaText(o, pen) {
+  if (pen.recesso) return `Chiudo l'abbonamento entro ${RECESSO_GIORNI} giorni dall'attivazione (recesso): non mi vengono addebitati i mesi del vincolo. Il sito viene messo offline.`;
+  if (pen.amount > 0) return `Chiudo l'abbonamento prima della fine del vincolo di ${o.months} mesi. Accetto che mi vengano addebitati subito, sulla carta dell'abbonamento, i ${pen.months} canoni che mancano: ${euro(pen.amount / 100)} (${pen.months} × ${euro(o.monthly / 100)}), come previsto al punto 12 delle condizioni accettate. Il sito viene messo offline.`;
+  return 'Chiudo l\'abbonamento: il vincolo è finito, finisce alla fine del mese già pagato e non mi viene addebitato altro. Poi il sito viene messo offline.';
+}
+// Pagina «Chiudi il tuo abbonamento»: quanto manca al vincolo e cosa aveva accettato al primo pagamento
+app.get('/api/orders/:id/disdetta', loadPublicOrder, (req, res) => {
+  const o = req.order;
+  if (!o.paid || !o.subscriptionId) return res.status(400).json({ error: 'Con questo codice non c\'è un abbonamento attivo.' });
+  if (o.subStatus === 'chiuso' || o.subStatus === 'in disdetta') return res.status(400).json({ error: 'Questo abbonamento è già chiuso.' });
+  const pen = penaltyOf(o), a = o.acceptance || {};
+  res.json({
+    code: formatCode(o.id), restaurant: o.restaurant, monthly: o.monthly, months: o.months, currency: CURRENCY,
+    paidAt: o.paidAt, commitmentEnd: o.commitmentEnd || null, penalty: pen, text: disdettaText(o, pen),
+    accepted: { at: a.at || o.termsAcceptedAt || null, text: a.specificApproval || null },
+  });
+});
+
 // Disdetta dal codice ordine. Prima della fine del vincolo si addebitano subito, sulla carta dell'abbonamento,
 // i canoni che mancano; solo se l'addebito riesce l'abbonamento viene chiuso. Dopo il vincolo finisce a fine mese.
 app.post('/api/orders/:id/disdici', loadPublicOrder, async (req, res) => {
@@ -734,6 +758,13 @@ app.post('/api/orders/:id/disdici', loadPublicOrder, async (req, res) => {
   }
   const pen = penaltyOf(o);
   if (b.confirm !== true || b.amount !== pen.amount) return res.status(400).json({ error: 'Conferma l\'importo della disdetta.' });
+  if (b.accept !== true) return res.status(400).json({ error: 'Spunta la casella per confermare.' });
+  // Prova di quello che il cliente ha accettato chiudendo (si salva nell'ordine, nell'admin e nel backup)
+  const closing = {
+    at: new Date().toISOString(), ip: req.ip, userAgent: String(req.get('user-agent') || '').slice(0, 400),
+    months: pen.months, amount: pen.amount, recesso: !!pen.recesso, commitmentEnd: o.commitmentEnd || null,
+    text: disdettaText(o, pen),
+  };
   try {
     if (pen.amount > 0) {
       const sub = await stripe.subscriptions.retrieve(o.subscriptionId);
@@ -750,11 +781,17 @@ app.post('/api/orders/:id/disdici', loadPublicOrder, async (req, res) => {
       o.penalty = { amount: pen.amount, months: pen.months, paymentIntent: pi.id, at: new Date().toISOString() };
       await stripe.subscriptions.cancel(o.subscriptionId);
       o.subStatus = 'chiuso';
+    } else if (pen.recesso) {
+      await stripe.subscriptions.cancel(o.subscriptionId);
+      o.subStatus = 'chiuso';
     } else {
       await stripe.subscriptions.update(o.subscriptionId, { cancel_at_period_end: true });
       o.subStatus = 'in disdetta';
     }
-    o.cancelledAt = new Date().toISOString();
+    o.cancelledAt = closing.at;
+    o.cancellation = closing;
+    // Avviso nell'admin: il sito del cliente va messo offline
+    o.siteToClose = true; o.siteClosedAt = null;
     saveOrders();
     res.json({ order: publicOrder(o) });
   } catch (err) {
