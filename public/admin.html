@@ -422,7 +422,7 @@
     }
     const ok = b.ready && !b.lastError;
     box.style.borderColor = ok ? 'rgba(74,222,128,.35)' : 'var(--red)';
-    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup: ' + escapeHtml(b.lastError) : '☁️ Backup automatico ogni ora su GitHub'}${b.lastExport ? ' · ultimo ' + new Date(b.lastExport).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
+    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup: ' + escapeHtml(b.lastError) : '☁️ Backup automatico ogni 5 minuti su GitHub'}${b.lastExport ? ' · ultimo ' + new Date(b.lastExport).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
       <a class="btn btn-ghost btn-sm" href="${escapeHtml(b.actionsUrl)}" target="_blank" rel="noopener">Salva ora</a>`;
   }
   async function refreshPool(data) {

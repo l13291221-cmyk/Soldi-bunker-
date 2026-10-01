@@ -1,12 +1,12 @@
 # Backup di ordini, siti pronti e sveglia siti del sito su Render.
-# Ogni ora scarica i dati (già cifrati dal sito) e li salva sul ramo backup-dati.
+# Ogni 5 minuti (il minimo che GitHub permette) scarica i dati (già cifrati dal sito) e li salva sul ramo backup-dati.
 # Non serve nessuna chiave: usa il permesso che GitHub Actions dà già a questo repository.
 # Per salvare subito (es. prima di un Manual Deploy): Actions → Backup dati → Run workflow.
 name: Backup dati
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:

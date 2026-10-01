@@ -80,7 +80,7 @@ Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegame
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
 ## Backup automatico su GitHub (nessuna chiave da impostare)
-Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Ogni ora l'azione **Backup dati**
+Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Ogni 5 minuti l'azione **Backup dati**
 (`.github/workflows/backup.yml`) scarica dal sito ordini (con accettazioni, disdette, dati dei clienti e tutto ciò che serve
 per le ricevute), siti pronti (con PIN e token) e sveglia siti, e li salva sul ramo **`backup-dati`** di questo repository.
 Usa il permesso che GitHub Actions ha già: non serve nessun token. Dopo un deploy il sito riprende tutto da lì da solo.
