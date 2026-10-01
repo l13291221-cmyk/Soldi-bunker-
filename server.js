@@ -188,12 +188,13 @@ function termsTextFor(o) {
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-// Seconda casella: approvazione specifica delle clausole pesanti (artt. 1341 e 1342 c.c.)
+// Seconda casella: richiesta espressa di iniziare subito, con la perdita del recesso a servizio
+// eseguito (art. 59, c. 1, lett. a, Codice del Consumo), e approvazione del dettaglio del pagamento
 function approvalText(o) {
-  const last = o.package === 'assistenza'
-    ? '10 (Assistenza: canone addebitato in automatico ogni mese sulla stessa carta fino alla disdetta)'
-    : `12 (Dettaglio del pagamento: ${RATE_MESI} rate dovute a Klarna secondo le sue condizioni; importo esatto della rata, eventuali interessi e approvazione li decide Klarna)`;
-  return `Ai sensi degli artt. 1341 e 1342 del Codice Civile approvo specificamente i punti 6 (Rimborsi: nessun rimborso), 7 (rimozione dei contenuti e sospensione del sito) e ${last}.`;
+  if (o.package === 'assistenza') {
+    return 'Chiedo che l\'assistenza inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo entro i 14 giorni pago i giorni già usati (punto 6). Approvo l\'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).';
+  }
+  return `Chiedo che il lavoro sul mio sito inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo prima della consegna pago il lavoro già fatto e che, una volta consegnato il sito, perdo il diritto di recesso (punto 6). Approvo il dettaglio del pagamento (punto 12): ${RATE_MESI} rate con Klarna, secondo le sue condizioni.`;
 }
 function acceptanceFor(o, req) {
   const termsText = termsTextFor(o);
@@ -414,7 +415,7 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
       ? `Importi accettati: canone ${euro((a.monthly ?? o.monthly) / 100)} al mese${price ? ` · attivazione ${euro(price / 100)}` : ''}`
       : `Importi accettati: prezzo del sito ${euro(price / 100)} · con Klarna ${a.rateMonths || RATE_MESI} rate da ${euro((a.rateMonthly ?? rateOf(price)) / 100)} al mese`,
     `Prima casella spuntata: Accetto le condizioni`,
-    `Seconda casella spuntata (approvazione specifica): ${a.specificApproval || '—'}`,
+    `Seconda casella spuntata: ${a.specificApproval || '—'}`,
     `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`, '',
     'PAGAMENTO (dati inseriti dal cliente su Stripe)',
     `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
@@ -524,7 +525,7 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
         customer_creation: 'always',
         // Nel pannello Stripe si vede comunque chi ha pagato
         payment_intent_data: { description: `Sito web — ${o.restaurant} (codice ${formatCode(o.id)})`, metadata: { orderId: o.id } },
-        custom_text: { submit: { message: `Con Klarna paghi in ${RATE_MESI} rate da circa ${euro(rateOf(o.amount) / 100)} al mese: rata esatta, eventuali interessi (TAN/TAEG) e approvazione li indica Klarna prima di confermare. Condizioni accettate: ${BASE_URL}/condizioni` } },
+        custom_text: { submit: { message: `Con Klarna paghi in ${RATE_MESI} rate da circa ${euro(rateOf(o.amount) / 100)} al mese, senza interessi (TAN 0%, TAEG 0%): rata esatta e approvazione li indica Klarna prima di confermare. Condizioni accettate: ${BASE_URL}/condizioni` } },
       }),
       // Dati del cliente per la prova di accettazione e la ricevuta
       billing_address_collection: 'required',

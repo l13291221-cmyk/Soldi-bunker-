@@ -236,7 +236,7 @@
       ['Dispositivo', a.userAgent],
       ['Lingua', a.language],
       ['Importi accettati', a.rateMonthly ? `${formatMoney(a.price, currency)} · ${a.rateMonths} rate da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
-      ['Caselle spuntate', a.specificApproval && 'Condizioni + approvazione specifica'],
+      ['Caselle spuntate', a.specificApproval && 'Condizioni + inizio immediato (recesso)'],
       ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method],
       ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
       ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
