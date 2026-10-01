@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Admin — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .admin { padding: 36px 0 80px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0 30px; }
+    @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+    .stat b { display: block; font-family: var(--serif); font-size: 1.9rem; }
+    .layout { display: grid; grid-template-columns: 360px 1fr; gap: 22px; align-items: start; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+    .panel h3 { font-family: var(--sans); font-size: 1.05rem; margin-bottom: 16px; letter-spacing: 0; }
+    .field { margin-bottom: 14px; }
+    .calc-in { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .calc-in label { font-size: .8rem; margin-bottom: 4px; }
+    .calc-out { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: .95rem; }
+    .calc-out td { padding: 10px 6px; border-bottom: 1px solid var(--line); }
+    .calc-out td:last-child { text-align: right; font-weight: 600; }
+    .calc-out tr.big td { font-size: 1.1rem; color: var(--gold-2); }
+    .order { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg-2); margin-bottom: 12px; }
+    .order-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .order-top h4 { margin: 0; font-size: 1.05rem; }
+    .pill { font-size: .75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+    .pill.paid { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .pill.wait { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
+    .linkbox { display: flex; gap: 8px; margin-top: 12px; }
+    .linkbox input { font-size: .85rem; padding: 10px 12px; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 10px 0 12px; font-size: .85rem; }
+    .kv span { color: var(--muted); }
+    .kv b { font-weight: 500; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .btn-wa { background: #25d366; color: #fff; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+    .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; }
+    .mon { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .mon:last-child { border-bottom: 0; }
+    .mon .info { flex: 1; min-width: 0; }
+    .mon .info b { display: block; font-weight: 600; }
+    .mon .info a { color: var(--muted); font-size: .85rem; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mon .st { font-size: .8rem; color: var(--muted); text-align: right; white-space: nowrap; }
+    .led { width: 10px; height: 10px; border-radius: 50%; flex: none; background: #555; }
+    .led.ok { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    .led.ko { background: var(--red); box-shadow: 0 0 10px var(--red); }
+    .how { margin: 10px 0 0; padding-left: 20px; font-size: .9rem; line-height: 1.6; }
+    .how li { margin-bottom: 8px; } .how ul { padding-left: 18px; margin: 4px 0; }
+    .how code, .hn { color: var(--gold-2); }
+    .hl { color: var(--gold-2); text-decoration: underline; word-break: break-all; }
+    .pool-add { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 10px; }
+    .pool-add label { font-size: .8rem; margin-bottom: 4px; display: block; }
+    .pool-add input { width: 100%; }
+    @media (max-width: 700px) { .pool-add { grid-template-columns: 1fr; } }
+    .mon-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+    @media (max-width: 700px) { .mon-add { grid-template-columns: 1fr; } .mon { flex-wrap: wrap; } .mon .st { text-align: left; } }
+    @media (max-width: 640px) {
+      input, textarea { font-size: 16px !important; }
+      .admin { padding: 24px 0 60px; }
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 16px 0 20px; }
+      .stat { padding: 12px; }
+      .stat b { font-size: 1.25rem; }
+      .stat span { font-size: .72rem; }
+      .panel { padding: 18px 16px; border-radius: 16px; }
+      .order { padding: 14px; }
+      .order-top h4 { font-size: 1rem; }
+      .codebox .code { font-size: 1.3rem; }
+      .codebox .btn { width: 100%; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .actions .btn-wa { grid-column: 1 / -1; padding: 12px; }
+      .mon { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; }
+      .mon .info { grid-column: 2 / -1; }
+      .mon .st { grid-column: 2 / 3; text-align: left; white-space: normal; }
+      .mon .btn { grid-row: 3; }
+      .mon [data-ping] { grid-column: 2 / 3; justify-self: start; }
+      .mon [data-rm] { grid-column: 3 / 4; }
+      #sveglia { padding: 18px 16px !important; }
+    }
+    .self { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; margin-bottom: 8px; }
+    .codebox { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--gold); background: rgba(214,177,106,.06); flex-wrap: wrap; }
+    .codebox .code { font: 700 1.5rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 3px; color: var(--gold-2); }
+    .codebox small { display: block; color: var(--muted); font-size: .75rem; letter-spacing: 1px; text-transform: uppercase; }
+    details.more { border: 0; padding: 0; margin-top: 12px; }
+    details.more summary { font-weight: 500; font-size: .85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">N</span>Admin</a>
+    <nav class="nav">
+      <a href="/clienti" class="btn btn-gold btn-sm">🔎 Trova clienti</a>
+      <a href="/guida" class="btn btn-ghost btn-sm">📋 Guida cliente</a>
+      <a href="#calcolo" class="hide-sm">Calcolatore</a>
+      <a href="#sveglia" class="hide-sm">Sveglia siti</a>
+      <a href="/" class="hide-sm">Vedi sito</a>
+      <button class="btn btn-ghost btn-sm" id="logout">Esci</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap admin">
+  <h1 style="font-size:2rem;margin:0">Ordini</h1>
+  <div id="bkBox" class="panel" style="margin-top:14px;padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap" hidden></div>
+  <div id="closeWarn" class="panel" style="margin-top:14px;border-color:var(--red);padding:14px 16px" hidden></div>
+  <div id="tokWarn" class="panel" style="margin-top:14px;border-color:var(--red);color:var(--red);padding:14px 16px" hidden></div>
+  <div class="stats">
+    <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
+    <div class="stat"><span class="muted small">Ordini pagati</span><b id="sPaid">–</b></div>
+    <div class="stat"><span class="muted small">In attesa</span><b id="sWait">–</b></div>
+    <div class="stat"><span class="muted small">Totale vincoli firmati</span><b id="sVincoli">–</b></div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h3>Tutti gli ordini</h3>
+      <div id="list"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <section id="calcolo" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">🧮 Calcolatore abbonamenti</h3>
+    <p class="muted small" style="margin:0 0 16px">Quanto deve durare il vincolo per arrivare all'obiettivo, e quanti soldi arrivano davvero entro una data.</p>
+    <div class="calc-in" id="calcIn">
+      <div><label>Obiettivo totale (€)</label><input data-k="goal" inputmode="decimal" value="15000"></div>
+      <div><label>Numero di clienti</label><input data-k="clients" inputmode="numeric" value="10"></div>
+      <div><label>Attivazione a cliente (€)</label><input data-k="act" inputmode="decimal" value="0"></div>
+      <div><label>Prezzo lancio (€ al mese)</label><input data-k="intro" inputmode="decimal" value="20"></div>
+      <div><label>Mesi di lancio</label><input data-k="introM" inputmode="numeric" value="3"></div>
+      <div><label>Poi (€ a settimana)</label><input data-k="week" inputmode="decimal" value="9"></div>
+      <div><label>Nuovi clienti al mese</label><input data-k="pace" inputmode="decimal" value="2"></div>
+      <div><label>Soldi entro il</label><input data-k="until" type="date" value="2027-06-21"></div>
+    </div>
+    <table class="calc-out" id="calcOut"></table>
+    <p class="muted small" style="margin:10px 0 0">Tasse stimate con il regime forfettario per chi inizia (67% imponibile, INPS ~26%, imposta 5%): circa il 20%. Stima indicativa, per i conti veri chiedi a un commercialista.</p>
+  </section>
+
+  <section id="pronti" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">🌐 Siti pronti</h3>
+    <p class="muted small" style="margin:0 0 14px">Copie del sito già online. Quando un cliente paga riceve <b>da solo</b> il primo sito libero (link, PIN e token) e qui risulta usato.
+      Il token il cliente lo trova nella sua pagina e lo incolla nel pannello del sito. Come crearle: <a href="/guida" style="color:var(--gold-2)">guida</a>.</p>
+    <details class="more" id="poolHow" open>
+      <summary>Come creare una copia nuova (circa 5 minuti)</summary>
+      <div style="margin-top:10px">
+        <label for="poolName">Nome della copia</label>
+        <input id="poolName" value="sito-01" autocomplete="off" autocapitalize="none" spellcheck="false" style="max-width:260px">
+        <ol class="how">
+          <li><b>Copia il sito.</b> <a class="hl" id="hNew" target="_blank" rel="noopener">Apri «Crea copia»</a> → controlla che il nome sia <code class="hn"></code>, lascia <b>Public</b> → <b>Create repository</b>.</li>
+          <li><b>Mettilo online.</b> <a class="hl" id="hPages" target="_blank" rel="noopener">Apri «Pages» della copia</a> → <b>Source: Deploy from a branch</b> → Branch <b>main</b>, cartella <b>/ (root)</b> → <b>Save</b>. Dopo 1-2 minuti il sito è su <a class="hl" id="hSite" target="_blank" rel="noopener"></a>.</li>
+          <li><b>Crea il token.</b> <a class="hl" id="hTok" target="_blank" rel="noopener">Apri «Nuovo token»</a> e controlla:
+            <ul>
+              <li>Token name: <code class="hn"></code> · Expiration: la più lunga possibile</li>
+              <li>Repository access: <b>Only select repositories</b> → scegli <code class="hn"></code> (<b>solo quello</b>, mai «All repositories»)</li>
+              <li>Permissions → Repository permissions: <b>Contents</b> = Read and write, <b>Pages</b> = Read and write</li>
+              <li><b>Generate token</b> e copialo subito: inizia con <code>github_pat_</code> e si vede una volta sola.</li>
+            </ul></li>
+          <li><b>Aggiungilo qui sotto:</b> il link è già compilato, il PIN resta 123456, incolla il token → <b>+ Aggiungi sito</b>.</li>
+        </ol>
+        <p class="muted small" style="margin:6px 0 0">Il sito demo da cui partono le copie è <a class="hl" href="https://github.com/l13291221-cmyk/Ristorante-" target="_blank" rel="noopener">Ristorante-</a>: non modificarlo. Se «Crea copia» non funziona, nelle sue Settings spunta una volta «Template repository».</p>
+      </div>
+    </details>
+    <div id="poolInfo" class="meta" style="margin:12px 0 10px"></div>
+    <div id="poolList"></div>
+    <form id="poolForm" style="margin-top:14px">
+      <div class="pool-add">
+        <div><label>Link del sito</label><input name="url" required placeholder="https://l13291221-cmyk.github.io/sito-01/"></div>
+        <div><label>PIN</label><input name="pin" inputmode="numeric" maxlength="6" value="123456"></div>
+        <div><label>Token</label><input name="token" autocomplete="off" spellcheck="false" placeholder="github_pat_..."></div>
+      </div>
+      <button class="btn btn-gold btn-sm" type="submit" style="margin-top:10px">+ Aggiungi sito</button>
+      <p class="err" id="poolErr" style="margin:8px 0 0"></p>
+    </form>
+  </section>
+
+  <section id="sveglia" class="panel" style="margin-top:22px;padding:24px">
+    <h3 style="margin-bottom:4px">⏰ Sveglia siti</h3>
+    <p class="muted small" style="margin:0 0 16px">Ogni <span id="every">5</span> minuti un bot visita questi siti così Render non li spegne. Anche questo sito si visita da solo.</p>
+    <div class="self" id="selfRow"></div>
+    <div id="monList"></div>
+    <form class="mon-add" id="monForm" autocomplete="off">
+      <input name="name" placeholder="Nome (es. Bella Napoli)">
+      <input name="url" required placeholder="https://bellanapoli.onrender.com">
+      <button class="btn btn-gold btn-sm" type="submit">+ Aggiungi</button>
+    </form>
+    <p class="err" id="monErr" style="margin:8px 0 0"></p>
+  </section>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  // ---- Calcolatore abbonamenti (tutto nel browser, niente viene salvato sul server) ----
+  (function () {
+    const box = document.getElementById('calcIn'), out = document.getElementById('calcOut');
+    const KEY = 'nerodoro-calc';
+    try { const saved = JSON.parse(localStorage.getItem(KEY) || '{}'); box.querySelectorAll('input').forEach(i => { if (saved[i.dataset.k] != null) i.value = saved[i.dataset.k]; }); } catch {}
+    const num = v => parseFloat(String(v).replace(',', '.')) || 0;
+    const eu = n => Math.round(n).toLocaleString('it-IT') + ' €';
+    const tax = g => { const imp = g * 0.67, inps = imp * 0.2607; return inps + Math.max(0, imp - inps) * 0.05; };
+    function calc() {
+      const v = {}; box.querySelectorAll('input').forEach(i => v[i.dataset.k] = i.type === 'date' ? i.value : num(i.value));
+      try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
+      const clients = Math.max(1, Math.round(v.clients));
+      const perClient = v.goal / clients;
+      const monthAfter = v.week * 52 / 12;
+      const introM = Math.max(0, Math.round(v.introM));
+      const introTotal = v.intro * introM;
+      // mesi di vincolo per incassare perClient da ogni cliente
+      const rest = perClient - v.act - introTotal;
+      const months = rest <= 0 ? Math.max(1, Math.ceil((perClient - v.act) / Math.max(v.intro, 0.01))) : introM + Math.ceil(rest / Math.max(monthAfter, 0.01));
+      const paidIn = m => { let t = v.act; for (let i = 0; i < Math.min(m, months); i++) t += i < introM ? v.intro : monthAfter; return m > 0 ? t : 0; };
+      // Incasso entro la data: i clienti arrivano "pace" al mese a partire da oggi
+      const monthsLeft = Math.max(0, (new Date(v.until) - new Date()) / (30.44 * 864e5));
+      let byDate = 0;
+      for (let k = 0; k < clients; k++) {
+        const start = v.pace > 0 ? k / v.pace : 0;
+        if (start < monthsLeft) byDate += paidIn(Math.floor(monthsLeft - start) + 1);
+      }
+      const total = clients * paidIn(months);
+      const rows = [
+        ['A testa, per tutto il vincolo', eu(perClient)],
+        ['Poi al mese (' + String(v.week).replace('.', ',') + ' € a settimana)', eu(monthAfter)],
+        ['Vincolo necessario', months + ' mesi (' + (months / 12).toFixed(1).replace('.', ',') + ' anni)'],
+        ['Totale di tutti i clienti a fine vincolo', eu(total)],
+        ['Netto dopo le tasse (stima ~20%)', eu(total - tax(total))],
+        ['Incassato davvero entro il ' + (v.until ? new Date(v.until).toLocaleDateString('it-IT') : '—'), eu(byDate)],
+        ['… netto dopo le tasse (stima)', eu(byDate - tax(byDate))],
+      ];
+      out.innerHTML = rows.map((r, i) => `<tr class="${i === 3 || i === 5 ? 'big' : ''}"><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td></tr>`).join('');
+    }
+    box.addEventListener('input', calc);
+    calc();
+  })();
+
+  let currency = 'eur';
+
+  async function api(url, opts = {}) {
+    const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Errore');
+    return d;
+  }
+
+  function waLink(o) {
+    const home = location.origin + '/#codice';
+    const abbo = o.monthly && o.package !== 'assistenza'
+      ? `\n\nAbbonamento: ${formatMoney(o.monthly, currency)} al mese con la carta, vincolo ${o.months} mesi (tutto scritto nelle condizioni, che vedi prima di pagare).`
+      : '';
+    const msg = `Ciao! Ecco il codice per il sito web di ${o.restaurant}:\n\n*${o.code}*\n\nVai su ${home} , inserisci il codice nella sezione "Hai ricevuto un codice?", lascia email e telefono e attiva con la carta. Subito dopo riceverai il link del tuo nuovo sito.${abbo}\n\nConserva il codice: ti serve anche per ritrovare il sito e gestire l'abbonamento.`;
+    const phone = (o.phone || '').replace(/\D/g, '');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  }
+
+  // Prova di accettazione: chi ha accettato, quando, da dove e con quali dati ha pagato
+  function proof(o) {
+    const a = o.acceptance || {}, p = o.payer || {}, c = p.card || {};
+    if (!a.at && !o.termsAcceptedAt && !o.payer) return '';
+    const ad = p.address ? [p.address.line1, p.address.line2, [p.address.postal_code, p.address.city].filter(Boolean).join(' '), p.address.country].filter(Boolean).join(', ') : '';
+    const rows = [
+      ['Accettate il', (a.at || o.termsAcceptedAt) && new Date(a.at || o.termsAcceptedAt).toLocaleString('it-IT')],
+      ['IP', a.ip || o.termsAcceptedIp],
+      ['Dispositivo', a.userAgent],
+      ['Lingua', a.language],
+      ['Importi accettati', a.rateMonthly ? `Prezzo ${formatMoney(a.price, currency)} · noleggio ${a.rateMonths} mesi da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
+      ['Caselle spuntate', a.specificApproval && 'Condizioni + inizio immediato (recesso)'],
+      ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method === 'noleggio' ? 'Noleggio' : p.method],
+      ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
+      ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
+      ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],
+    ].filter(r => r[1]);
+    return `<details class="more"><summary>🧾 Prova di accettazione e dati del cliente</summary>
+      <div class="kv">${rows.map(r => `<span>${r[0]}</span><b>${escapeHtml(r[1])}</b>`).join('')}</div>
+      <a class="btn btn-ghost btn-sm" href="/api/admin/orders/${encodeURIComponent(o.id)}/prova">⬇️ Scarica la prova completa (.txt)</a>
+    </details>`;
+  }
+
+  function render(orders) {
+    const paid = orders.filter(o => o.paid);
+    // Abbonamenti: canoni già addebitati (uno all'attivazione, poi uno al mese) più l'eventuale disdetta anticipata
+    const charged = o => {
+      if (!o.monthly || !o.paidAt) return 0;
+      const a = new Date(o.paidAt), n = o.cancelledAt ? new Date(o.cancelledAt) : new Date();
+      let m = (n.getFullYear() - a.getFullYear()) * 12 + n.getMonth() - a.getMonth() - (n.getDate() < a.getDate() ? 1 : 0);
+      return (Math.max(0, m) + 1) * o.monthly + (o.penalty ? o.penalty.amount : 0);
+    };
+    document.getElementById('sIncasso').textContent = formatMoney(paid.reduce((s, o) => s + o.amount + charged(o), 0), currency);
+    document.getElementById('sPaid').textContent = paid.length;
+    document.getElementById('sWait').textContent = orders.length - paid.length;
+    // Abbonamenti chiusi dal cliente: il sito va messo offline
+    const toClose = orders.filter(o => o.siteToClose), cw = document.getElementById('closeWarn');
+    cw.hidden = !toClose.length;
+    cw.innerHTML = toClose.length ? `<b style="color:var(--red)">🔴 Siti da chiudere (${toClose.length})</b>
+      <p class="muted small" style="margin:4px 0 8px">Il cliente ha chiuso l'abbonamento. Metti offline il sito: su GitHub → il repository del sito → Settings → Pages → «Unpublish site» (oppure cancella il repository), poi premi «Sito chiuso».</p>` +
+      toClose.map(o => `<div class="mon"><span class="led ko"></span><div class="info"><b>${escapeHtml(o.restaurant)}</b> · ${escapeHtml(o.code)}
+        <span class="muted small">chiuso il ${new Date(o.cancellation ? o.cancellation.at : o.cancelledAt).toLocaleString('it-IT')}${o.cancellation && o.cancellation.amount ? ' · addebitati ' + formatMoney(o.cancellation.amount, currency) : ''}</span>
+        ${o.siteUrl ? `<a href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">${escapeHtml(o.siteUrl)}</a>` : ''}</div>
+        <button class="btn btn-gold btn-sm" data-closed="${o.id}">Sito chiuso ✓</button></div>`).join('') : '';
+    // Quanto valgono in tutto i contratti con vincolo pagati (canone × mesi del vincolo)
+    document.getElementById('sVincoli').textContent = formatMoney(paid.filter(o => o.months > 1).reduce((s, o) => s + o.monthly * o.months, 0), currency);
+
+    const list = document.getElementById('list');
+    if (!orders.length) { list.innerHTML = '<div class="empty">Nessun ordine ancora. Creane uno a sinistra.</div>'; return; }
+    list.innerHTML = orders.map(o => `
+      <div class="order" data-id="${o.id}">
+        <div class="order-top">
+          <div>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ` <span class="muted small">(noleggio ${o.rateMonths} × ${formatMoney(o.rateMonthly, currency)}/mese)</span>`} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+            <div class="meta">${o.source === 'sito' ? '🛒 Dal sito · ' : ''}Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
+            ${!o.monthly && o.termsAcceptedAt ? `<div class="meta">✅ Condizioni accettate il ${new Date(o.termsAcceptedAt).toLocaleString('it-IT')}${o.payer && o.payer.method ? ' · pagato con ' + (o.payer.method === 'klarna' ? 'Klarna' : o.payer.method === 'card' ? 'carta' : escapeHtml(o.payer.method)) : ''}</div>` : ''}
+            ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}${o.penalty ? ' · <b>disdetto prima del vincolo: addebitati ' + formatMoney(o.penalty.amount, currency) + ' (' + o.penalty.months + ' mesi)</b>' : ''}</div>` : ''}
+          </div>
+          <span class="pill ${o.paid ? 'paid' : 'wait'}">${o.paid ? '● Pagato' : '○ In attesa'}</span>
+        </div>
+        <div class="codebox">
+          <div><small>Codice da mandare al cliente</small><span class="code">${escapeHtml(o.code)}</span></div>
+          <button class="btn btn-gold btn-sm" data-copy="${escapeHtml(o.code)}" data-msg="Codice copiato">Copia codice</button>
+        </div>
+        <label style="margin-top:12px">Link sito del cliente (lo vede solo dopo aver pagato)</label>
+        <div class="linkbox"><input class="site" value="${escapeHtml(o.siteUrl || '')}" placeholder="https://..."><button class="btn btn-ghost btn-sm" data-save>Salva</button></div>
+        <details class="more"><summary>PIN e token solo per questo cliente (facoltativo)</summary>
+          <p class="muted small" style="margin:8px 0">Se lasci vuoto usa quelli impostati su Render (PIN_SITO e TOKEN_SITO).</p>
+          <div class="linkbox"><input class="pin" inputmode="numeric" value="${escapeHtml(o.panelPin || '')}" placeholder="PIN pannello (6 cifre)"></div>
+          <div class="linkbox"><input class="tok" type="password" autocomplete="off" value="${escapeHtml(o.siteToken || '')}" placeholder="Token GitHub del suo sito"><button class="btn btn-ghost btn-sm" data-savex>Salva</button></div>
+        </details>
+        ${nol(o)}
+        ${proof(o)}
+        <div class="actions">
+          <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
+          <a class="btn btn-ghost btn-sm" href="${escapeHtml(o.payUrl)}" target="_blank" rel="noopener">Apri pagina cliente</a>
+          ${o.paid ? `<a class="btn btn-gold btn-sm" href="/ricevuta?id=${encodeURIComponent(o.id)}">🧾 Ricevuta</a>` : ''}
+          ${o.siteUrl ? `<a class="btn btn-ghost btn-sm" href="/api/admin/qr?url=${encodeURIComponent(o.siteUrl)}&name=${encodeURIComponent(o.restaurant)}" target="_blank">🔳 QR code</a>` : ''}
+          <button class="btn btn-danger btn-sm" data-del>Elimina</button>
+        </div>
+        <details class="more"><summary>Link diretto al pagamento (alternativa al codice)</summary>
+          <div class="linkbox"><input readonly value="${escapeHtml(o.payUrl)}"><button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.payUrl)}">Copia</button></div>
+        </details>
+      </div>`).join('');
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return 'mai';
+    const s = Math.round((Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return 'ora';
+    if (s < 3600) return Math.round(s / 60) + ' min fa';
+    return new Date(iso).toLocaleString('it-IT');
+  }
+  // Richiesta di noleggio del cliente: dati da mandare alla società di noleggio e stato del contratto
+  function nol(o) {
+    const n = o.noleggio;
+    if (!n) return '';
+    const label = { richiesta: 'Nuova richiesta', inviata: 'Inviata alla società', approvato: 'Approvato', rifiutato: 'Rifiutato' }[n.stato] || n.stato;
+    const btn = (st, txt) => n.stato === st ? '' : `<button class="btn btn-ghost btn-sm" data-nol="${st}">${txt}</button>`;
+    return `
+      <div class="meta" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px">
+        📝 <b>Noleggio ${n.mesi} mesi × ${formatMoney(n.rata, currency)}</b> · stato: <b>${escapeHtml(label)}</b><br>
+        ${escapeHtml(n.ragioneSociale)} · P.IVA ${escapeHtml(n.piva)}<br>
+        Titolare: ${escapeHtml(n.referente)} · ${escapeHtml(n.email)} · ${escapeHtml(n.telefono)}
+        ${o.paid ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btn('inviata', 'Inviata alla società')}${btn('approvato', '✅ Approvato e firmato')}${btn('rifiutato', 'Rifiutato')}</div>`}
+      </div>`;
+  }
+  function monRow(m, self) {
+    const l = m.last;
+    const led = !l ? '' : l.ok ? 'ok' : 'ko';
+    const st = !l ? 'In attesa del primo controllo' : l.ok ? `Attivo · ${l.status} · ${(l.ms / 1000).toFixed(1)}s` : `Errore · ${escapeHtml(l.error || l.status)}`;
+    return `
+      <div class="mon" data-id="${m.id || ''}">
+        <span class="led ${led}"></span>
+        <div class="info"><b>${escapeHtml(m.name)}</b><a href="${escapeHtml(m.url)}" target="_blank" rel="noopener">${escapeHtml(m.url)}</a></div>
+        <div class="st">${st}<br>${timeAgo(l && l.at)}</div>
+        ${self ? '' : '<button class="btn btn-ghost btn-sm" data-ping>Pinga ora</button><button class="btn btn-danger btn-sm" data-rm>✕</button>'}
+      </div>`;
+  }
+  // Link della guida rapida compilati con il nome della copia
+  const GH_USER = 'l13291221-cmyk', GH_TEMPLATE = 'Ristorante-';
+  const poolName = document.getElementById('poolName');
+  let poolNameTouched = false;
+  function howLinks() {
+    const n = poolName.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') || 'sito-01';
+    const site = `https://${GH_USER}.github.io/${n}/`, q = encodeURIComponent;
+    document.getElementById('hNew').href = `https://github.com/new?template_owner=${GH_USER}&template_name=${GH_TEMPLATE}&owner=${GH_USER}&name=${q(n)}&visibility=public`;
+    document.getElementById('hPages').href = `https://github.com/${GH_USER}/${n}/settings/pages`;
+    const hs = document.getElementById('hSite'); hs.href = site; hs.textContent = site;
+    document.getElementById('hTok').href = `https://github.com/settings/personal-access-tokens/new?name=${q(n)}&description=${q('Pannello del sito ' + n)}&target_name=${GH_USER}&contents=write&pages=write`;
+    document.querySelectorAll('.hn').forEach(el => el.textContent = n);
+    document.querySelector('#poolForm [name=url]').value = site;
+  }
+  poolName.addEventListener('input', () => { poolNameTouched = true; howLinks(); });
+  howLinks();
+  // Stato del backup su GitHub (ordini, siti pronti, sveglia siti)
+  async function refreshBackup() {
+    const b = await api('/api/admin/backup'), box = document.getElementById('bkBox');
+    box.hidden = false;
+    if (!b.enabled) {
+      box.style.borderColor = 'var(--red)';
+      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo:</b> su Render manca la chiave Stripe (STRIPE_SECRET_KEY).</span>';
+      return;
+    }
+    const ok = b.ready && !b.lastError;
+    box.style.borderColor = ok ? 'rgba(74,222,128,.35)' : 'var(--red)';
+    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup: ' + escapeHtml(b.lastError) : '☁️ Backup automatico ogni 5 minuti su GitHub'}${b.lastExport ? ' · ultimo ' + new Date(b.lastExport).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
+      <a class="btn btn-ghost btn-sm" href="${escapeHtml(b.actionsUrl)}" target="_blank" rel="noopener">Salva ora</a>`;
+  }
+  async function refreshPool(data) {
+    const { sites } = data || await api('/api/admin/siti-pronti');
+    // Nome proposto: il primo sito-NN non ancora usato
+    if (!poolNameTouched) {
+      let k = 1; while (sites.some(x => x.url.includes(`/sito-${String(k).padStart(2, '0')}/`))) k++;
+      const next = `sito-${String(k).padStart(2, '0')}`;
+      if (poolName.value !== next) { poolName.value = next; howLinks(); }
+    }
+    const free = sites.filter(x => !x.usedBy).length;
+    const info = document.getElementById('poolInfo');
+    info.innerHTML = `Liberi: <b style="color:${free < 3 ? 'var(--red)' : 'var(--green)'}">${free}</b> · Usati: <b>${sites.length - free}</b>${free < 3 ? ' · <b style="color:var(--red)">Crea altre copie: quando finiscono il cliente che paga non riceve il link da solo.</b>' : ''}`;
+    document.getElementById('poolList').innerHTML = sites.map(x => `
+      <div class="mon">
+        <span class="led ${x.usedBy ? 'ko' : 'ok'}"></span>
+        <div class="info"><a href="${escapeHtml(x.url)}" target="_blank" rel="noopener">${escapeHtml(x.url)}</a>
+          <span class="muted small">${x.pin ? 'PIN ' + escapeHtml(x.pin) : 'senza PIN'} · ${x.hasToken ? 'token ✓' : 'senza token'}</span></div>
+        <div class="st">${x.usedBy ? `Usato da <b>${escapeHtml(x.usedFor || '')}</b><br>${escapeHtml(x.usedBy)} · ${new Date(x.usedAt).toLocaleDateString('it-IT')}` : 'Libero'}</div>
+        ${x.usedBy ? '' : `<button class="btn btn-danger btn-sm" data-pool-rm="${x.i}">✕</button>`}
+      </div>`).join('') || '<div class="empty" style="padding:20px">Nessun sito pronto. Incolla qui sotto i link delle copie.</div>';
+  }
+  document.getElementById('poolForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = document.getElementById('poolErr'); err.textContent = '';
+    try {
+      const f = e.target;
+      if (f.token.value.trim() && !/^(github_pat_|ghp_)\w+$/.test(f.token.value.trim())) { err.textContent = 'Il token deve iniziare con github_pat_'; return; }
+      if (f.pin.value.trim() && !/^\d{6}$/.test(f.pin.value.trim())) { err.textContent = 'Il PIN deve avere 6 cifre'; return; }
+      const d = await api('/api/admin/siti-pronti', { method: 'POST', body: JSON.stringify({ url: f.url.value, pin: f.pin.value, token: f.token.value }) });
+      if (!d.added) { err.textContent = 'Questo link è già nella lista o è già di un cliente.'; return; }
+      f.token.value = ''; poolNameTouched = false;
+      toast('Sito aggiunto ✓');
+      refreshPool(d);
+    } catch (x) { if (x.message !== '401') err.textContent = x.message; }
+  });
+  document.getElementById('poolList').addEventListener('click', async e => {
+    const b = e.target.closest('[data-pool-rm]');
+    if (!b || !confirm('Togliere questo sito dalla lista?')) return;
+    try { refreshPool(await api('/api/admin/siti-pronti/' + b.dataset.poolRm, { method: 'DELETE' })); } catch (x) { if (x.message !== '401') toast(x.message); }
+  });
+  async function refreshMonitors() {
+    const d = await api('/api/admin/monitors');
+    document.getElementById('every').textContent = d.everyMinutes;
+    document.getElementById('selfRow').innerHTML = d.self.enabled
+      ? monRow({ name: 'Questo sito (auto-ping)', url: d.self.url, last: d.self.last }, true)
+      : '<div class="mon"><span class="led"></span><div class="info"><b>Questo sito (auto-ping)</b><span class="muted small">Si attiva da solo quando il sito è online su Render.</span></div></div>';
+    document.getElementById('monList').innerHTML = d.monitors.length
+      ? d.monitors.map(m => monRow(m)).join('')
+      : '<div class="empty" style="padding:20px">Nessun sito ancora. Aggiungi il link del sito di un cliente qui sotto.</div>';
+  }
+  document.getElementById('monList').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const id = b.closest('.mon').dataset.id;
+    try {
+      if (b.hasAttribute('data-ping')) {
+        b.disabled = true; b.textContent = '…';
+        const { monitor } = await api(`/api/admin/monitors/${id}/ping`, { method: 'POST' });
+        toast(monitor.last.ok ? 'Sito sveglio ✓' : 'Il sito non risponde');
+      } else if (b.hasAttribute('data-rm')) {
+        if (!confirm('Togliere questo sito dall\'elenco?')) return;
+        await api(`/api/admin/monitors/${id}`, { method: 'DELETE' });
+        toast('Sito rimosso');
+      }
+      refreshMonitors();
+    } catch (err) { if (err.message !== '401') toast(err.message); }
+  });
+  document.getElementById('monForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, err = document.getElementById('monErr'), btn = f.querySelector('button');
+    err.textContent = ''; btn.disabled = true; btn.textContent = 'Controllo…';
+    try {
+      const { monitor } = await api('/api/admin/monitors', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
+      f.reset();
+      toast(monitor.last.ok ? 'Aggiunto — il sito risponde ✓' : 'Aggiunto, ma per ora il sito non risponde');
+      refreshMonitors();
+    } catch (x) { if (x.message !== '401') err.textContent = x.message; }
+    btn.disabled = false; btn.textContent = '+ Aggiungi';
+  });
+
+  async function refresh() {
+    const d = await api('/api/admin/orders');
+    currency = d.currency;
+    render(d.orders);
+  }
+
+  document.getElementById('closeWarn').addEventListener('click', async e => {
+    const b = e.target.closest('[data-closed]');
+    if (!b || !confirm('Hai messo offline il sito di questo cliente?')) return;
+    try { await api('/api/admin/orders/' + b.dataset.closed, { method: 'PATCH', body: JSON.stringify({ siteClosed: true }) }); toast('Segnato come chiuso'); refresh(); }
+    catch (x) { if (x.message !== '401') toast(x.message); }
+  });
+  document.getElementById('list').addEventListener('click', async e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const box = b.closest('.order');
+    const id = box.dataset.id;
+    try {
+      if (b.dataset.copy) { await navigator.clipboard.writeText(b.dataset.copy); toast(b.dataset.msg || 'Link copiato'); }
+      else if (b.hasAttribute('data-save')) {
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ siteUrl: box.querySelector('.site').value }) });
+        toast('Link del sito salvato'); refresh();
+      } else if (b.hasAttribute('data-savex')) {
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ panelPin: box.querySelector('.pin').value, siteToken: box.querySelector('.tok').value }) });
+        toast('PIN e token salvati'); refresh();
+      } else if (b.dataset.nol) {
+        if (b.dataset.nol === 'approvato' && !confirm('Contratto firmato e approvato? L\'ordine diventa pagato e il cliente vede il link del sito.')) return;
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ noleggioStato: b.dataset.nol }) });
+        toast('Stato del noleggio aggiornato'); refresh();
+      } else if (b.hasAttribute('data-del')) {
+        if (!confirm('Eliminare questo ordine? Il link di pagamento smetterà di funzionare.')) return;
+        await api(`/api/admin/orders/${id}`, { method: 'DELETE' });
+        toast('Ordine eliminato'); refresh();
+      }
+    } catch (err) { if (err.message !== '401') toast(err.message); }
+  });
+
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/admin/logout', { method: 'POST' });
+    location.href = '/';
+  });
+
+  api('/api/admin/me').then(d => {
+    if (!d.admin) { location.href = '/'; return; }
+    document.body.classList.add('ready');
+    refresh();
+    refreshMonitors(); refreshPool(); refreshBackup();
+    setInterval(() => { refresh(); refreshMonitors(); refreshPool(); refreshBackup(); }, 15000);
+  });
+</script>
+</body>
+</html>

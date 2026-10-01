@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Trova clienti — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 32px 0 80px; }
+    .search { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 12px; }
+    .search > * { flex: 1 1 150px; min-width: 0; }
+    .search #city { flex: 2 1 200px; }
+    .search button { flex: 0 0 auto; }
+    select {
+      width: 100%; padding: 13px 14px; border-radius: 11px; border: 1px solid var(--line);
+      background: var(--bg-2); color: var(--text); font: 400 16px var(--sans); outline: none;
+    }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .chip {
+      padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
+      color: var(--muted); font: 500 .84rem var(--sans); cursor: pointer;
+    }
+    .chip.on { color: #1a1408; background: var(--gold); border-color: var(--gold); }
+    .summary { color: var(--muted); font-size: .9rem; margin: 0 0 14px; }
+    .lead { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 10px; }
+    .lead.st-no { opacity: .45; }
+    .lead.st-interessato { border-color: var(--green); }
+    .lead.st-scritto { border-color: rgba(37,211,102,.45); }
+    .lead-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .lead h4 { margin: 0; font-size: 1.05rem; }
+    .lead .meta { color: var(--muted); font-size: .85rem; margin-top: 2px; overflow-wrap: anywhere; }
+    .lead-top > div { min-width: 0; }
+    .lead h4 { overflow-wrap: anywhere; }
+    .tag { font-size: .72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .tag.nosite { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .tag.social { background: rgba(214,177,106,.1); color: var(--gold-2); border: 1px solid rgba(214,177,106,.3); }
+    .tag.site { background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); }
+    .tag.bad { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.35); }
+    .reasons { color: var(--red); font-size: .84rem; margin-top: 6px; }
+    .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .btn-call { background: var(--gold); color: #1a1408; }
+    .btn-wa { background: #25d366; color: #fff; }
+    .msgbar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .msgbar label { margin-bottom: 4px; font-size: .8rem; }
+    .msgbar .count { grid-column: 1 / -1; font-size: .88rem; color: var(--muted); }
+    .msgbar .count.warn { color: var(--red); }
+    @media (max-width: 640px) { .msgbar { grid-template-columns: 1fr; } }
+    .status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .status button { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--muted); font: 500 .8rem var(--sans); cursor: pointer; }
+    .status button.on { color: var(--text); border-color: var(--gold); background: rgba(214,177,106,.12); }
+    .note { margin-top: 10px; font-size: 16px; padding: 9px 12px; }
+    .hint { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
+    .more { width: 100%; margin-top: 6px; }
+    .errbox { border: 2px solid var(--red); background: rgba(248,113,113,.08); color: var(--red); border-radius: 14px; padding: 16px; display: grid; gap: 8px; font-size: .88rem; word-break: break-word; }
+    .errbox b { color: var(--red); }
+    .errtitle { font-size: 1.2rem; letter-spacing: 1px; }
+    .errbox ul { margin: 6px 0 0; padding-left: 4px; list-style: none; display: grid; gap: 4px; }
+    .errhint { margin-top: 4px; font-weight: 600; }
+    .saved { margin: 0 0 16px; }
+    .saved h3 { font: 600 .9rem var(--sans); color: var(--muted); margin: 0 0 8px; letter-spacing: 0; }
+    .saved-list { display: grid; gap: 8px; }
+    .saved-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); cursor: pointer; text-align: left; color: var(--text); font: 500 .92rem var(--sans); width: 100%; }
+    .saved-item.on { border-color: var(--gold); background: rgba(214,177,106,.08); }
+    .saved-item .info { flex: 1; min-width: 0; }
+    .saved-item small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+    .saved-item .x { color: var(--muted); padding: 4px 8px; border-radius: 8px; }
+    .saved-item .x:hover { color: var(--red); }
+    @media (max-width: 640px) {
+      .search > *, .search #city, .search button { flex: 1 1 100%; }
+      .page { padding-top: 20px; }
+      .lead-actions .btn { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Trova clienti</a>
+    <nav class="nav">
+      <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <h1 style="font-size:1.9rem;margin:0">Trova clienti</h1>
+  <p class="muted" style="margin:6px 0 0">Scegli la zona (comune, provincia, regione o tutta Italia) e il tipo di attività. Per le zone grandi attiva prima "Solo WhatsApp dichiarato": è molto più veloce.</p>
+
+  <form class="search" id="searchForm" autocomplete="off">
+    <select id="source" aria-label="Fonte">
+      <option value="osm">🗺️ OpenStreetMap</option>
+      <option value="google">📍 Google Maps</option>
+    </select>
+    <select id="scope" aria-label="Zona">
+      <option value="comune">📍 Comune</option>
+      <option value="provincia">🗺️ Provincia</option>
+      <option value="regione">🏞️ Regione</option>
+      <option value="italia">🇮🇹 Tutta Italia</option>
+    </select>
+    <input id="city" required placeholder="Comune (es. Monza)" aria-label="Nome della zona">
+    <select id="type" aria-label="Tipo di attività"></select>
+    <button class="btn btn-gold" type="submit" id="goBtn">Cerca</button>
+  </form>
+
+  <div class="filters" id="filters">
+    <button class="chip on" data-f="phone">Solo con telefono</button>
+    <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
+    <button class="chip" data-f="waOnly">Solo WhatsApp dichiarato</button>
+    <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
+    <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
+  </div>
+
+  <div class="saved" id="saved" hidden>
+    <h3>📁 Ricerche salvate</h3>
+    <div class="saved-list" id="savedList"></div>
+  </div>
+
+  <div class="msgbar">
+    <div><label for="lang">Lingua del messaggio WhatsApp</label><select id="lang"></select></div>
+    <div><label for="firma">Il tuo nome nel messaggio</label><input id="firma" placeholder="Es. Luca" maxlength="40"></div>
+    <div><label for="maxDay">Messaggi al giorno</label><select id="maxDay"><option>30</option><option>50</option><option>75</option><option>100</option></select></div>
+    <div class="count" id="count"></div>
+  </div>
+
+
+  <div class="hint">I dati vengono da OpenStreetMap o da Google Maps (fino a 60 attività per ricerca: per averne di più cerca città per città). I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
+
+  <p class="summary" id="summary"></p>
+  <div id="list"></div>
+  <button class="btn btn-ghost more" id="moreBtn" hidden>Mostra altri</button>
+</main>
+
+<script src="/common.js"></script>
+<script src="/messages.js"></script>
+<script>
+  const STATUSES = [['', 'Da contattare'], ['scritto', 'Scritto su WA'], ['chiamato', 'Chiamato'], ['richiamare', 'Richiamare'], ['interessato', 'Interessato'], ['no', 'Non interessato']];
+  const LS = 'nerodoro-leads';
+  let notes = {};
+  try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
+  const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
+
+  let leads = [], shown = 30, checks = {}, checking = 0, currentKey = '';
+  // "-checks2": i controlli vecchi segnavano come vuoti anche i siti moderni, li rifaccio
+  try { checks = JSON.parse(localStorage.getItem(LS + '-checks2') || '{}') || {}; localStorage.removeItem(LS + '-checks'); } catch { checks = {}; }
+  const saveChecks = () => { try { localStorage.setItem(LS + '-checks2', JSON.stringify(checks)); } catch {} };
+
+  // ---- Ricerche salvate su questo dispositivo ----
+  let searches = [];
+  try { searches = JSON.parse(localStorage.getItem(LS + '-searches') || '[]') || []; } catch { searches = []; }
+  function storeSearches() {
+    // Se lo spazio del browser finisce, tolgo le ricerche più vecchie
+    while (true) {
+      try { localStorage.setItem(LS + '-searches', JSON.stringify(searches)); return; }
+      catch { if (searches.length <= 1) return; searches.pop(); }
+    }
+  }
+  function saveSearch(city, type, list, scope, need) {
+    const key = [city.toLowerCase(), type, scope, need].join('|');
+    const scopeLabel = scope === 'google' ? 'Google Maps' : document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
+    const typeLabel = (document.querySelector(`#type option[value="${type}"]`)?.textContent || type) +
+      (scope === 'google' ? ' · Google' : scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
+    // tengo solo chi si può contattare, per occupare poco spazio
+    const keep = list.filter(l => l.phones.length || l.whatsapp).map(({ maps, ...rest }) => rest);
+    searches = [{ key, city, type, scope, need, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
+    storeSearches();
+    currentKey = key;
+    renderSaved();
+  }
+  function mapsLink(l) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([l.name, l.address].filter(Boolean).join(' '));
+  }
+  function openSearch(x) {
+    leads = x.leads.map(l => ({ ...l, maps: l.maps || mapsLink(l) }));
+    shown = 30; currentKey = x.key;
+    document.getElementById('source').value = x.scope === 'google' ? 'google' : 'osm';
+    document.getElementById('scope').value = x.scope === 'google' ? 'comune' : x.scope || 'comune'; updateScope();
+    document.getElementById('city').value = x.scope === 'italia' ? '' : x.city;
+    document.getElementById('type').value = x.type;
+    renderSaved(); render(); checkSites(leads);
+  }
+  function renderSaved() {
+    const box = document.getElementById('saved');
+    box.hidden = !searches.length;
+    document.getElementById('savedList').innerHTML = searches.map((x, i) => {
+      const done = x.leads.filter(l => notes[l.id] && notes[l.id].s).length;
+      return `<div class="saved-item ${x.key === currentKey ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
+        <span class="info">${escapeHtml(x.city)} · ${escapeHtml(x.typeLabel)}
+          <small>${new Date(x.at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} · ${x.leads.length} contattabili · ${done} già contattati</small></span>
+        <span class="x" data-del="${i}" title="Elimina">✕</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('savedList').addEventListener('click', e => {
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      e.stopPropagation();
+      const x = searches[+del.dataset.del];
+      if (!confirm(`Eliminare la ricerca "${x.city} · ${x.typeLabel}"? Gli appunti restano.`)) return;
+      searches.splice(+del.dataset.del, 1); storeSearches();
+      if (x.key === currentKey) { leads = []; currentKey = ''; render(); }
+      renderSaved(); return;
+    }
+    const item = e.target.closest('.saved-item');
+    if (item) openSearch(searches[+item.dataset.i]);
+  });
+  const filters = { phone: true, nosite: true, waOnly: false, wa: false, hideDone: false };
+  // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
+  const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
+  // Numeri WhatsApp validi (le ricerche vecchie potevano avere più numeri incollati insieme)
+  const waList = l => (l.whatsapps || (l.whatsapp ? [l.whatsapp] : [])).filter(n => { const d = n.replace(/\D/g, ''); return d.length >= 9 && d.length <= 13; });
+  const hasWa = l => waList(l).length > 0 || l.phones.some(isMobile);
+
+  async function api(url, timeoutMs = 20000) {
+    const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(d.error || 'Errore'); e.detail = d.detail; throw e; }
+    return d;
+  }
+
+  function siteTag(l) {
+    if (l.website) {
+      const c = checks[l.id];
+      if (!c) return '<span class="tag site">Controllo sito…</span>';
+      return c.bad ? '<span class="tag bad">Sito brutto</span>' : '<span class="tag site">Sito ok</span>';
+    }
+    if (l.social) return '<span class="tag social">Solo social</span>';
+    return '<span class="tag nosite">Senza sito</span>';
+  }
+
+  function visible() {
+    return leads
+      .filter(l => !filters.phone || l.phones.length || l.whatsapp)
+      .filter(l => !filters.wa || hasWa(l))
+      .filter(l => !filters.waOnly || waList(l).length)
+      .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
+      .filter(l => !filters.hideDone || !(notes[l.id] && notes[l.id].s))
+      .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
+  }
+  // Ordine: senza sito, solo social, sito brutto, sito ok
+  function rank(l) {
+    if (!l.website) return l.social ? 1 : 0;
+    const c = checks[l.id];
+    return c ? (c.bad ? 2 : 4) : 3;
+  }
+
+  function render() {
+    const v = visible();
+    const withPhone = leads.filter(l => l.phones.length).length;
+    const noSite = leads.filter(l => !l.website && l.phones.length).length;
+    const badSite = leads.filter(l => l.website && l.phones.length && checks[l.id] && checks[l.id].bad).length;
+    document.getElementById('summary').textContent = leads.length
+      ? `${leads.length} attività · ${withPhone} con telefono · ${noSite} senza sito · ${badSite} con sito brutto` +
+        (checking ? ` · controllo i siti (${checking} rimasti)…` : '') + ` · ne mostro ${Math.min(shown, v.length)} di ${v.length}`
+      : '';
+    document.getElementById('list').innerHTML = v.slice(0, shown).map(l => {
+      const n = notes[l.id] || {};
+      const tel = l.phones[0] ? l.phones[0].replace(/[^\d+]/g, '') : '';
+      return `
+      <div class="lead st-${n.s || 'new'}" data-id="${l.id}">
+        <div class="lead-top">
+          <div><h4>${escapeHtml(l.name)}</h4>
+            <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
+            ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp${l.waGuess ? ' (probabile, è un cellulare)' : ''}: ${escapeHtml(n)}</div>`).join('')}
+            ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
+            ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
+          </div>
+          ${siteTag(l)}
+        </div>
+        <div class="lead-actions">
+          ${waList(l).length ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
+          ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
+          <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
+          ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
+          ${l.social ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.social)}" target="_blank" rel="noopener">Social</a>` : ''}
+        </div>
+        <div class="status">${STATUSES.map(([k, t]) => `<button data-s="${k}" class="${(n.s || '') === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+        <input class="note" placeholder="Appunti (es. richiamare lunedì, parlare con il titolare)" value="${escapeHtml(n.t || '')}">
+      </div>`;
+    }).join('') || (leads.length ? '<div class="empty">Nessuna attività con questi filtri. Prova a togliere "Senza sito o sito brutto".</div>' : '');
+    document.getElementById('moreBtn').hidden = v.length <= shown;
+  }
+
+  // ---- Messaggi WhatsApp ----
+  const today = () => new Date().toISOString().slice(0, 10);
+  let daily = { d: today(), n: 0, total: 0 };
+  try { daily = { ...daily, ...JSON.parse(localStorage.getItem(LS + '-daily') || '{}') }; } catch {}
+  if (daily.d !== today()) { daily.d = today(); daily.n = 0; }
+  // Limite giornaliero e orario consigliato per i messaggi
+  // Limite giornaliero scelto dall'utente; ogni 30 messaggi in un'ora consiglio una pausa
+  // (tanti messaggi a sconosciuti tutti di fila sono ciò che fa bloccare il numero)
+  let DAILY_MAX = 100;
+  const HOUR_FROM = 15, HOUR_TO = 17, BURST = 30;
+  const maxSel = document.getElementById('maxDay');
+  try { DAILY_MAX = +localStorage.getItem(LS + '-max') || 100; } catch {}
+  maxSel.value = String(DAILY_MAX);
+  maxSel.addEventListener('change', () => { DAILY_MAX = +maxSel.value; try { localStorage.setItem(LS + '-max', maxSel.value); } catch {} showCount(); });
+  const sentLastHour = () => (daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000).length;
+  const goodHour = () => { const h = new Date().getHours(); return h >= HOUR_FROM && h < HOUR_TO; };
+  function showCount() {
+    const el = document.getElementById('count');
+    el.classList.toggle('warn', daily.n >= DAILY_MAX);
+    el.textContent = daily.n >= DAILY_MAX
+      ? `⚠️ Oggi hai scritto a ${daily.n} attività. Fermati per oggi: troppi messaggi a sconosciuti fanno bloccare il numero da WhatsApp.`
+      : `Oggi hai scritto a ${daily.n} di ${DAILY_MAX} attività. Orario migliore: ${HOUR_FROM}:00-${HOUR_TO}:00` +
+        (goodHour() ? ' ✅ adesso è il momento giusto.' : ' ⏰ adesso non è l\'orario ideale.');
+  }
+  const langSel = document.getElementById('lang'), firmaIn = document.getElementById('firma');
+  langSel.innerHTML = LEAD_MESSAGES.languages.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+  firmaIn.value = 'Simone';
+  try { langSel.value = localStorage.getItem(LS + '-lang') || 'it'; firmaIn.value = localStorage.getItem(LS + '-firma') || 'Simone'; } catch {}
+  langSel.addEventListener('change', () => { try { localStorage.setItem(LS + '-lang', langSel.value); } catch {} });
+  firmaIn.addEventListener('change', () => { try { localStorage.setItem(LS + '-firma', firmaIn.value.trim()); } catch {} });
+  showCount();
+
+  function sendWhatsApp(l) {
+    // Senza nome il messaggio diventerebbe "Sono Nerodoro Studio di Nerodoro Studio"
+    if (!firmaIn.value.trim()) {
+      toast('Scrivi prima il tuo nome in alto (es. Luca)');
+      firmaIn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firmaIn.focus();
+      return;
+    }
+    if (sentLastHour() >= BURST && !confirm(`Hai scritto a ${sentLastHour()} attività nell'ultima ora. Meglio fare una pausa di mezz'ora: tanti messaggi di fila fanno bloccare il numero. Mandare lo stesso?`)) return;
+    if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
+    if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
+    const text = LEAD_MESSAGES.build({
+      lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
+      firma: firmaIn.value.trim(), sito: location.origin,
+    });
+    window.open('https://wa.me/' + waList(l)[0].replace(/\D/g, '') + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    daily.n++; daily.total++;
+    daily.times = [...(daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000), Date.now()];
+    try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
+    notes[l.id] = { ...(notes[l.id] || {}), s: 'scritto', at: Date.now() };
+    save(); showCount(); render(); renderSaved();
+    toast('Niente video adesso: mandalo solo se ti rispondono "sì" 👍');
+  }
+
+  document.getElementById('list').addEventListener('click', e => {
+    const w = e.target.closest('[data-wa]');
+    if (w) { const l = leads.find(x => x.id === w.closest('.lead').dataset.id); if (l) sendWhatsApp(l); return; }
+    const b = e.target.closest('.status button');
+    if (!b) return;
+    const id = b.closest('.lead').dataset.id;
+    notes[id] = { ...(notes[id] || {}), s: b.dataset.s, at: Date.now() };
+    save(); render(); renderSaved();
+  });
+  document.getElementById('list').addEventListener('change', e => {
+    if (!e.target.classList.contains('note')) return;
+    const id = e.target.closest('.lead').dataset.id;
+    notes[id] = { ...(notes[id] || {}), t: e.target.value.slice(0, 300) };
+    save(); toast('Appunto salvato');
+  });
+  document.getElementById('filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    filters[c.dataset.f] = !filters[c.dataset.f];
+    c.classList.toggle('on', filters[c.dataset.f]);
+    shown = 30; render();
+  });
+  document.getElementById('moreBtn').addEventListener('click', () => { shown += 30; render(); });
+
+  document.getElementById('searchForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const source = document.getElementById('source').value;
+    const scope = source === 'google' ? 'google' : document.getElementById('scope').value;
+    const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
+    const type = document.getElementById('type').value;
+    // Il filtro WhatsApp/telefono lo applica già il server mappe: molto più veloce sulle zone grandi
+    const need = filters.waOnly ? 'wa' : (filters.phone || scope !== 'comune') ? 'phone' : 'all';
+    const btn = document.getElementById('goBtn');
+    btn.disabled = true; btn.textContent = 'Cerco…';
+    document.getElementById('summary').textContent = scope === 'comune' || scope === 'google' ? 'Sto cercando, di solito 5-20 secondi…'
+      : 'Sto cercando in una zona grande: può volerci fino a 2-3 minuti, non chiudere la pagina…';
+    document.getElementById('list').innerHTML = '<div class="spinner"></div>';
+    document.getElementById('moreBtn').hidden = true;
+    try {
+      const d = await api(`/api/admin/leads?source=${source}&scope=${scope}&need=${need}&city=${encodeURIComponent(city)}&type=${type}`, 200000);
+      leads = d.leads; shown = 30;
+      if (leads.length) saveSearch(city, type, leads, scope, need);
+      checkSites(leads);
+      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope, source })); } catch {}
+      if (!leads.length) {
+        document.getElementById('summary').textContent = '';
+        document.getElementById('list').innerHTML = '<div class="empty">Nessun risultato. Controlla il nome del comune (scritto per intero, es. "Sesto San Giovanni") o prova un altro tipo di attività.</div>';
+      } else render();
+    } catch (err) {
+      if (err.message !== '401') {
+        document.getElementById('summary').textContent = '';
+        showError(err, city, type);
+      }
+    }
+    btn.disabled = false; btn.textContent = 'Cerca';
+  });
+
+  // Riquadro rosso con errore, motivo, dettagli e diagnosi automatica: basta uno screenshot
+  async function showError(err, city, type) {
+    const reason = err.name === 'TimeoutError' ? 'La ricerca ci ha messo troppo (timeout). Con zone grandi attiva "Solo WhatsApp dichiarato" oppure scegli una zona più piccola.'
+      : err.name === 'TypeError' ? 'Connessione al tuo sito persa (internet del telefono o sito in riavvio).'
+      : err.message;
+    const box = document.getElementById('list');
+    box.innerHTML = `<div class="errbox">
+      <b class="errtitle">❌ ERRORE</b>
+      <div><b>Motivo:</b> ${escapeHtml(reason)}</div>
+      ${err.detail ? `<div><b>Dettagli:</b> ${escapeHtml(err.detail)}</div>` : ''}
+      <div><b>Ricerca:</b> ${escapeHtml(city)} · ${escapeHtml(type)} · ${new Date().toLocaleString('it-IT')}</div>
+      <div><b>Sito:</b> ${escapeHtml(location.host)}</div>
+      <div class="diag"><b>Diagnosi server:</b> <span id="diagOut">controllo in corso…</span></div>
+      <div class="errhint">📸 Fai uno screenshot di questo riquadro e mandalo a Claude.</div>
+    </div>`;
+    try {
+      const d = await api('/api/admin/leads-debug?scope=' + document.getElementById('scope').value + '&city=' + encodeURIComponent(city), 40000);
+      document.getElementById('diagOut').innerHTML = '<ul>' + Object.entries(d).map(([k, v]) =>
+        `<li>${v.ok ? '✅' : '❌'} <b>${escapeHtml(k)}</b>: ${escapeHtml(v.ok ? v.info : v.error)} (${v.ms} ms)</li>`).join('') + '</ul>';
+    } catch (e) {
+      document.getElementById('diagOut').textContent = 'diagnosi non riuscita: ' + (e.name === 'TimeoutError' ? 'timeout' : e.message);
+    }
+  }
+
+  // Controlla i siti esistenti, 5 alla volta, e aggiorna la lista man mano
+  let searchId = 0;
+  async function checkSites(list) {
+    const my = ++searchId;
+    const queue = list.filter(l => l.website && l.phones.length && !checks[l.id]);
+    checking = queue.length;
+    const worker = async () => {
+      while (queue.length && my === searchId) {
+        const l = queue.shift();
+        try { checks[l.id] = await api('/api/admin/site-check?url=' + encodeURIComponent(l.website), 30000); saveChecks(); }
+        catch { checks[l.id] = { bad: false, reasons: [] }; }
+        checking--;
+        if (my === searchId) render();
+      }
+    };
+    await Promise.all(Array.from({ length: 5 }, worker));
+    if (my === searchId) { checking = 0; render(); }
+  }
+
+  // Zona: cambia il testo del campo; per "Tutta Italia" il nome non serve
+  const PLACEHOLDERS = { comune: 'Comune (es. Monza)', provincia: 'Provincia (es. Bologna)', regione: 'Regione (es. Emilia-Romagna)', italia: 'Tutta Italia' };
+  function updateScope() {
+    // Google Maps cerca per testo: basta la città o il quartiere, la zona non serve
+    const google = document.getElementById('source').value === 'google';
+    const scopeSel = document.getElementById('scope');
+    scopeSel.hidden = google;
+    const sc = google ? 'comune' : scopeSel.value, c = document.getElementById('city');
+    c.placeholder = google ? 'Città o quartiere (es. Modena centro)' : PLACEHOLDERS[sc];
+    c.disabled = sc === 'italia'; c.required = sc !== 'italia';
+    if (sc === 'italia') c.value = '';
+  }
+  document.getElementById('scope').addEventListener('change', updateScope);
+  document.getElementById('source').addEventListener('change', updateScope);
+
+  api('/api/admin/me').then(async d => {
+    if (!d.admin) { location.href = '/'; return; }
+    const { types, google } = await api('/api/admin/lead-types');
+    document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
+    const gOpt = document.querySelector('#source option[value="google"]');
+    if (!google) { gOpt.disabled = true; gOpt.textContent = '📍 Google Maps (da attivare)'; }
+    try {
+      const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
+      if (last) {
+        document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
+        document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
+    } catch {}
+    document.body.classList.add('ready');
+    // Riapro subito l'ultima ricerca salvata, senza aspettare
+    if (searches.length) openSearch(searches[0]); else renderSaved();
+  });
+</script>
+</body>
+</html>

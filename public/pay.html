@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Il tuo ordine — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .pay-wrap { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 48px 16px; position: relative; }
+    .pay-wrap::before { content: ''; position: absolute; inset: 0; background: radial-gradient(600px 400px at 50% 0%, rgba(214,177,106,.12), transparent 70%); pointer-events: none; }
+    .pay-card { position: relative; width: min(480px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 34px; box-shadow: 0 40px 90px -40px #000; }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .row:last-of-type { border-bottom: 0; }
+    .total { font-family: var(--serif); font-size: 2.2rem; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+    .badge.ok { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .success-ic { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 18px; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.35); color: var(--green); font-size: 2rem; }
+    .site-link { display: block; margin: 18px 0; padding: 14px; border-radius: 12px; background: var(--bg-2); border: 1px dashed var(--gold); color: var(--gold-2); word-break: break-all; text-decoration: none; font-weight: 500; }
+    .note { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .9rem; color: var(--muted); margin-bottom: 18px; }
+    @media (max-width: 640px) {
+      .pay-wrap { padding: 20px 12px 32px; align-items: start; min-height: 0; }
+      .pay-card { padding: 24px 20px; border-radius: 18px; }
+      .total { font-size: 1.8rem; }
+      .row { padding: 12px 0; font-size: .95rem; }
+    }
+    .pay-line { text-align: right; }
+    .pay-line .total { white-space: nowrap; }
+    .pay-line small { display: block; margin-top: 2px; }
+    /* Foglio delle condizioni: si apre dal basso a metà schermo e si scorre */
+    .sheet-bg { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.6); opacity: 0; transition: opacity .25s; }
+    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 91; margin: 0 auto; width: min(640px, 100%); max-height: 62vh; max-height: 62dvh;
+      display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0;
+      box-shadow: 0 -20px 60px -20px #000; transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+    .sheet-open .sheet-bg { opacity: 1; }
+    .sheet-open .sheet { transform: none; }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--line); position: relative; }
+    .sheet-head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: var(--line); }
+    .sheet-head h2 { font-size: 1.25rem; margin: 0; }
+    .sheet-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 1.2rem; cursor: pointer; }
+    .sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 20px calc(24px + env(safe-area-inset-bottom)); }
+    /* Condizioni in un riquadro piccolo: si vede solo l'inizio, il resto (dettaglio del pagamento in fondo) si legge scorrendo */
+    .terms-frame { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-2); overflow: hidden; }
+    .terms-slot { max-height: 8em; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 14px; font-size: .85rem; }
+    .terms-slot .terms-body > p.muted:first-child { margin-top: 10px; }
+    .terms-slot .terms-body h2 { font-size: 1rem; margin: 18px 0 6px; }
+    .fade-end { -webkit-mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); }
+    .fade-end.end { -webkit-mask-image: none; mask-image: none; }
+    .sheet-pay { margin-top: 16px; }
+    .nol-form input { margin: 0 0 8px; width: 100%; }
+    .nol-form { margin-bottom: 4px; }
+    /* Seconda casella: si vede metà del testo, il resto si legge scorrendo nel riquadro.
+       Scorrere non serve per pagare: basta spuntare il quadratino */
+    .approve-row { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; font-size: .9rem; }
+    .approve-row input { width: 20px; height: 20px; margin-top: 2px; flex: none; cursor: pointer; }
+    .approve-text { flex: 1; min-width: 0; max-height: 6em; line-height: 1.5; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; color: var(--muted); }
+    body.sheet-lock { overflow: hidden; }
+    .guide { text-align: left; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .guide h3 { font: 600 1.05rem var(--sans); margin: 0 0 10px; letter-spacing: 0; }
+    .guide ol { padding-left: 20px; margin: 0; display: grid; gap: 12px; font-size: .93rem; }
+    .gbox { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); flex-wrap: wrap; }
+    .gbox code { flex: 1; min-width: 0; font: 600 .95rem ui-monospace, monospace; color: var(--gold-2); overflow-wrap: anywhere; user-select: all; }
+    .gbox code.tok { font-size: .78rem; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/" class="brand"><span class="brand-mark">N</span>Nerodoro Studio</a>
+    <span class="muted small">🔒 Pagamento sicuro</span>
+  </div>
+</header>
+
+<main class="pay-wrap">
+  <div class="pay-card fade-in" id="card">
+    <div class="spinner"></div>
+  </div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  const card = document.getElementById('card');
+  const id = decodeURIComponent(location.pathname.split('/').pop());
+  const params = new URLSearchParams(location.search);
+  const sessionId = params.get('session_id');
+  // Ritorno da Klarna diretto: Stripe aggiunge payment_intent e redirect_status all'indirizzo
+  const paymentIntent = params.get('payment_intent');
+  const klarnaFailed = params.get('redirect_status') === 'failed';
+  const cancelled = params.has('annullato');
+
+  function renderNotFound() {
+    card.innerHTML = `
+      <h2 style="font-size:1.7rem;margin-bottom:10px">Ordine non trovato</h2>
+      <p class="muted">Controlla il codice che hai ricevuto su WhatsApp e riprova.</p>
+      <a class="btn btn-ghost" href="/#codice" style="margin-top:10px">Inserisci di nuovo il codice</a>`;
+  }
+
+  const PKG_NAMES = { base: 'Base', premium: 'Premium', assistenza: 'Assistenza', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
+  const isPremium = o => String(o.package || '').startsWith('premium');
+  function renderUnpaid(o) {
+    if (o.noleggio) return renderNoleggio(o);
+    const sub = o.monthly > 0;
+    card.innerHTML = `
+      ${cancelled || klarnaFailed ? '<div class="note">Pagamento annullato o non approvato. Nessun addebito effettuato: puoi riprovare.</div>' : ''}
+      <span class="kicker">Riepilogo ordine</span>
+      <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
+      <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
+      <div style="margin:18px 0">
+        <div class="row"><span class="muted">Codice ordine</span><span style="font-family:ui-monospace,monospace;letter-spacing:2px;color:var(--gold-2)">${escapeHtml(o.code)}</span></div>
+        <div class="row"><span class="muted">Pacchetto</span><span>${escapeHtml(PKG_NAMES[o.package] || 'Base')}</span></div>
+        <div class="row"><span class="muted">Servizio</span><span>${o.package === 'assistenza' ? 'Assistenza per il sito' : 'Sito web'}</span></div>
+        ${isPremium(o) ? '<div class="row"><span class="muted">Incluso</span><span style="text-align:right">Dominio www.tuonome.it + QR code</span></div>' : ''}
+        ${sub ? `
+        ${o.amount ? `<div class="row"><span class="muted">Attivazione</span><span>${formatMoney(o.amount, o.currency)}</span></div>` : ''}
+        <div class="row"><span class="muted">Canone</span><span>${formatMoney(o.monthly, o.currency)} al mese</span></div>
+        ${o.months > 1 ? '' : '<div class="row"><span class="muted">Durata</span><span>Disdici quando vuoi</span></div>'}
+        <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
+        ${o.months > 1 ? '' : `<p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`}`
+        : `
+        <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Noleggio per ${o.rateMonths} mesi</small></span></div>`}
+      </div>
+      <label class="accept" style="display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:.95rem;cursor:pointer">
+        <input type="checkbox" id="accept" style="width:20px;height:20px;flex:none"><span>Accetto le condizioni</span>
+      </label>
+      <button class="btn btn-gold" id="payBtn" style="width:100%" disabled>${payLabel(o)}</button>
+      <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
+      <p class="muted small" style="text-align:center;margin:0">${sub ? 'Prima di pagare leggi le condizioni.' : 'Prima di pagare leggi le condizioni: in fondo c\'è il dettaglio del pagamento. Poi lasci i dati della tua attività: ti contattiamo per firmare il contratto di noleggio. Appena è approvato ricevi il link del tuo sito.'}</p>`;
+    const acc = document.getElementById('accept');
+    acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
+    // Prima le condizioni complete (con il dettaglio del pagamento in fondo) e la seconda casella, poi Stripe
+    document.getElementById('payBtn').addEventListener('click', () => openTerms(o));
+  }
+  function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Richiedi il noleggio'; }
+
+  async function checkout(b, errEl, approve, cliente) {
+    const label = b.textContent;
+    b.disabled = true; b.textContent = 'Reindirizzamento…';
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve, cliente }),
+    }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    if (d.url) { location.href = d.url; return; }
+    errEl.textContent = d.error || 'Errore di connessione, riprova.';
+    b.disabled = false; b.textContent = label;
+  }
+
+  async function noleggio(b, errEl, approve, wrap, close) {
+    const v = sel => wrap.querySelector(sel).value;
+    const label = b.textContent;
+    b.disabled = true; b.textContent = 'Invio…'; errEl.textContent = '';
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/noleggio`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve,
+        ragioneSociale: v('#nRs'), piva: v('#nPiva'), referente: v('#nRef'), email: v('#nEmail'), telefono: v('#nTel') }),
+    }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    if (d.order) { close(); renderNoleggio(d.order); return; }
+    errEl.textContent = d.error || 'Errore di connessione, riprova.';
+    b.disabled = false; b.textContent = label;
+  }
+
+  // Richiesta di noleggio già inviata: si aspetta il contratto con la società di noleggio
+  function renderNoleggio(o) {
+    card.style.textAlign = 'center';
+    const no = o.noleggio === 'rifiutato';
+    card.innerHTML = `
+      <div class="success-ic">${no ? '!' : '✓'}</div>
+      <span class="badge ${no ? '' : 'ok'}">${no ? 'Noleggio non approvato' : 'Richiesta inviata'}</span>
+      <h2 style="font-size:1.8rem;margin:16px 0 8px">${escapeHtml(o.restaurant)}</h2>
+      <p class="muted">${no
+        ? 'La società di noleggio non ha approvato la richiesta. Scrivici su WhatsApp e troviamo un\'altra soluzione.'
+        : `Noleggio per ${o.rateMonths} mesi a ${escapeHtml(formatMoney(o.rateMonthly, o.currency))} al mese. Ti contattiamo a breve per firmare il contratto: appena è approvato trovi qui il link del tuo sito.`}</p>
+      <p class="muted small" style="margin:22px 0 0">Codice ordine ${escapeHtml(o.code)} · conserva questa pagina.</p>`;
+  }
+
+  // Foglio a metà schermo con tutte le condizioni di questo ordine, la seconda casella e il tasto «Paga»
+  async function openTerms(o) {
+    const opener = document.activeElement;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="sheet-bg" data-close></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1">
+        <div class="sheet-head"><h2 id="sheetTitle">Condizioni del servizio</h2><button class="sheet-x" data-close aria-label="Chiudi">✕</button></div>
+        <div class="sheet-body">
+          <div class="terms-frame"><div class="terms-slot fade-end" tabindex="0" aria-label="Testo delle condizioni"><div class="spinner"></div></div></div>
+          <div class="sheet-pay">
+            <div class="approve-row">
+              <input type="checkbox" id="approve" aria-labelledby="approveText"><div class="approve-text fade-end" id="approveText" tabindex="0">${escapeHtml(o.approvalText || '')}</div>
+            </div>
+            ${o.monthly > 0 ? `
+            <div class="nol-form">
+              <input id="cNome" placeholder="Nome e cognome del titolare" autocomplete="name">
+              <input id="cEmail" type="email" placeholder="Email" autocomplete="email" inputmode="email">
+              <input id="cTel" type="tel" placeholder="Telefono (WhatsApp)" autocomplete="tel" inputmode="tel">
+            </div>
+            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>` : `
+            <div class="nol-form">
+              <input id="nRs" placeholder="Nome dell'attività (ragione sociale)" autocomplete="organization">
+              <input id="nPiva" placeholder="Partita IVA" inputmode="text" maxlength="18">
+              <input id="nRef" placeholder="Nome e cognome del titolare" autocomplete="name">
+              <input id="nEmail" type="email" placeholder="Email" autocomplete="email" inputmode="email">
+              <input id="nTel" type="tel" placeholder="Telefono" autocomplete="tel" inputmode="tel">
+            </div>
+            <button class="btn btn-gold" id="sheetNol" style="width:100%" disabled>Richiedi il noleggio: ${formatMoney(o.rateMonthly, o.currency)} al mese</button>`}
+            <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
+            <p class="muted small" style="text-align:center;margin:0">${o.monthly > 0 ? 'Verrai reindirizzato su Stripe per pagare in sicurezza.' : 'Non paghi nulla adesso: ti contattiamo per firmare il contratto di noleggio di ' + o.rateMonths + ' mesi.'}</p>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    document.body.classList.add('sheet-lock');
+    const sheet = wrap.querySelector('.sheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('sheet-open')));
+    sheet.focus({ preventScroll: true });
+
+    const close = () => {
+      wrap.classList.remove('sheet-open');
+      document.body.classList.remove('sheet-lock');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(() => wrap.remove(), 300);
+      if (opener && opener.focus) opener.focus();
+    };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
+    // la prima casella («Accetto le condizioni») è già spuntata nel riepilogo
+    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve'), kl = wrap.querySelector('#sheetNol');
+    approve.addEventListener('change', () => { if (pay) pay.disabled = !approve.checked; if (kl) kl.disabled = !approve.checked; });
+    if (kl) kl.addEventListener('click', () => noleggio(kl, wrap.querySelector('#sheetErr'), approve.checked, wrap, close));
+    // sfumatura in basso finché c'è ancora testo da scorrere (condizioni e seconda casella)
+    const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
+    const boxes = wrap.querySelectorAll('.fade-end');
+    boxes.forEach(el => { el.addEventListener('scroll', () => atEnd(el), { passive: true }); atEnd(el); });
+    if (pay) pay.addEventListener('click', () => checkout(pay, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#cNome') && {
+      nome: wrap.querySelector('#cNome').value, email: wrap.querySelector('#cEmail').value, telefono: wrap.querySelector('#cTel').value,
+    }));
+
+    // Testo completo con pacchetto, prezzo e rate di questo ordine: è lo stesso salvato come prova
+    const slot = wrap.querySelector('.terms-slot');
+    try {
+      const r = await fetch(`/api/orders/${encodeURIComponent(id)}/terms`);
+      const d = r.ok ? await r.json() : {};
+      if (!d.html) throw new Error();
+      slot.innerHTML = `<div class="terms-body">${d.html}</div>`;
+    } catch {
+      slot.innerHTML = `<div class="terms-body"><p class="muted" style="margin-top:14px">Non riesco a caricare il testo completo: leggilo <a href="/condizioni" target="_blank" rel="noopener">qui</a> prima di pagare.</p></div>`;
+    }
+    atEnd(slot);
+  }
+
+  // Istruzioni per gestire il sito dal telefono, con PIN e token da copiare
+  function guide(o) {
+    if (!o.panelPin && !o.siteToken) return '';
+    const copyBox = (label, val, secret) => `
+      <div class="gbox"><span class="muted small">${label}</span>
+        <code class="${secret ? 'tok' : ''}">${escapeHtml(val)}</code>
+        <button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(val)}">Copia</button></div>`;
+    return `
+      <div class="guide">
+        <h3>📱 Come gestire il tuo sito</h3>
+        <ol>
+          <li>Apri il tuo sito e premi <b>«Amministratore»</b> nella prima schermata.</li>
+          ${o.panelPin ? `<li>Inserisci il PIN:${copyBox('PIN', o.panelPin)}</li>` : ''}
+          ${o.siteToken ? `<li><b>Solo la prima volta</b> su ogni telefono: scheda <b>«Pubblica»</b> → nel campo <b>«Token»</b> incolla questo codice:${copyBox('Token', o.siteToken, true)}<span class="muted small">Non condividerlo con nessuno: è la chiave per modificare il sito.</span></li>` : ''}
+          <li><b>Cambia il PIN</b> (consigliato): scheda «Sicurezza» → PIN attuale → nuovo PIN di 6 cifre due volte → poi «Pubblica» → «Pubblica ora».</li>
+          <li>Modifica menu, prezzi, foto e orari, poi <b>«Pubblica» → «Pubblica ora»</b>: in 1-2 minuti è online per tutti.</li>
+        </ol>
+      </div>`;
+  }
+
+  // Abbonamento: stato, fine del vincolo e disdetta
+  function subBox(o) {
+    if (!o.monthly || !o.subStatus) return '';
+    const fine = o.commitmentEnd ? new Date(o.commitmentEnd).toLocaleDateString('it-IT') : '';
+    const chiuso = o.subStatus === 'chiuso' || o.subStatus === 'in disdetta';
+    return `
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line);text-align:left">
+        <h3 style="margin:0 0 8px">Il tuo abbonamento</h3>
+        <p class="muted small" style="margin:0 0 4px">${formatMoney(o.monthly, o.currency)} al mese · stato: <b>${escapeHtml(o.subStatus)}</b></p>
+        ${o.months > 1 && fine ? `<p class="muted small" style="margin:0 0 12px">Vincolo di ${o.months} mesi, fino al ${fine}.</p>` : ''}
+        ${!chiuso && o.disdetta ? `<a class="btn btn-ghost btn-sm" href="/disdici?codice=${encodeURIComponent(o.code)}">Chiudi l'abbonamento</a>` : ''}
+      </div>`;
+  }
+  function openDisdetta(o) {
+    const d = o.disdetta;
+    const wrap = document.createElement('div');
+    const fine = o.commitmentEnd ? new Date(o.commitmentEnd).toLocaleDateString('it-IT') : '';
+    wrap.innerHTML = `
+      <div class="sheet-bg" data-close></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="disTitle" tabindex="-1">
+        <div class="sheet-head"><h2 id="disTitle">Disdici l'abbonamento</h2><button class="sheet-x" data-close aria-label="Chiudi">✕</button></div>
+        <div class="sheet-body" style="padding-top:16px">
+          ${d.amount > 0 ? `
+          <div class="note" style="margin:0 0 14px">Il tuo vincolo dura fino al <b>${fine}</b>. Mancano <b>${d.months} mesi</b>: se disdici adesso ti addebitiamo subito, sulla carta dell'abbonamento, <b>${formatMoney(d.amount, o.currency)}</b> (${d.months} × ${formatMoney(o.monthly, o.currency)}), come previsto al punto 12 delle condizioni che hai accettato. Poi l'abbonamento si chiude.</div>`
+          : `<p class="muted" style="margin:0 0 14px">Il vincolo è finito: l'abbonamento si chiude alla fine del mese già pagato e non ti addebitiamo altro.</p>`}
+          <input type="email" id="disEmail" placeholder="Email che hai usato per pagare" autocomplete="email" inputmode="email" style="margin:0 0 10px;width:100%">
+          <button class="btn btn-danger" id="disOk" style="width:100%">${d.amount > 0 ? 'Disdici e paga ' + formatMoney(d.amount, o.currency) : 'Disdici'}</button>
+          <p class="err" id="disErr" style="margin-top:10px;text-align:center"></p>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    document.body.classList.add('sheet-lock');
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('sheet-open')));
+    const close = () => { wrap.classList.remove('sheet-open'); document.body.classList.remove('sheet-lock'); setTimeout(() => wrap.remove(), 300); };
+    wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
+    const ok = wrap.querySelector('#disOk'), err = wrap.querySelector('#disErr');
+    ok.addEventListener('click', async () => {
+      const label = ok.textContent;
+      ok.disabled = true; ok.textContent = 'Attendi…'; err.textContent = '';
+      const r = await fetch(`/api/orders/${encodeURIComponent(id)}/disdici`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: wrap.querySelector('#disEmail').value, confirm: true, amount: d.amount }),
+      }).catch(() => null);
+      const res = r ? await r.json().catch(() => ({})) : {};
+      if (res.order) { close(); toast('Abbonamento disdetto'); renderPaid(res.order); return; }
+      err.textContent = res.error || 'Errore di connessione, riprova.';
+      ok.disabled = false; ok.textContent = label;
+    });
+  }
+
+  function renderPaid(o) {
+    card.style.textAlign = 'center';
+    card.innerHTML = `
+      <div class="success-ic">✓</div>
+      <span class="badge ok">Pagamento completato</span>
+      <h2 style="font-size:1.8rem;margin:16px 0 8px">Grazie, ${escapeHtml(o.restaurant)}!</h2>
+      ${o.siteUrl ? `
+        <p class="muted" style="margin:0">Ecco il tuo nuovo sito web:</p>
+        <a class="site-link" href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">${escapeHtml(o.siteUrl)}</a>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+          <a class="btn btn-gold" href="${escapeHtml(o.siteUrl)}" target="_blank" rel="noopener">Apri il mio sito →</a>
+          <button class="btn btn-ghost" id="copyBtn">Copia link</button>
+        </div>
+        ${isPremium(o) ? `
+        <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+          <p class="muted" style="margin:0 0 10px">Il tuo QR code, pronto da stampare:</p>
+          <img src="/api/orders/${encodeURIComponent(o.id)}/qr" alt="QR code del sito" style="width:180px;height:180px;border-radius:12px;background:#fff;padding:8px">
+          <div><a class="btn btn-ghost btn-sm" style="margin-top:10px" href="/api/orders/${encodeURIComponent(o.id)}/qr" download="QR-${escapeHtml(o.restaurant)}.png">⬇️ Scarica QR code</a></div>
+        </div>` : ''}
+        ${guide(o)}`
+      : `
+        <p class="muted">Il tuo sito è in fase di pubblicazione. Il link apparirà qui a breve: salva questa pagina e riaprila più tardi.</p>`}
+      ${subBox(o)}
+      ${o.monthly && o.subStatus !== 'chiuso' ? `
+      <div style="margin-top:22px;padding:18px;border:2px solid var(--red);border-radius:16px;background:rgba(248,113,113,.08);text-align:center">
+        <div style="color:var(--red);font-weight:700;font-size:1.15rem;line-height:1.35">SALVATI QUESTO CODICE<br>ti serve per ritrovare il tuo sito e per chiudere l'abbonamento</div>
+        <div style="font:700 1.9rem ui-monospace,monospace;letter-spacing:3px;margin:10px 0;color:var(--text)">${escapeHtml(o.code)}</div>
+        <button class="btn btn-ghost btn-sm" data-copy="${escapeHtml(o.code)}">Copia codice</button>
+        <p class="muted small" style="margin:10px 0 0">Per <b>ritrovare il tuo sito</b> (link, PIN e token): sito Nerodoro Studio → «Ritrova il tuo sito» → inserisci questo codice.<br>Per <b>chiudere l'abbonamento</b>: sito Nerodoro Studio → «Chiudi abbonamento» in alto → inserisci questo codice.</p>
+      </div>` : ''}
+      <p class="muted small" style="margin:22px 0 0">Conserva questa pagina e il codice ${escapeHtml(o.code)}: ti servono per ritrovare il link e per gestire l'abbonamento.</p>`;
+    const dis = document.getElementById('disBtn');
+    if (dis) dis.addEventListener('click', () => openDisdetta(o));
+    const c = document.getElementById('copyBtn');
+    if (c) c.addEventListener('click', () => navigator.clipboard.writeText(o.siteUrl).then(() => toast('Link copiato')));
+    card.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () =>
+      navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copiato ✓')).catch(() => toast('Tieni premuto sul codice per copiarlo'))));
+    if (sessionId || paymentIntent) history.replaceState(null, '', location.pathname);
+  }
+
+  async function load() {
+    if (sessionId || (paymentIntent && !klarnaFailed)) {
+      card.innerHTML = '<div class="spinner"></div><p class="muted" style="text-align:center">Verifica del pagamento…</p>';
+      // Stripe può impiegare qualche secondo a confermare
+      for (let i = 0; i < 6; i++) {
+        const r = await fetch(`/api/orders/${encodeURIComponent(id)}/verify`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sessionId ? { sessionId } : { paymentIntent }),
+        });
+        if (r.status === 404) return renderNotFound();
+        const { order } = await r.json();
+        if (order.paid) return renderPaid(order);
+        await new Promise(res => setTimeout(res, 2000));
+      }
+    }
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}`);
+    if (!r.ok) return renderNotFound();
+    const { order } = await r.json();
+    order.paid ? renderPaid(order) : renderUnpaid(order);
+  }
+  load().catch(renderNotFound);
+</script>
+</body>
+</html>
