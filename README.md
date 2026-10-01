@@ -202,12 +202,12 @@ Pulsanti: **💬 Scrivi su WhatsApp** e **✉️ Manda email** con il messaggio 
 a posto) e **Segna come risolto**.
 
 ## Condizioni e prova di accettazione
-Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo (dove vede canone, **«Vincolo 24 mesi»** e totale), poi si apre
+Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo (dove vede canone e **«Vincolo 24 mesi»**, senza il totale), poi si apre
 un foglio con le condizioni complete (con il dettaglio del pagamento in fondo) e spunta la **seconda casella**: dichiara di acquistare
 per la sua attività, con partita IVA, e non come consumatore, e approva in modo specifico (artt. 1341-1342 c.c.) i punti 6 e 12
 (nessun recesso, vincolo di 24 mesi, canoni che mancano dovuti se disdice prima o smette di pagare). Poi scrive nome del titolare,
 **partita IVA** (controllata), email e telefono. Senza tutto questo il server non apre il pagamento. Anche la pagina di Stripe dice
-«Abbonamento con VINCOLO DI 24 MESI» con il totale.
+«Abbonamento con VINCOLO DI 24 MESI» (senza il totale).
 
 Il servizio è **per le attività con partita IVA**: contratto tra imprese, niente recesso di 14 giorni (punto 6). Gli ordini accettati
 con le vecchie condizioni per i privati tengono i loro 14 giorni. Le condizioni prevedono anche gli interessi di mora e le spese di
