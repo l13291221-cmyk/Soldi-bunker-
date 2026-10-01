@@ -85,6 +85,8 @@ ai 10 centesimi (990 € → **27,50 €/mese**, 1.490 € → **41,40 €/mese*
 Il prezzo intero e tutto il dettaglio del pagamento sono al punto 12 delle condizioni, che il cliente legge prima di pagare.
 Le 36 rate sono senza interessi (TAN 0%, TAEG 0%): Klarna mostra al cliente la rata esatta e se la richiesta è approvata; può anche pagare tutto con carta.
 Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Stripe Checkout mostra da solo i metodi attivi.
+Nella pagina di pagamento il pulsante «Paga X € al mese con Klarna» porta il cliente **direttamente su Klarna** (senza la pagina Stripe con il totale grande); «Oppure paga tutto con carta» usa Stripe Checkout.
+Per il pagamento diretto con Klarna aggiungi al webhook Stripe anche l'evento `payment_intent.succeeded`.
 Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna. Su Stripe il prodotto si chiama «Sito web».
 
 ## Condizioni e prova di accettazione

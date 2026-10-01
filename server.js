@@ -280,6 +280,10 @@ app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), (req,
   if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const s = event.data.object;
     if (s.payment_status === 'paid' && s.metadata && s.metadata.orderId) markPaid(s.metadata.orderId, s);
+  } else if (event.type === 'payment_intent.succeeded') {
+    // Solo i pagamenti Klarna diretti: quelli con la pagina Stripe arrivano già da checkout.session.completed
+    const pi = event.data.object;
+    if (pi.metadata && pi.metadata.via === 'klarna_diretto' && pi.metadata.orderId) markPaid(pi.metadata.orderId, sessionFromKlarna(pi));
   } else if (event.type === 'invoice.paid' || event.type === 'invoice.payment_failed') {
     const o = orderBySubscription(invoiceSubscription(event.data.object));
     if (o) {
@@ -543,10 +547,57 @@ app.post('/api/orders/:id/checkout', loadPublicOrder, async (req, res) => {
   }
 });
 
+// Klarna diretto: il cliente salta la pagina di Stripe e va subito su Klarna, dove vede la rata al mese
+function sessionFromKlarna(pi) {
+  // markPaid lavora con una sessione Checkout: le passo gli stessi campi presi dal pagamento
+  return { id: pi.id, payment_intent: pi.id, amount_total: pi.amount, customer_details: { email: pi.metadata.email || null } };
+}
+app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
+  const o = req.order;
+  if (o.paid) return res.status(400).json({ error: 'Ordine già pagato' });
+  if (!stripe) return res.status(503).json({ error: 'Pagamenti non ancora configurati' });
+  if (o.monthly) return res.status(400).json({ error: 'Klarna si usa solo per il sito, non per l\'assistenza.' });
+  if (!(req.body && req.body.accept === true)) return res.status(400).json({ error: 'Per pagare devi accettare le condizioni.' });
+  if (req.body.approve !== true) return res.status(400).json({ error: 'Per pagare spunta anche l\'approvazione dei punti indicati.' });
+  const email = String(req.body.email || '').trim().slice(0, 200);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Scrivi la tua email: serve a Klarna per le rate.' });
+  try {
+    o.acceptance = acceptanceFor(o, req);
+    o.termsAcceptedAt = o.acceptance.at;
+    o.termsAcceptedIp = o.acceptance.ip;
+    saveOrders();
+    const pi = await stripe.paymentIntents.create({
+      amount: o.amount,
+      currency: CURRENCY,
+      payment_method_types: ['klarna'],
+      payment_method_data: { type: 'klarna', billing_details: { email, address: { country: 'IT' } } },
+      confirm: true,
+      return_url: `${BASE_URL}/paga/${o.id}`,
+      description: `Sito web — ${o.restaurant} (codice ${formatCode(o.id)})`,
+      metadata: { orderId: o.id, via: 'klarna_diretto', email },
+    });
+    const url = pi.next_action && pi.next_action.redirect_to_url && pi.next_action.redirect_to_url.url;
+    if (!url) throw new Error('Klarna non ha restituito il link (stato ' + pi.status + ')');
+    res.json({ url });
+  } catch (err) {
+    console.error('Klarna error:', err.message);
+    res.status(500).json({ error: 'Klarna non è disponibile in questo momento. Puoi pagare con carta.' });
+  }
+});
+
 // Verifica il pagamento al ritorno da Stripe (funziona anche senza webhook)
 app.post('/api/orders/:id/verify', loadPublicOrder, async (req, res) => {
   const o = req.order;
   const sessionId = req.body && req.body.sessionId;
+  const piId = req.body && req.body.paymentIntent;
+  if (!o.paid && stripe && piId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(String(piId));
+      if (pi.status === 'succeeded' && pi.metadata && pi.metadata.orderId === o.id) markPaid(o.id, sessionFromKlarna(pi));
+    } catch (err) {
+      console.error('Verify Klarna error:', err.message);
+    }
+  }
   if (!o.paid && stripe && sessionId) {
     try {
       const s = await stripe.checkout.sessions.retrieve(String(sessionId));

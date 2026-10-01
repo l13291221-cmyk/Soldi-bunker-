@@ -86,6 +86,9 @@
   const id = decodeURIComponent(location.pathname.split('/').pop());
   const params = new URLSearchParams(location.search);
   const sessionId = params.get('session_id');
+  // Ritorno da Klarna diretto: Stripe aggiunge payment_intent e redirect_status all'indirizzo
+  const paymentIntent = params.get('payment_intent');
+  const klarnaFailed = params.get('redirect_status') === 'failed';
   const cancelled = params.has('annullato');
 
   function renderNotFound() {
@@ -100,7 +103,7 @@
   function renderUnpaid(o) {
     const sub = o.monthly > 0;
     card.innerHTML = `
-      ${cancelled ? '<div class="note">Pagamento annullato. Nessun addebito effettuato: puoi riprovare quando vuoi.</div>' : ''}
+      ${cancelled || klarnaFailed ? '<div class="note">Pagamento annullato o non approvato. Nessun addebito effettuato: puoi riprovare, anche con carta.</div>' : ''}
       <span class="kicker">Riepilogo ordine</span>
       <h2 style="font-size:1.8rem;margin-bottom:6px">${escapeHtml(o.restaurant)}</h2>
       <p class="muted" style="margin-top:0">${escapeHtml(o.description)}</p>
@@ -144,6 +147,19 @@
     b.disabled = false; b.textContent = label;
   }
 
+  async function klarna(b, errEl, approve, email) {
+    const label = b.textContent;
+    b.disabled = true; b.textContent = 'Apro Klarna…';
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/klarna`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve, email }),
+    }).catch(() => null);
+    const d = r ? await r.json().catch(() => ({})) : {};
+    if (d.url) { location.href = d.url; return; }
+    errEl.textContent = d.error || 'Errore di connessione, riprova.';
+    b.disabled = false; b.textContent = label;
+  }
+
   // Foglio a metà schermo con tutte le condizioni di questo ordine, la seconda casella e il tasto «Paga»
   async function openTerms(o) {
     const opener = document.activeElement;
@@ -158,9 +174,13 @@
             <div class="approve-row">
               <input type="checkbox" id="approve" aria-labelledby="approveText"><div class="approve-text fade-end" id="approveText" tabindex="0">${escapeHtml(o.approvalText || '')}</div>
             </div>
-            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>
+            ${o.monthly > 0 ? `
+            <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>` : `
+            <input type="email" id="klarnaEmail" placeholder="La tua email (serve a Klarna)" autocomplete="email" inputmode="email" style="margin:0 0 10px">
+            <button class="btn btn-gold" id="sheetKlarna" style="width:100%" disabled>Paga ${formatMoney(o.rateMonthly, o.currency)} al mese con Klarna</button>
+            <button class="btn btn-ghost" id="sheetPay" style="width:100%;margin-top:8px" disabled>Oppure paga tutto con carta</button>`}
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
-            <p class="muted small" style="text-align:center;margin:0">Verrai reindirizzato su Stripe per pagare in sicurezza.</p>
+            <p class="muted small" style="text-align:center;margin:0">${o.monthly > 0 ? 'Verrai reindirizzato su Stripe per pagare in sicurezza.' : 'Con Klarna vai direttamente sulla pagina di Klarna: rata esatta e approvazione le vedi lì prima di confermare.'}</p>
           </div>
         </div>
       </div>`;
@@ -181,8 +201,9 @@
     document.addEventListener('keydown', onKey);
     wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
     // la prima casella («Accetto le condizioni») è già spuntata nel riepilogo
-    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve');
-    approve.addEventListener('change', () => { pay.disabled = !approve.checked; });
+    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve'), kl = wrap.querySelector('#sheetKlarna');
+    approve.addEventListener('change', () => { pay.disabled = !approve.checked; if (kl) kl.disabled = !approve.checked; });
+    if (kl) kl.addEventListener('click', () => klarna(kl, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#klarnaEmail').value));
     // sfumatura in basso finché c'è ancora testo da scorrere (condizioni e seconda casella)
     const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
     const boxes = wrap.querySelectorAll('.fade-end');
@@ -249,16 +270,16 @@
     if (c) c.addEventListener('click', () => navigator.clipboard.writeText(o.siteUrl).then(() => toast('Link copiato')));
     card.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () =>
       navigator.clipboard.writeText(b.dataset.copy).then(() => toast('Copiato ✓')).catch(() => toast('Tieni premuto sul codice per copiarlo'))));
-    if (sessionId) history.replaceState(null, '', location.pathname);
+    if (sessionId || paymentIntent) history.replaceState(null, '', location.pathname);
   }
 
   async function load() {
-    if (sessionId) {
+    if (sessionId || (paymentIntent && !klarnaFailed)) {
       card.innerHTML = '<div class="spinner"></div><p class="muted" style="text-align:center">Verifica del pagamento…</p>';
       // Stripe può impiegare qualche secondo a confermare
       for (let i = 0; i < 6; i++) {
         const r = await fetch(`/api/orders/${encodeURIComponent(id)}/verify`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sessionId ? { sessionId } : { paymentIntent }),
         });
         if (r.status === 404) return renderNotFound();
         const { order } = await r.json();
