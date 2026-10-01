@@ -79,6 +79,17 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
+## Backup automatico su GitHub (importante con Render gratuito)
+Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Con il backup, pochi secondi dopo ogni modifica
+ordini (con accettazioni, dati dei clienti e tutto ciò che serve per le ricevute), siti pronti e sveglia siti vengono copiati
+in un **repository GitHub privato**; all'avvio, se mancano, vengono ripresi da lì (e uniti a quelli nuovi).
+1. Su GitHub crea un repository **Private** (es. `nerodoro-dati`), spuntando «Add a README» così non è vuoto.
+   Non usare questo repository del sito: è pubblico e chiunque vedrebbe email, telefoni e token dei clienti.
+2. Crea un token fine-grained: Repository access → Only select repositories → `nerodoro-dati`;
+   Permissions → Contents = Read and write. Nient'altro.
+3. Su Render → Environment: `BACKUP_REPO=l13291221-cmyk/nerodoro-dati`, `BACKUP_TOKEN=github_pat_…` (facoltativo `BACKUP_BRANCH`, predefinito `main`).
+4. Manual Deploy. In cima all'admin compare «☁️ Backup su GitHub attivo» con l'ora dell'ultimo salvataggio.
+
 ## Siti pronti
 Nell'admin, sezione **🌐 Siti pronti**, incolli le copie del sito già online, una per riga: `link PIN token`
 (PIN e token facoltativi). Quando un cliente paga, se il suo ordine non ha già un link, riceve **da solo** il primo sito

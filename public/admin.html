@@ -110,6 +110,7 @@
 
 <main class="wrap admin">
   <h1 style="font-size:2rem;margin:0">Ordini</h1>
+  <div id="bkBox" class="panel" style="margin-top:14px;padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap" hidden></div>
   <div id="tokWarn" class="panel" style="margin-top:14px;border-color:var(--red);color:var(--red);padding:14px 16px" hidden></div>
   <div class="stats">
     <div class="stat"><span class="muted small">Incassato</span><b id="sIncasso">–</b></div>
@@ -400,6 +401,24 @@
   }
   poolName.addEventListener('input', () => { poolNameTouched = true; howLinks(); });
   howLinks();
+  // Stato del backup su GitHub (ordini, siti pronti, sveglia siti)
+  async function refreshBackup() {
+    const b = await api('/api/admin/backup'), box = document.getElementById('bkBox');
+    box.hidden = false;
+    if (!b.enabled) {
+      box.style.borderColor = 'var(--red)';
+      box.innerHTML = '<span style="color:var(--red)">⚠️ <b>Backup non attivo.</b> A ogni Manual Deploy o riavvio di Render perdi ordini e siti pronti. Su Render metti BACKUP_REPO e BACKUP_TOKEN (vedi README).</span>';
+      return;
+    }
+    const ok = b.ready && !b.lastError;
+    box.style.borderColor = ok ? 'rgba(74,222,128,.35)' : 'var(--red)';
+    box.innerHTML = `<span class="small" style="color:${ok ? 'var(--green)' : 'var(--red)'}">${!b.ready ? '⏳ Sto riprendendo i dati dal backup…' : b.lastError ? '⚠️ Backup non riuscito: ' + escapeHtml(b.lastError) : '☁️ Backup su GitHub attivo'}${b.lastOk ? ' · ultimo salvataggio ' + new Date(b.lastOk).toLocaleString('it-IT') : ''}${b.restored.length ? ' · dati ripresi dopo il riavvio ✓' : ''}</span>
+      <button class="btn btn-ghost btn-sm" id="bkNow">Salva ora</button>`;
+    document.getElementById('bkNow').onclick = async () => {
+      try { await api('/api/admin/backup', { method: 'POST' }); toast('Backup salvato ✓'); } catch (x) { if (x.message !== '401') toast(x.message); }
+      refreshBackup();
+    };
+  }
   async function refreshPool(data) {
     const { sites } = data || await api('/api/admin/siti-pronti');
     // Nome proposto: il primo sito-NN non ancora usato
@@ -566,8 +585,8 @@
       toast('Controlla il prezzo e crea l\'ordine');
     }
     refresh();
-    refreshMonitors(); refreshPool();
-    setInterval(() => { refresh(); refreshMonitors(); refreshPool(); }, 15000);
+    refreshMonitors(); refreshPool(); refreshBackup();
+    setInterval(() => { refresh(); refreshMonitors(); refreshPool(); refreshBackup(); }, 15000);
   });
 </script>
 </body>

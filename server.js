@@ -75,6 +75,7 @@ function saveOrders() {
   const tmp = DB_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(orders, null, 2));
   fs.renameSync(tmp, DB_FILE);
+  backupSoon();
 }
 // Codice ordine leggibile, es. "K7M2-P9QX" (senza 0/O/1/I/L per evitare confusione)
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -188,6 +189,7 @@ function savePool() {
   const tmp = POOL_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(pool, null, 2));
   fs.renameSync(tmp, POOL_FILE);
+  backupSoon();
 }
 function assignFromPool(o) {
   const s = pool.find(x => !x.usedBy);
@@ -1209,6 +1211,7 @@ const selfStatus = { url: SELF_URL, enabled: selfPingEnabled };
 function saveMonitors() {
   fs.mkdirSync(path.dirname(MONITORS_FILE), { recursive: true });
   fs.writeFileSync(MONITORS_FILE, JSON.stringify(monitors, null, 2));
+  backupSoon();
 }
 
 async function pingUrl(url) {
@@ -1271,4 +1274,109 @@ app.delete('/api/admin/monitors/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Backup automatico su GitHub (repository PRIVATO) ----------
+// Render gratuito cancella data/ a ogni deploy o riavvio. Ordini (con accettazioni e dati per le ricevute),
+// siti pronti e sveglia siti si copiano in un repository privato pochi secondi dopo ogni modifica,
+// e all'avvio, se qui mancano, si riprendono da lì.
+const BACKUP_REPO = String(process.env.BACKUP_REPO || '').trim();   // es. l13291221-cmyk/nerodoro-dati
+const BACKUP_TOKEN = String(process.env.BACKUP_TOKEN || '').trim(); // token solo per quel repository
+const BACKUP_BRANCH = String(process.env.BACKUP_BRANCH || 'main').trim();
+const backupOn = /^[\w.-]+\/[\w.-]+$/.test(BACKUP_REPO) && !!BACKUP_TOKEN;
+const BACKUP_FILES = {
+  'orders.json': { file: () => DB_FILE, get: () => orders, set: v => { orders = v; } },
+  'siti-pronti.json': { file: () => POOL_FILE, get: () => pool, set: v => { pool = v; } },
+  'monitors.json': { file: () => MONITORS_FILE, get: () => monitors, set: v => { monitors = v; } },
+};
+const backupState = { enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastOk: null, lastError: null, restored: [] };
+const backupShas = {}, backupSent = {};
+async function backupApi(method, file, body) {
+  const url = `${process.env.BACKUP_API || 'https://api.github.com'}/repos/${BACKUP_REPO}/contents/${file}` + (method === 'GET' ? `?ref=${encodeURIComponent(BACKUP_BRANCH)}` : '');
+  const r = await fetch(url, {
+    method, headers: { Authorization: `Bearer ${BACKUP_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'nerodoro-studio', 'X-GitHub-Api-Version': '2022-11-28' },
+    ...(body && { body: JSON.stringify(body) }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(`GitHub ${r.status}: ${d.message || ''}`), { status: r.status });
+  return d;
+}
+let backupTimer = null, backupRunning = false, backupAgain = false;
+function backupSoon() {
+  if (!backupOn || !backupState.ready) return;
+  clearTimeout(backupTimer);
+  backupTimer = setTimeout(runBackup, 5000);
+}
+async function runBackup() {
+  if (backupRunning) { backupAgain = true; return; }
+  backupRunning = true;
+  try {
+    for (const [name, f] of Object.entries(BACKUP_FILES)) {
+      const text = JSON.stringify(f.get(), null, 2);
+      if (backupSent[name] === text) continue;
+      const put = sha => backupApi('PUT', name, { message: `Backup ${name} ${new Date().toISOString()}`, branch: BACKUP_BRANCH, content: Buffer.from(text).toString('base64'), ...(sha && { sha }) });
+      let res;
+      try { res = await put(backupShas[name]); }
+      catch (err) {
+        // sha mancante o vecchio: lo rilegge e riprova una volta
+        if (err.status !== 409 && err.status !== 422) throw err;
+        const cur = await backupApi('GET', name).catch(e => { if (e.status === 404) return {}; throw e; });
+        res = await put(cur.sha);
+      }
+      backupShas[name] = res.content && res.content.sha;
+      backupSent[name] = text;
+    }
+    backupState.lastOk = new Date().toISOString(); backupState.lastError = null;
+  } catch (err) {
+    backupState.lastError = err.message;
+    console.error('Backup GitHub:', err.message);
+    clearTimeout(backupTimer); backupTimer = setTimeout(runBackup, 60 * 1000); // riprova tra un minuto
+  } finally {
+    backupRunning = false;
+    if (backupAgain) { backupAgain = false; backupSoon(); }
+  }
+}
+// All'avvio: riprende da GitHub i file che qui sono vuoti (es. dopo un deploy). Finché non ci riesce
+// non fa backup, così un disco vuoto non cancella mai la copia buona.
+async function restoreBackup() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      for (const [name, f] of Object.entries(BACKUP_FILES)) {
+        let remote;
+        try { remote = await backupApi('GET', name); } catch (err) { if (err.status === 404) continue; throw err; }
+        backupShas[name] = remote.sha;
+        const text = Buffer.from(remote.content || '', 'base64').toString('utf8');
+        if (!text.trim()) continue;
+        // Unisce: quello che c'è su GitHub più quello creato qui nel frattempo (vince la copia di qui)
+        const remoteData = JSON.parse(text), local = f.get();
+        const merged = Array.isArray(remoteData)
+          ? [...remoteData.filter(r => !local.some(l => l.url === r.url || (l.id && l.id === r.id))), ...local]
+          : { ...remoteData, ...local };
+        if (JSON.stringify(merged) === JSON.stringify(remoteData)) backupSent[name] = JSON.stringify(merged, null, 2);
+        if (JSON.stringify(merged) !== JSON.stringify(local)) {
+          f.set(merged);
+          fs.mkdirSync(path.dirname(f.file()), { recursive: true });
+          fs.writeFileSync(f.file(), JSON.stringify(f.get(), null, 2));
+          backupState.restored.push(name);
+          backupSent[name] = JSON.stringify(f.get(), null, 2);
+        }
+      }
+      backupState.ready = true;
+      if (backupState.restored.length) console.log('Backup ripreso da GitHub:', backupState.restored.join(', '));
+      runBackup();
+      return;
+    } catch (err) {
+      backupState.lastError = err.message;
+      console.error(`Backup: lettura da GitHub non riuscita (tentativo ${attempt}):`, err.message);
+      await new Promise(r => setTimeout(r, Math.min(60000, attempt * 5000)));
+    }
+  }
+}
+app.get('/api/admin/backup', requireAdmin, (req, res) => res.json(backupState));
+app.post('/api/admin/backup', requireAdmin, async (req, res) => {
+  if (!backupOn) return res.status(400).json({ error: 'Backup non configurato: su Render mancano BACKUP_REPO e BACKUP_TOKEN' });
+  if (!backupState.ready) return res.status(503).json({ error: 'Sto ancora leggendo il backup da GitHub, riprova tra poco' });
+  clearTimeout(backupTimer); await runBackup();
+  res.json(backupState);
+});
+
+if (backupOn) restoreBackup(); else console.warn('⚠️  Backup su GitHub non attivo (BACKUP_REPO e BACKUP_TOKEN): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
 app.listen(PORT, () => console.log(`Nerodoro Studio attivo su ${BASE_URL}`));
