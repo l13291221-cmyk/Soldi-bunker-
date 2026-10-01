@@ -52,6 +52,8 @@
     .fade-end { -webkit-mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); mask-image: linear-gradient(#000 calc(100% - 1.5em), transparent); }
     .fade-end.end { -webkit-mask-image: none; mask-image: none; }
     .sheet-pay { margin-top: 16px; }
+    .nol-form input { margin: 0 0 8px; width: 100%; }
+    .nol-form { margin-bottom: 4px; }
     /* Seconda casella: si vede metà del testo, il resto si legge scorrendo nel riquadro.
        Scorrere non serve per pagare: basta spuntare il quadratino */
     .approve-row { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; font-size: .9rem; }
@@ -101,6 +103,7 @@
   const PKG_NAMES = { base: 'Base', premium: 'Premium', assistenza: 'Assistenza', base_mensile: 'Base mensile', premium_mensile: 'Premium mensile' };
   const isPremium = o => String(o.package || '').startsWith('premium');
   function renderUnpaid(o) {
+    if (o.noleggio) return renderNoleggio(o);
     const sub = o.monthly > 0;
     card.innerHTML = `
       ${cancelled || klarnaFailed ? '<div class="note">Pagamento annullato o non approvato. Nessun addebito effettuato: puoi riprovare.</div>' : ''}
@@ -119,20 +122,20 @@
         <div class="row" style="align-items:center"><span class="muted">Oggi paghi</span><span class="total">${formatMoney(o.amount + o.monthly, o.currency)}</span></div>
         <p class="muted small" style="margin:6px 0 0">Poi ${formatMoney(o.monthly, o.currency)} ogni mese sulla stessa carta.</p>`
         : `
-        <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Totale ${formatMoney(o.amount, o.currency)} in ${o.rateMonths} rate con Klarna</small></span></div>`}
+        <div class="row" style="align-items:center"><span class="muted">Pagamento</span><span class="pay-line"><span class="total">${formatMoney(o.rateMonthly, o.currency)}</span> al mese<small class="muted">Noleggio per ${o.rateMonths} mesi</small></span></div>`}
       </div>
       <label class="accept" style="display:flex;gap:10px;align-items:center;margin:0 0 14px;font-size:.95rem;cursor:pointer">
         <input type="checkbox" id="accept" style="width:20px;height:20px;flex:none"><span>Accetto le condizioni</span>
       </label>
       <button class="btn btn-gold" id="payBtn" style="width:100%" disabled>${payLabel(o)}</button>
       <p class="err" id="payErr" style="margin-top:10px;text-align:center"></p>
-      <p class="muted small" style="text-align:center;margin:0">Prima di pagare leggi le condizioni: in fondo c'è il dettaglio del pagamento. Poi verrai reindirizzato ${sub ? 'su Stripe' : 'su Klarna'}. ${o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.'}</p>`;
+      <p class="muted small" style="text-align:center;margin:0">Prima di pagare leggi le condizioni: in fondo c'è il dettaglio del pagamento. ${sub ? 'Poi verrai reindirizzato su Stripe. ' + (o.package === 'assistenza' ? 'L\'assistenza parte subito dopo il pagamento.' : 'Subito dopo il pagamento riceverai il link del tuo sito.') : 'Poi lasci i dati della tua attività: ti contattiamo per firmare il contratto di noleggio. Appena è approvato ricevi il link del tuo sito.'}</p>`;
     const acc = document.getElementById('accept');
     acc.addEventListener('change', () => { document.getElementById('payBtn').disabled = !acc.checked; });
     // Prima le condizioni complete (con il dettaglio del pagamento in fondo) e la seconda casella, poi Stripe
     document.getElementById('payBtn').addEventListener('click', () => openTerms(o));
   }
-  function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Paga a rate con Klarna'; }
+  function payLabel(o) { return o.monthly > 0 ? 'Attiva con carta' : 'Richiedi il noleggio'; }
 
   async function checkout(b, errEl, approve) {
     const label = b.textContent;
@@ -147,17 +150,33 @@
     b.disabled = false; b.textContent = label;
   }
 
-  async function klarna(b, errEl, approve, email) {
+  async function noleggio(b, errEl, approve, wrap, close) {
+    const v = sel => wrap.querySelector(sel).value;
     const label = b.textContent;
-    b.disabled = true; b.textContent = 'Apro Klarna…';
-    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/klarna`, {
+    b.disabled = true; b.textContent = 'Invio…'; errEl.textContent = '';
+    const r = await fetch(`/api/orders/${encodeURIComponent(id)}/noleggio`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve, email }),
+      body: JSON.stringify({ accept: document.getElementById('accept').checked, approve,
+        ragioneSociale: v('#nRs'), piva: v('#nPiva'), referente: v('#nRef'), email: v('#nEmail'), telefono: v('#nTel') }),
     }).catch(() => null);
     const d = r ? await r.json().catch(() => ({})) : {};
-    if (d.url) { location.href = d.url; return; }
+    if (d.order) { close(); renderNoleggio(d.order); return; }
     errEl.textContent = d.error || 'Errore di connessione, riprova.';
     b.disabled = false; b.textContent = label;
+  }
+
+  // Richiesta di noleggio già inviata: si aspetta il contratto con la società di noleggio
+  function renderNoleggio(o) {
+    card.style.textAlign = 'center';
+    const no = o.noleggio === 'rifiutato';
+    card.innerHTML = `
+      <div class="success-ic">${no ? '!' : '✓'}</div>
+      <span class="badge ${no ? '' : 'ok'}">${no ? 'Noleggio non approvato' : 'Richiesta inviata'}</span>
+      <h2 style="font-size:1.8rem;margin:16px 0 8px">${escapeHtml(o.restaurant)}</h2>
+      <p class="muted">${no
+        ? 'La società di noleggio non ha approvato la richiesta. Scrivici su WhatsApp e troviamo un\'altra soluzione.'
+        : `Noleggio per ${o.rateMonths} mesi a ${escapeHtml(formatMoney(o.rateMonthly, o.currency))} al mese. Ti contattiamo a breve per firmare il contratto: appena è approvato trovi qui il link del tuo sito.`}</p>
+      <p class="muted small" style="margin:22px 0 0">Codice ordine ${escapeHtml(o.code)} · conserva questa pagina.</p>`;
   }
 
   // Foglio a metà schermo con tutte le condizioni di questo ordine, la seconda casella e il tasto «Paga»
@@ -176,11 +195,16 @@
             </div>
             ${o.monthly > 0 ? `
             <button class="btn btn-gold" id="sheetPay" style="width:100%" disabled>${payLabel(o)}</button>` : `
-            <input type="email" id="klarnaEmail" placeholder="La tua email (serve a Klarna)" autocomplete="email" inputmode="email" style="margin:0 0 10px">
-            <button class="btn btn-gold" id="sheetKlarna" style="width:100%" disabled>Paga ${formatMoney(o.rateMonthly, o.currency)} al mese con Klarna</button>
-            ${klarnaFailed ? '<button class="btn btn-ghost" id="sheetPay" style="width:100%;margin-top:8px" disabled>Klarna non ha approvato? Paga con carta</button>' : ''}`}
+            <div class="nol-form">
+              <input id="nRs" placeholder="Nome dell'attività (ragione sociale)" autocomplete="organization">
+              <input id="nPiva" placeholder="Partita IVA" inputmode="text" maxlength="18">
+              <input id="nRef" placeholder="Nome e cognome del titolare" autocomplete="name">
+              <input id="nEmail" type="email" placeholder="Email" autocomplete="email" inputmode="email">
+              <input id="nTel" type="tel" placeholder="Telefono" autocomplete="tel" inputmode="tel">
+            </div>
+            <button class="btn btn-gold" id="sheetNol" style="width:100%" disabled>Richiedi il noleggio: ${formatMoney(o.rateMonthly, o.currency)} al mese</button>`}
             <p class="err" id="sheetErr" style="margin-top:10px;text-align:center"></p>
-            <p class="muted small" style="text-align:center;margin:0">${o.monthly > 0 ? 'Verrai reindirizzato su Stripe per pagare in sicurezza.' : 'Con Klarna vai direttamente sulla pagina di Klarna: rata esatta e approvazione le vedi lì prima di confermare.'}</p>
+            <p class="muted small" style="text-align:center;margin:0">${o.monthly > 0 ? 'Verrai reindirizzato su Stripe per pagare in sicurezza.' : 'Non paghi nulla adesso: ti contattiamo per firmare il contratto di noleggio di ' + o.rateMonths + ' mesi.'}</p>
           </div>
         </div>
       </div>`;
@@ -201,9 +225,9 @@
     document.addEventListener('keydown', onKey);
     wrap.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', close));
     // la prima casella («Accetto le condizioni») è già spuntata nel riepilogo
-    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve'), kl = wrap.querySelector('#sheetKlarna');
+    const pay = wrap.querySelector('#sheetPay'), approve = wrap.querySelector('#approve'), kl = wrap.querySelector('#sheetNol');
     approve.addEventListener('change', () => { if (pay) pay.disabled = !approve.checked; if (kl) kl.disabled = !approve.checked; });
-    if (kl) kl.addEventListener('click', () => klarna(kl, wrap.querySelector('#sheetErr'), approve.checked, wrap.querySelector('#klarnaEmail').value));
+    if (kl) kl.addEventListener('click', () => noleggio(kl, wrap.querySelector('#sheetErr'), approve.checked, wrap, close));
     // sfumatura in basso finché c'è ancora testo da scorrere (condizioni e seconda casella)
     const atEnd = el => el.classList.toggle('end', el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
     const boxes = wrap.querySelectorAll('.fade-end');

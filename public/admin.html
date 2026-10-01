@@ -235,9 +235,9 @@
       ['IP', a.ip || o.termsAcceptedIp],
       ['Dispositivo', a.userAgent],
       ['Lingua', a.language],
-      ['Importi accettati', a.rateMonthly ? `${formatMoney(a.price, currency)} · ${a.rateMonths} rate da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
+      ['Importi accettati', a.rateMonthly ? `Prezzo ${formatMoney(a.price, currency)} · noleggio ${a.rateMonths} mesi da ${formatMoney(a.rateMonthly, currency)}` : a.monthly && `${formatMoney(a.monthly, currency)} al mese`],
       ['Caselle spuntate', a.specificApproval && 'Condizioni + inizio immediato (recesso)'],
-      ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method],
+      ['Metodo', p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method === 'noleggio' ? 'Noleggio' : p.method],
       ['Nome', p.name], ['Email', p.email], ['Telefono', p.phone], ['Indirizzo', ad],
       ['P.IVA', (p.taxIds || []).map(t => t.value).join(', ')],
       ['Carta', c.last4 && `${c.brand} •••• ${c.last4} (${c.country || '—'})`],
@@ -260,7 +260,7 @@
       <div class="order" data-id="${o.id}">
         <div class="order-top">
           <div>
-            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ` <span class="muted small">(${o.rateMonths} × ${formatMoney(o.rateMonthly, currency)}/mese)</span>`} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
+            <h4>${escapeHtml(o.restaurant)} · ${formatMoney(o.amount, currency)}${o.monthly ? ' + ' + formatMoney(o.monthly, currency) + '/mese' : ` <span class="muted small">(noleggio ${o.rateMonths} × ${formatMoney(o.rateMonthly, currency)}/mese)</span>`} ${String(o.package).startsWith('premium') ? '<span class="pill paid" style="color:var(--gold-2);border-color:rgba(214,177,106,.4);background:rgba(214,177,106,.1)">Premium</span>' : ''}</h4>
             <div class="meta">Creato ${new Date(o.createdAt).toLocaleString('it-IT')}${o.paidAt ? ' · Pagato ' + new Date(o.paidAt).toLocaleString('it-IT') : ''}${o.phone ? ' · ' + escapeHtml(o.phone) : ''}</div>
             ${!o.monthly && o.termsAcceptedAt ? `<div class="meta">✅ Condizioni accettate il ${new Date(o.termsAcceptedAt).toLocaleString('it-IT')}${o.payer && o.payer.method ? ' · pagato con ' + (o.payer.method === 'klarna' ? 'Klarna' : o.payer.method === 'card' ? 'carta' : escapeHtml(o.payer.method)) : ''}</div>` : ''}
             ${o.monthly ? `<div class="meta">💳 ${o.package === 'assistenza' ? 'Assistenza' : 'Abbonamento'}${o.subStatus ? ': <b style="color:' + (o.subStatus === 'insoluto' ? 'var(--red)' : 'var(--text)') + '">' + escapeHtml(o.subStatus) + '</b>' : ''} ${o.months > 1 ? ' · vincolo ' + o.months + ' mesi' + (o.commitmentEnd ? ' (fino al ' + new Date(o.commitmentEnd).toLocaleDateString('it-IT') + ')' : '') : ' · senza vincolo'}${o.termsAcceptedAt ? ' · condizioni accettate il ' + new Date(o.termsAcceptedAt).toLocaleString('it-IT') : ''}</div>` : ''}
@@ -278,6 +278,7 @@
           <div class="linkbox"><input class="pin" inputmode="numeric" value="${escapeHtml(o.panelPin || '')}" placeholder="PIN pannello (6 cifre)"></div>
           <div class="linkbox"><input class="tok" type="password" autocomplete="off" value="${escapeHtml(o.siteToken || '')}" placeholder="Token GitHub del suo sito"><button class="btn btn-ghost btn-sm" data-savex>Salva</button></div>
         </details>
+        ${nol(o)}
         ${proof(o)}
         <div class="actions">
           <a class="btn btn-wa btn-sm" href="${waLink(o)}" target="_blank" rel="noopener">Invia su WhatsApp</a>
@@ -298,6 +299,20 @@
     if (s < 60) return 'ora';
     if (s < 3600) return Math.round(s / 60) + ' min fa';
     return new Date(iso).toLocaleString('it-IT');
+  }
+  // Richiesta di noleggio del cliente: dati da mandare alla società di noleggio e stato del contratto
+  function nol(o) {
+    const n = o.noleggio;
+    if (!n) return '';
+    const label = { richiesta: 'Nuova richiesta', inviata: 'Inviata alla società', approvato: 'Approvato', rifiutato: 'Rifiutato' }[n.stato] || n.stato;
+    const btn = (st, txt) => n.stato === st ? '' : `<button class="btn btn-ghost btn-sm" data-nol="${st}">${txt}</button>`;
+    return `
+      <div class="meta" style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px">
+        📝 <b>Noleggio ${n.mesi} mesi × ${formatMoney(n.rata, currency)}</b> · stato: <b>${escapeHtml(label)}</b><br>
+        ${escapeHtml(n.ragioneSociale)} · P.IVA ${escapeHtml(n.piva)}<br>
+        Titolare: ${escapeHtml(n.referente)} · ${escapeHtml(n.email)} · ${escapeHtml(n.telefono)}
+        ${o.paid ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btn('inviata', 'Inviata alla società')}${btn('approvato', '✅ Approvato e firmato')}${btn('rifiutato', 'Rifiutato')}</div>`}
+      </div>`;
   }
   function monRow(m, self) {
     const l = m.last;
@@ -389,6 +404,10 @@
       } else if (b.hasAttribute('data-savex')) {
         await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ panelPin: box.querySelector('.pin').value, siteToken: box.querySelector('.tok').value }) });
         toast('PIN e token salvati'); refresh();
+      } else if (b.dataset.nol) {
+        if (b.dataset.nol === 'approvato' && !confirm('Contratto firmato e approvato? L\'ordine diventa pagato e il cliente vede il link del sito.')) return;
+        await api(`/api/admin/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ noleggioStato: b.dataset.nol }) });
+        toast('Stato del noleggio aggiornato'); refresh();
       } else if (b.hasAttribute('data-del')) {
         if (!confirm('Eliminare questo ordine? Il link di pagamento smetterà di funzionare.')) return;
         await api(`/api/admin/orders/${id}`, { method: 'DELETE' });

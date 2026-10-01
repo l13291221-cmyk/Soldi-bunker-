@@ -79,15 +79,21 @@ Nell'admin, pulsante **📋 Guida cliente** (`/guida`): i passi per creare la co
 Ristorante- (copia, GitHub Pages, token solo per quel sito, PIN nuovo, collegamento all'ordine). Scrivi il nome del cliente
 e i link si compilano da soli; le spunte restano salvate sul telefono.
 
-## Pagamento a rate (Klarna)
-Sul sito Base e Premium si mostrano come rata mensile: prezzo diviso per `RATE_KLARNA` (predefinito 36), arrotondato per eccesso
-ai 10 centesimi (990 € → **27,50 €/mese**, 1.490 € → **41,40 €/mese**), con sotto «Pagamento con Klarna in 36 rate».
-Il prezzo intero e tutto il dettaglio del pagamento sono al punto 12 delle condizioni, che il cliente legge prima di pagare.
-Le 36 rate sono senza interessi (TAN 0%, TAEG 0%): Klarna mostra al cliente la rata esatta e se la richiesta è approvata. Il pulsante di pagamento porta solo a Klarna: la carta compare solo se Klarna rifiuta la richiesta.
-Per farlo funzionare: dashboard Stripe → Impostazioni → Metodi di pagamento → attiva **Klarna**. Stripe Checkout mostra da solo i metodi attivi.
-Nella pagina di pagamento il pulsante «Paga X € al mese con Klarna» porta il cliente **direttamente su Klarna** (senza la pagina Stripe con il totale grande).
-Per il pagamento diretto con Klarna aggiungi al webhook Stripe anche l'evento `payment_intent.succeeded`.
-Tu incassi subito l'intero importo (meno la commissione Klarna); le rate le gestisce Klarna. Su Stripe il prodotto si chiama «Sito web».
+## Pagamento con noleggio (36 mesi)
+Base e Premium si pagano con un **noleggio operativo**: il cliente (un'attività con partita IVA) firma un contratto
+con una società di noleggio (es. Grenke o altre società di leasing), paga a lei un canone al mese per `NOLEGGIO_MESI` mesi
+e la società paga subito a te il prezzo del sito. Se il cliente non paga i canoni, è un problema della società di noleggio.
+
+- Canone mostrato = prezzo × `NOLEGGIO_COEFF` % al mese, arrotondato per eccesso ai 10 centesimi
+  (predefinito 3,3: 990 € → **32,70 €/mese**, 1.490 € → **49,20 €/mese**). Metti il coefficiente vero che ti dà la società.
+- `NOLEGGIO_SOCIETA`: il nome della società, compare nelle condizioni (es. `Grenke Locazione S.r.l.`).
+- Il cliente accetta le condizioni, lascia ragione sociale, P.IVA, titolare, email e telefono: **non paga nulla online**.
+- Nell'admin l'ordine mostra la richiesta: mandi i dati alla società, premi «Inviata alla società»;
+  quando il contratto è firmato e approvato premi **«✅ Approvato e firmato»**: l'ordine diventa pagato e il cliente vede il link del sito.
+  Se la società rifiuta, premi «Rifiutato» e il cliente vede che deve scriverti.
+- Per diventare partner di una società di noleggio di solito serve un'attività con partita IVA: chiedi a loro i requisiti.
+
+Il vecchio pagamento diretto con Klarna resta nel server (`/api/orders/:id/klarna`) ma la pagina non lo usa più.
 
 ## Condizioni e prova di accettazione
 Prima di pagare il cliente spunta **«Accetto le condizioni»** nel riepilogo, poi si apre un foglio con le condizioni complete

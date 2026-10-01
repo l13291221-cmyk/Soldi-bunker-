@@ -45,10 +45,13 @@ const PACKAGES = {
     features: ['Ti aiutiamo per dubbi e problemi con il sito', 'Ti spieghiamo come usare il pannello', 'Disdici quando vuoi'],
   },
 };
-// Pagamento a rate con Klarna: sul sito il prezzo si mostra come rata mensile
-// (prezzo diviso per le rate, arrotondato per eccesso ai 10 centesimi: 990 € → 27,50 €, 1.490 € → 41,40 €)
-const RATE_MESI = Math.max(1, Math.round(eur(process.env.RATE_KLARNA, 36))) || 36;
-const rateOf = cents => Math.ceil(cents / RATE_MESI / 10) * 10;
+// Noleggio operativo: il cliente paga un canone mensile alla società di noleggio per NOLEGGIO_MESI mesi,
+// la società paga subito a noi il prezzo del sito. Canone = prezzo × NOLEGGIO_COEFF % al mese
+// (il coefficiente lo dà la società di noleggio), arrotondato per eccesso ai 10 centesimi: 990 € × 3,3% → 32,70 €
+const RATE_MESI = Math.max(1, Math.round(eur(process.env.NOLEGGIO_MESI, 36))) || 36;
+const NOLEGGIO_COEFF = eur(process.env.NOLEGGIO_COEFF, 3.3) || 3.3;
+const NOLEGGIO_SOCIETA = String(process.env.NOLEGGIO_SOCIETA || 'la società di noleggio').trim();
+const rateOf = cents => Math.ceil(cents * NOLEGGIO_COEFF / 100 / 10) * 10;
 for (const p of Object.values(PACKAGES)) if (!p.recurring) Object.assign(p, { rateMonthly: rateOf(p.price), rateMonths: RATE_MESI });
 const isPremium = pkg => String(pkg || '').startsWith('premium');
 const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
@@ -103,6 +106,7 @@ function publicOrder(o) {
     rateMonthly: o.monthly ? 0 : rateOf(o.amount),
     rateMonths: RATE_MESI,
     approvalText: o.paid ? null : approvalText(o),
+    noleggio: o.noleggio ? o.noleggio.stato : null,
     paid: o.paid,
     // Il link del sito si vede SOLO dopo il pagamento
     siteUrl: o.paid ? o.siteUrl || null : null,
@@ -175,6 +179,7 @@ function termsHtmlFor(o) {
   h = put('js-price', euro(o.amount / 100))(h);
   h = put('js-rate', euro(rateOf(o.amount) / 100))(h);
   h = put('js-rate-n', String(RATE_MESI))(h);
+  h = put('js-societa', NOLEGGIO_SOCIETA)(h);
   h = put('js-assist', euro((assist && o.monthly ? o.monthly : PACKAGES.assistenza.monthly) / 100))(h);
   h = h.replace(/(<a class="js-wa" href=")[^"]*/g, `$1https://wa.me/${WHATSAPP}`);
   return h.replace(/<!--[\s\S]*?-->/g, '');
@@ -194,7 +199,7 @@ function approvalText(o) {
   if (o.package === 'assistenza') {
     return 'Chiedo che l\'assistenza inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo entro i 14 giorni pago i giorni già usati (punto 6). Approvo l\'addebito automatico del canone ogni mese sulla stessa carta, fino alla disdetta (punto 10).';
   }
-  return `Chiedo che il lavoro sul mio sito inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo prima della consegna pago il lavoro già fatto e che, una volta consegnato il sito, perdo il diritto di recesso (punto 6). Approvo il dettaglio del pagamento (punto 12): ${RATE_MESI} rate con Klarna, secondo le sue condizioni.`;
+  return `Chiedo che il lavoro sul mio sito inizi subito, senza aspettare la fine dei 14 giorni per il recesso. So che se recedo prima della consegna pago il lavoro già fatto e che, una volta consegnato il sito, perdo il diritto di recesso (punto 6). Approvo il dettaglio del pagamento (punto 12): noleggio di ${RATE_MESI} mesi a ${euro(rateOf(o.amount) / 100)} al mese, con il contratto che firmerò con ${NOLEGGIO_SOCIETA}.`;
 }
 function acceptanceFor(o, req) {
   const termsText = termsTextFor(o);
@@ -390,6 +395,16 @@ app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
   if (b.phone !== undefined) o.phone = String(b.phone).replace(/[^\d+]/g, '').slice(0, 20);
   if (b.panelPin !== undefined) o.panelPin = String(b.panelPin).replace(/\D/g, '').slice(0, 12);
   if (b.siteToken !== undefined) o.siteToken = String(b.siteToken).trim().slice(0, 300);
+  if (b.noleggioStato !== undefined && o.noleggio) {
+    if (!NOLEGGIO_STATI.includes(b.noleggioStato)) return res.status(400).json({ error: 'Stato non valido' });
+    o.noleggio.stato = b.noleggioStato;
+    // contratto approvato e firmato: la società di noleggio paga, il cliente riceve il link del sito
+    if (b.noleggioStato === 'approvato' && !o.paid) {
+      const n = o.noleggio;
+      markPaid(o.id, { id: 'noleggio', amount_total: o.amount, customer_details: { name: n.ragioneSociale, email: n.email, phone: n.telefono, tax_ids: [{ type: 'it_vat', value: n.piva }] } });
+      o.payer.method = 'noleggio';
+    }
+  }
   if (b.amount !== undefined && !o.paid) {
     const cents = parseAmount(b.amount);
     if (cents === null) return res.status(400).json({ error: 'Prezzo non valido' });
@@ -417,7 +432,7 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
     `Lingua del browser: ${a.language || '—'}`,
     o.monthly
       ? `Importi accettati: canone ${euro((a.monthly ?? o.monthly) / 100)} al mese${price ? ` · attivazione ${euro(price / 100)}` : ''}`
-      : `Importi accettati: prezzo del sito ${euro(price / 100)} · con Klarna ${a.rateMonths || RATE_MESI} rate da ${euro((a.rateMonthly ?? rateOf(price)) / 100)} al mese`,
+      : `Importi accettati: prezzo del sito ${euro(price / 100)} · noleggio ${a.rateMonths || RATE_MESI} mesi da ${euro((a.rateMonthly ?? rateOf(price)) / 100)} al mese`,
     `Prima casella spuntata: Accetto le condizioni`,
     `Seconda casella spuntata: ${a.specificApproval || '—'}`,
     `Impronta SHA-256 del testo accettato: ${a.termsHash || '—'}`, '',
@@ -425,6 +440,7 @@ app.get('/api/admin/orders/:id/prova', requireAdmin, (req, res) => {
     `Pagato: ${o.paid ? when(o.paidAt) : 'non ancora'}`,
     `Importo incassato: ${p.amountPaid != null ? euro(p.amountPaid / 100) : '—'}`,
     `Metodo: ${p.method === 'klarna' ? 'Klarna' : p.method === 'card' ? 'Carta' : p.method || '—'}`,
+    ...(o.noleggio ? [`Richiesta di noleggio: ${o.noleggio.mesi} mesi da ${euro(o.noleggio.rata / 100)} · ${o.noleggio.ragioneSociale}, P.IVA ${o.noleggio.piva}, referente ${o.noleggio.referente}, ${o.noleggio.email}, ${o.noleggio.telefono} · stato: ${o.noleggio.stato}`] : []),
     `Nome: ${p.name || '—'}`, `Email: ${p.email || '—'}`, `Telefono: ${p.phone || '—'}`, `Indirizzo di fatturazione: ${addr || '—'}`,
     `Partita IVA / codici: ${(p.taxIds || []).map(t => `${t.value} (${t.type})`).join(', ') || '—'}`,
     `Carta: ${c.last4 ? `${c.brand} •••• ${c.last4}, scadenza ${String(c.expMonth).padStart(2, '0')}/${c.expYear}, paese ${c.country || '—'}, tipo ${c.funding || '—'}` : '—'}`,
@@ -583,6 +599,33 @@ app.post('/api/orders/:id/klarna', loadPublicOrder, async (req, res) => {
     console.error('Klarna error:', err.message);
     res.status(500).json({ error: 'Klarna non è disponibile in questo momento. Riprova tra qualche minuto.' });
   }
+});
+
+// Richiesta di noleggio: il cliente (un'attività con partita IVA) accetta le condizioni e lascia i dati
+// per il contratto; poi tu la mandi alla società di noleggio e, quando è firmata, la segni «approvato» dall'admin
+const NOLEGGIO_STATI = ['richiesta', 'inviata', 'approvato', 'rifiutato'];
+app.post('/api/orders/:id/noleggio', loadPublicOrder, (req, res) => {
+  const o = req.order, b = req.body || {};
+  if (o.paid) return res.status(400).json({ error: 'Ordine già pagato' });
+  if (o.monthly) return res.status(400).json({ error: 'Il noleggio vale solo per il sito, non per l\'assistenza.' });
+  if (b.accept !== true) return res.status(400).json({ error: 'Per continuare devi accettare le condizioni.' });
+  if (b.approve !== true) return res.status(400).json({ error: 'Per continuare spunta anche l\'approvazione dei punti indicati.' });
+  const t = (v, n) => String(v || '').trim().slice(0, n);
+  const n = {
+    ragioneSociale: t(b.ragioneSociale, 120), piva: t(b.piva, 20).replace(/^IT/i, '').replace(/\s/g, ''),
+    referente: t(b.referente, 120), email: t(b.email, 200), telefono: t(b.telefono, 20).replace(/[^\d+]/g, ''),
+  };
+  if (n.ragioneSociale.length < 2) return res.status(400).json({ error: 'Scrivi il nome dell\'attività (ragione sociale).' });
+  if (!/^\d{11}$/.test(n.piva)) return res.status(400).json({ error: 'La partita IVA deve avere 11 cifre.' });
+  if (n.referente.length < 3) return res.status(400).json({ error: 'Scrivi nome e cognome del titolare o legale rappresentante.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(n.email)) return res.status(400).json({ error: 'Email non valida.' });
+  if (n.telefono.replace(/\D/g, '').length < 6) return res.status(400).json({ error: 'Telefono non valido.' });
+  o.acceptance = acceptanceFor(o, req);
+  o.termsAcceptedAt = o.acceptance.at;
+  o.termsAcceptedIp = o.acceptance.ip;
+  o.noleggio = { ...n, rata: rateOf(o.amount), mesi: RATE_MESI, at: o.acceptance.at, stato: 'richiesta' };
+  saveOrders();
+  res.json({ order: publicOrder(o) });
 });
 
 // Verifica il pagamento al ritorno da Stripe (funziona anche senza webhook)

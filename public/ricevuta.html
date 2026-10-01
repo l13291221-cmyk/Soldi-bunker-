@@ -131,7 +131,7 @@
       <div class="notes">
         <div>Prestazione di lavoro autonomo occasionale ai sensi dell'art. 2222 del Codice Civile.</div>
         <div>Operazione esclusa dal campo di applicazione IVA ai sensi dell'art. 5 del D.P.R. 633/1972, per mancanza del requisito dell'abitualità.</div>
-        ${order.paid ? `<div>Pagamento ricevuto ${order.payer && order.payer.method === 'klarna' ? 'con Klarna' : 'con carta'} tramite Stripe il ${dateIt(order.paidAt || cl.data)}.</div>` : '<div>Pagamento non ancora ricevuto.</div>'}
+        ${order.paid ? (order.payer && order.payer.method === 'noleggio' ? `<div>Pagato tramite contratto di noleggio, approvato il ${dateIt(order.paidAt || cl.data)}.</div>` : `<div>Pagamento ricevuto ${order.payer && order.payer.method === 'klarna' ? 'con Klarna' : 'con carta'} tramite Stripe il ${dateIt(order.paidAt || cl.data)}.</div>`) : '<div>Pagamento non ancora ricevuto.</div>'}
         ${bollo ? `<div>Imposta di bollo di € 2,00 assolta sull'originale.</div>` : ''}
       </div>
       <div class="foot">
