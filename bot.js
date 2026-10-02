@@ -9,13 +9,10 @@ const QRCode = require('qrcode');
 
 const TZ = process.env.BOT_TZ || 'Europe/Rome';
 const DEFAULTS = {
-  // «italia» = tutta Italia su OpenStreetMap; le città servono anche per Google Maps
+  // «italia» = tutta Italia su OpenStreetMap
   zones: ['italia', 'Milano', 'Roma', 'Napoli', 'Torino', 'Palermo', 'Genova', 'Bologna', 'Firenze', 'Bari', 'Catania',
     'Verona', 'Venezia', 'Padova', 'Brescia', 'Parma', 'Modena', 'Bergamo', 'Monza', 'Rimini'].join('\n'),
   types: ['ristoranti', 'pizzerie', 'bar'],
-  osm: true, // OpenStreetMap: solo chi ha scritto il suo WhatsApp
-  google: true, // Google Maps (se c'è la chiave): cellulari, prima di scrivere controllo che abbiano WhatsApp
-  autoCities: true, // finite le zone, continua con gli altri comuni d'Italia su Google Maps
   min: 25, max: 30, // messaggi al giorno (ogni giorno un numero a caso tra i due)
   hours: '9:30-12:30, 15:00-19:30',
   days: [1, 2, 3, 4, 5, 6], // 0 = domenica
@@ -63,9 +60,6 @@ function categoryOf(lead) {
 }
 const blocks = s => String(s || '').split(/\n\s*-{3,}\s*\n/).map(x => x.trim()).filter(Boolean);
 const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
-// Finite le zone scelte, il bot continua da solo con i comuni italiani dal più grande (solo Google Maps:
-// OpenStreetMap con «italia» li copre già tutti)
-const COMUNI = (() => { try { return require('./comuni-italia.json').comuni || []; } catch { return []; } })();
 const WARMUP = [10, 15, 20, 25];
 const MIN_GAP_MS = 4 * 60 * 1000; // mai due messaggi a meno di 4 minuti
 const QUEUE_MIN = 40, QUEUE_MAX = 3000;
@@ -146,7 +140,7 @@ function parseZones(s) {
   });
 }
 
-module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, leadTypes, googleOn, messages, siteUrl, publicDir, packages }) {
+module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, leadTypes, messages, siteUrl, publicDir, packages }) {
   const BOT_FILE = path.join(dataDir, 'bot.json');
   const AUTH_FILE = path.join(dataDir, 'wa-auth.json');
   const readJson = (f, rev) => { try { return JSON.parse(fs.readFileSync(f, 'utf8'), rev); } catch { return {}; } };
@@ -191,6 +185,21 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       saveAuth();
     }
     if (DAY_KEYS.some(k => k in st)) { DAY_KEYS.forEach(k => delete st[k]); save(); }
+    // Resta solo OpenStreetMap: tolgo le impostazioni delle fonti, e di Google Maps i locali in coda trovati lì e le sue ricerche
+    const c0 = D.config || {}, q0 = queue(), s0 = D.searched || {};
+    if ('google' in c0 || 'autoCities' in c0 || 'osm' in c0 || q0.some(l => l.source === 'google') || Object.keys(s0).some(k => k.startsWith('google|'))) {
+      delete c0.google; delete c0.autoCities; delete c0.osm;
+      D.queue = q0.filter(l => l.source !== 'google');
+      for (const k of Object.keys(s0)) if (k.startsWith('google|')) delete s0[k];
+      save();
+    }
+    // I locali in coda trovati prima avevano il link a Google Maps: ora la scheda di OpenStreetMap
+    const OSM_TYPES = { n: 'node', w: 'way', r: 'relation' };
+    for (const l of queue()) if (/google\./.test(l.maps || '')) {
+      const m = /^([nwr])(\d+)$/.exec(l.id || '');
+      l.maps = m ? `https://www.openstreetmap.org/${OSM_TYPES[m[1]]}/${m[2]}` : '';
+      save();
+    }
     // chiavi di numeri tolti dalla tabella
     for (const id of Object.keys(accounts())) if (!rowOf(id)) { delete accounts()[id]; saveAuth(); }
   }
@@ -503,12 +512,8 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const c = cfg(), out = [], zones = parseZones(c.zones);
     const italia = zones.some(z => z.scope === 'italia'); // con «italia» le altre zone su OpenStreetMap sarebbero doppioni
     for (const z of zones) for (const type of c.types) {
-      if (c.osm && (!italia || z.scope === 'italia')) out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'wa' });
-      if (c.google && googleOn() && z.scope !== 'italia') out.push({ source: 'google', city: z.city, type, need: 'wa' });
-    }
-    if (c.google && googleOn() && c.autoCities) {
-      const mine = new Set(zones.map(z => z.city.toLowerCase()));
-      for (const city of COMUNI) if (!mine.has(city.toLowerCase())) for (const type of c.types) out.push({ source: 'google', city, type, need: 'wa' });
+      // OpenStreetMap: solo chi ha scritto il suo WhatsApp
+      if (!italia || z.scope === 'italia') out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'wa' });
     }
     return out;
   }
@@ -523,7 +528,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const job = nextJob();
     if (!job) return;
     refilling = true; lastSearchAt = Date.now();
-    const label = `${job.city} · ${(leadTypes()[job.type] || {}).label || job.type} · ${job.source === 'google' ? 'Google Maps' : 'OpenStreetMap'}`;
+    const label = `${job.city} · ${(leadTypes()[job.type] || {}).label || job.type} · OpenStreetMap`;
     Object.assign(lastSearch, { at: new Date().toISOString(), label, found: 0, added: 0, error: null, running: true });
     try {
       const { leads } = await searchLeads(job);
@@ -537,7 +542,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       // Il sito lo controllo poco prima di scrivere (precheck): una ricerca su tutta Italia ne trova centinaia
       const q = queue();
       const fresh = shuffle(cand).slice(0, Math.max(0, QUEUE_MAX - q.length)).map(({ l, wa }) => ({
-        id: l.id, name: l.name, kind: l.kind, wa, waGuess: !!l.waGuess, website: l.website || '', social: l.social || '',
+        id: l.id, name: l.name, kind: l.kind, wa, website: l.website || '', social: l.social || '',
         address: l.address || '', maps: l.maps || '', reasons: [], checked: !l.website, source: job.source, type: job.type, zone: job.city, at: Date.now(),
       }));
       q.push(...fresh);
@@ -546,7 +551,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       save();
     } catch (err) {
       lastSearch.error = err.message;
-      // Zona scritta male (404) o Google spento (400): la salto per 30 giorni. Server occupato: riprovo più tardi
+      // Zona scritta male (404 o 400): la salto per 30 giorni. Server occupato: riprovo più tardi
       if (err.status === 400 || err.status === 404) { (D.searched ||= {})[jobKey(job)] = Date.now(); save(); }
       else lastSearchAt = Date.now() + 10 * 60e3;
     } finally {
@@ -883,8 +888,6 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       repliesSeenAt: g.repliesSeenAt || 0,
       types: Object.entries(leadTypes()).map(([id, t]) => ({ id, label: t.label })),
       languages: messages.languages,
-      google: googleOn(),
-      comuni: COMUNI.length,
       tz: TZ,
     };
   }
@@ -894,9 +897,6 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const out = { ...c };
     if (b.zones !== undefined) out.zones = String(b.zones).split('\n').map(x => x.trim()).filter(Boolean).slice(0, 200).join('\n').slice(0, 6000);
     if (Array.isArray(b.types)) out.types = b.types.filter(t => leadTypes()[t]);
-    if (b.osm !== undefined) out.osm = !!b.osm;
-    if (b.google !== undefined) out.google = !!b.google;
-    if (b.autoCities !== undefined) out.autoCities = !!b.autoCities;
     const num = (v, d) => { const n = Math.round(+v); return Number.isFinite(n) ? Math.min(60, Math.max(1, n)) : d; };
     if (b.min !== undefined) out.min = num(b.min, c.min);
     if (b.max !== undefined) out.max = num(b.max, c.max);
@@ -920,7 +920,6 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (b.warmup !== undefined) out.warmup = !!b.warmup;
     if (!out.types.length) throw new Error('Scegli almeno un tipo di attività');
     if (!out.days.length) throw new Error('Scegli almeno un giorno');
-    if (!out.osm && !out.google) throw new Error('Scegli almeno una fonte (OpenStreetMap o Google Maps)');
     return out;
   }
 

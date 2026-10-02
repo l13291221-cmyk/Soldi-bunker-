@@ -1119,7 +1119,7 @@ function leadFromOsm(e) {
     website: realSite ? (/^https?:\/\//i.test(realSite) ? realSite : 'https://' + realSite) : '',
     social: social ? (/^https?:\/\//i.test(social) ? social : 'https://' + social) : '',
     address,
-    maps: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([t.name, street, city].filter(Boolean).join(' ')),
+    maps: `https://www.openstreetmap.org/${e.type}/${e.id}`,
   };
 }
 
@@ -1194,79 +1194,10 @@ const NEED_TAGS = {
   all: [''],
 };
 
-// ---------- Trova clienti: Google Maps (Places API, serve la chiave GOOGLE_PLACES_KEY) ----------
-const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_KEY || '';
-const GOOGLE_QUERY = {
-  ristoranti: 'ristoranti e pizzerie', pizzerie: 'pizzerie', bar: 'bar e caffè', bellezza: 'parrucchieri ed estetiste', negozi: 'negozi',
-  alimentari: 'panetterie macellerie e alimentari', artigiani: 'artigiani e officine', alloggi: 'B&B e hotel', professionisti: 'studi professionali',
-};
-const isMobileIt = p => /^3\d{8,9}$/.test(p.replace(/\D/g, '').replace(/^39(?=3\d{8,9}$)/, ''));
-function leadFromGoogle(p) {
-  if (!p.displayName || p.businessStatus === 'CLOSED_PERMANENTLY') return null;
-  const phones = splitPhones(p.internationalPhoneNumber || p.nationalPhoneNumber || '');
-  const site = p.websiteUri || '';
-  const social = SOCIAL_RE.test(site) ? site : '';
-  return {
-    id: 'g' + p.id,
-    name: p.displayName.text,
-    kind: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
-    phones,
-    // Google non dice chi ha WhatsApp: un cellulare di un'attività quasi sempre ce l'ha
-    whatsapps: phones.filter(isMobileIt),
-    whatsapp: phones.find(isMobileIt) || '',
-    waGuess: true,
-    website: site && !social ? site : '',
-    social,
-    address: (p.formattedAddress || '').replace(/, Italia$/, ''),
-    maps: p.googleMapsUri || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.displayName.text),
-    source: 'google',
-  };
-}
-async function googleLeads(type, city) {
-  const fields = ['id', 'displayName', 'formattedAddress', 'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri',
-    'googleMapsUri', 'businessStatus', 'primaryTypeDisplayName'].map(f => 'places.' + f).join(',') + ',nextPageToken';
-  const out = [];
-  let pageToken = '';
-  // Google dà al massimo 60 risultati (3 pagine da 20) per ricerca
-  for (let page = 0; page < 3; page++) {
-    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_PLACES_KEY, 'X-Goog-FieldMask': fields },
-      body: JSON.stringify({ textQuery: `${GOOGLE_QUERY[type]} a ${city}`, languageCode: 'it', regionCode: 'IT', pageSize: 20, ...(pageToken && { pageToken }) }),
-      signal: AbortSignal.timeout(20000),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Google ' + r.status + ': ' + ((d.error && d.error.message) || 'errore').slice(0, 200));
-    out.push(...(d.places || []));
-    if (!d.nextPageToken) break;
-    pageToken = d.nextPageToken;
-  }
-  return out.map(leadFromGoogle).filter(Boolean);
-}
-
 // Errore con il codice HTTP da rispondere (lo usano la pagina Trova clienti e il bot WhatsApp)
 const leadError = (status, message, detail) => Object.assign(new Error(message), { status, detail });
-// Cerca le attività di una zona: q = { source, scope, city, type, need } come nella pagina Trova clienti
+// Cerca le attività di una zona: q = { scope, city, type, need } come nella pagina Trova clienti
 async function searchLeads(q) {
-  if (q.source === 'google') {
-    if (!GOOGLE_PLACES_KEY) throw leadError(400, 'Google Maps non è attivo: manca la chiave GOOGLE_PLACES_KEY su Render.');
-    const city = String(q.city || '').trim().slice(0, 60);
-    const type = GOOGLE_QUERY[q.type] ? q.type : 'ristoranti';
-    if (city.length < 2) throw leadError(400, 'Scrivi il nome della zona');
-    const key = ['google', city.toLowerCase(), type, q.need].join('|');
-    const cached = leadCache.get(key);
-    if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return { leads: cached.leads, city, type, source: 'google' };
-    try {
-      let leads = await googleLeads(type, city);
-      if (q.need === 'wa') leads = leads.filter(l => l.whatsapps.length);
-      else if (q.need !== 'all') leads = leads.filter(l => l.phones.length);
-      leadCache.set(key, { at: Date.now(), leads });
-      return { leads, city, type, source: 'google' };
-    } catch (err) {
-      console.error('Google Places error:', err.message);
-      throw leadError(502, 'Google Maps non risponde.', err.message);
-    }
-  }
   const scope = SCOPES[q.scope] ? q.scope : 'comune';
   const city = scope === 'italia' ? 'Italia' : String(q.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
   const type = LEAD_TYPES[q.type] ? q.type : 'ristoranti';
@@ -1413,7 +1344,7 @@ app.get('/api/admin/leads-debug', requireAdmin, async (req, res) => {
   res.json(out);
 });
 app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
-  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })), google: !!GOOGLE_PLACES_KEY });
+  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })) });
 });
 
 // ---------- Sveglia siti: visita i link ogni 5 minuti (anti-spegnimento Render gratuito) ----------
@@ -1531,7 +1462,6 @@ const bot = require('./bot')({
   isReady: () => backupState.ready,
   searchLeads, checkSite,
   leadTypes: () => LEAD_TYPES,
-  googleOn: () => !!GOOGLE_PLACES_KEY,
   messages: require('./public/messages.js'),
   siteUrl: BASE_URL,
   publicDir: path.join(__dirname, 'public'),

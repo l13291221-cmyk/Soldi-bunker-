@@ -195,13 +195,7 @@
       <div class="field">
         <label for="zones">Zone dove cercare (una per riga)</label>
         <textarea id="zones" rows="6" placeholder="italia&#10;Monza&#10;provincia: Bergamo&#10;regione: Lombardia"></textarea>
-        <small>Un comune per riga (es. «Monza» o «Milano Navigli»), oppure «provincia: Bergamo», «regione: Lombardia», «italia». Con «italia» OpenStreetMap cerca in tutta Italia in un colpo solo; le città servono per Google Maps (massimo 60 attività per ricerca: più città e quartieri scrivi, più clienti trova). Il bot cerca una zona alla volta e rifà la stessa ricerca dopo 30 giorni per trovare le attività nuove.</small>
-      </div>
-      <div class="field">
-        <label>Dove cercare</label>
-        <label class="check"><input type="checkbox" id="osm"><span>OpenStreetMap: solo chi ha scritto il suo WhatsApp<small>Gratis. Sono le attività che dichiarano di usare WhatsApp.</small></span></label>
-        <label class="check"><input type="checkbox" id="google"><span>Google Maps: cellulari delle attività<small id="googleNote">Prima di scrivere il bot controlla che il numero abbia davvero WhatsApp. Usa la chiave Google (quota gratuita mensile, poi a pagamento).</small></span></label>
-        <label class="check"><input type="checkbox" id="autoCities"><span>Finite le zone, continua da solo con le altre città d'Italia<small id="autoNote">Su Google Maps, dalle più grandi alle più piccole: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.</small></span></label>
+        <small>Un comune per riga (es. «Monza» o «Milano Navigli»), oppure «provincia: Bergamo», «regione: Lombardia», «italia». Con «italia» OpenStreetMap cerca in tutta Italia in un colpo solo. Il bot cerca una zona alla volta e rifà la stessa ricerca dopo 30 giorni per trovare le attività nuove.</small>
       </div>
       <div class="field grid2">
         <div><label for="min">Messaggi al giorno: da</label><input id="min" type="number" min="1" max="60" inputmode="numeric"></div>
@@ -420,12 +414,12 @@
       <div class="item">
         <div class="top"><div><h4>${escapeHtml(l.name)}</h4>
           <div class="meta">${escapeHtml([l.kind, l.address || l.zone].filter(Boolean).join(' · '))}</div>
-          <div class="meta">🟢 ${escapeHtml(fmtNum(l.wa))}${l.waGuess ? ' · cellulare da Google, controllo WhatsApp prima di scrivere' : ' · WhatsApp dichiarato'}</div>
+          <div class="meta">🟢 ${escapeHtml(fmtNum(l.wa))} · WhatsApp dichiarato</div>
           ${l.reasons && l.reasons.length ? `<div class="meta bad">⚠️ ${l.reasons.map(escapeHtml).join(' · ')}</div>` : ''}</div>
           ${siteTag(l)}</div>
         <details style="margin-top:8px"><summary>Messaggio che riceverà</summary><div class="msg">${escapeHtml(l.preview)}</div></details>
         <div class="actions">
-          ${l.maps ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>` : ''}
+          ${l.maps ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Mappa</a>` : ''}
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
           <button class="btn btn-ghost btn-sm" data-skip="${escapeHtml(l.wa)}">Non scrivergli</button>
         </div>
@@ -446,12 +440,6 @@
     const c = S.config;
     formLoaded = true;
     document.getElementById('zones').value = c.zones;
-    document.getElementById('osm').checked = c.osm;
-    const g = document.getElementById('google');
-    g.checked = c.google && S.google; g.disabled = !S.google;
-    if (!S.google) document.getElementById('googleNote').textContent = 'Da attivare: serve la chiave GOOGLE_PLACES_KEY su Render (vedi Trova clienti).';
-    document.getElementById('autoCities').checked = c.autoCities;
-    document.getElementById('autoNote').textContent = `Su Google Maps, ${S.comuni.toLocaleString('it-IT')} comuni dai più grandi ai più piccoli: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.`;
     document.getElementById('min').value = c.min;
     document.getElementById('max').value = c.max;
     document.getElementById('warmup').checked = c.warmup;
@@ -484,9 +472,6 @@
     try {
       S = await api('/api/admin/bot/config', { method: 'PUT', body: {
         zones: document.getElementById('zones').value,
-        osm: document.getElementById('osm').checked,
-        google: document.getElementById('google').checked,
-        autoCities: document.getElementById('autoCities').checked,
         min: document.getElementById('min').value, max: document.getElementById('max').value,
         warmup: document.getElementById('warmup').checked,
         hours: document.getElementById('hours').value,

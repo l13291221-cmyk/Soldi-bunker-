@@ -96,10 +96,6 @@
   <p class="muted" style="margin:6px 0 0">Scegli la zona (comune, provincia, regione o tutta Italia) e il tipo di attività. Per le zone grandi attiva prima "Solo WhatsApp dichiarato": è molto più veloce.</p>
 
   <form class="search" id="searchForm" autocomplete="off">
-    <select id="source" aria-label="Fonte">
-      <option value="osm">🗺️ OpenStreetMap</option>
-      <option value="google">📍 Google Maps</option>
-    </select>
     <select id="scope" aria-label="Zona">
       <option value="comune">📍 Comune</option>
       <option value="provincia">🗺️ Provincia</option>
@@ -132,7 +128,7 @@
   </div>
 
 
-  <div class="hint">I dati vengono da OpenStreetMap o da Google Maps (fino a 60 attività per ricerca: per averne di più cerca città per città). I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
+  <div class="hint">I dati vengono da OpenStreetMap. I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Tocca <b>Mappa</b> per vedere la scheda dell'attività su OpenStreetMap. I tuoi appunti restano salvati su questo dispositivo.</div>
 
   <p class="summary" id="summary"></p>
   <div id="list"></div>
@@ -156,6 +152,7 @@
   // ---- Ricerche salvate su questo dispositivo ----
   let searches = [];
   try { searches = JSON.parse(localStorage.getItem(LS + '-searches') || '[]') || []; } catch { searches = []; }
+  searches = searches.filter(x => x.scope !== 'google'); // le vecchie ricerche su Google Maps non ci sono più
   function storeSearches() {
     // Se lo spazio del browser finisce, tolgo le ricerche più vecchie
     while (true) {
@@ -165,9 +162,9 @@
   }
   function saveSearch(city, type, list, scope, need) {
     const key = [city.toLowerCase(), type, scope, need].join('|');
-    const scopeLabel = scope === 'google' ? 'Google Maps' : document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
+    const scopeLabel = document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
     const typeLabel = (document.querySelector(`#type option[value="${type}"]`)?.textContent || type) +
-      (scope === 'google' ? ' · Google' : scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
+      (scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
     // tengo solo chi si può contattare, per occupare poco spazio
     const keep = list.filter(l => l.phones.length || l.whatsapp).map(({ maps, ...rest }) => rest);
     searches = [{ key, city, type, scope, need, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
@@ -175,14 +172,17 @@
     currentKey = key;
     renderSaved();
   }
+  // Scheda su OpenStreetMap (l.id = n123 / w123 / r123); le ricerche vecchie di Google non hanno una scheda
+  const OSM_TYPES = { n: 'node', w: 'way', r: 'relation' };
   function mapsLink(l) {
-    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([l.name, l.address].filter(Boolean).join(' '));
+    const m = /^([nwr])(\d+)$/.exec(l.id || '');
+    return m ? `https://www.openstreetmap.org/${OSM_TYPES[m[1]]}/${m[2]}`
+      : 'https://www.openstreetmap.org/search?query=' + encodeURIComponent([l.name, l.address].filter(Boolean).join(' '));
   }
   function openSearch(x) {
-    leads = x.leads.map(l => ({ ...l, maps: l.maps || mapsLink(l) }));
+    leads = x.leads.map(l => ({ ...l, maps: mapsLink(l) }));
     shown = 30; currentKey = x.key;
-    document.getElementById('source').value = x.scope === 'google' ? 'google' : 'osm';
-    document.getElementById('scope').value = x.scope === 'google' ? 'comune' : x.scope || 'comune'; updateScope();
+    document.getElementById('scope').value = SCOPE_IDS.includes(x.scope) ? x.scope : 'comune'; updateScope();
     document.getElementById('city').value = x.scope === 'italia' ? '' : x.city;
     document.getElementById('type').value = x.type;
     renderSaved(); render(); checkSites(leads);
@@ -274,7 +274,7 @@
         <div class="lead-top">
           <div><h4>${escapeHtml(l.name)}</h4>
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
-            ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp${l.waGuess ? ' (probabile, è un cellulare)' : ''}: ${escapeHtml(n)}</div>`).join('')}
+            ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp: ${escapeHtml(n)}</div>`).join('')}
             ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
             ${botHit(l) ? `<div class="meta" style="color:var(--gold-2)">🤖 ${BOT_LABEL[botHit(l).s] || 'già contattato'} (${new Date(botHit(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })})</div>` : ''}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
@@ -284,7 +284,7 @@
         <div class="lead-actions">
           ${waList(l).length ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
           ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
-          <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
+          <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Mappa</a>
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
           ${l.social ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.social)}" target="_blank" rel="noopener">Social</a>` : ''}
         </div>
@@ -382,24 +382,23 @@
 
   document.getElementById('searchForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const source = document.getElementById('source').value;
-    const scope = source === 'google' ? 'google' : document.getElementById('scope').value;
+    const scope = document.getElementById('scope').value;
     const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
     const type = document.getElementById('type').value;
     // Il filtro WhatsApp/telefono lo applica già il server mappe: molto più veloce sulle zone grandi
     const need = filters.waOnly ? 'wa' : (filters.phone || scope !== 'comune') ? 'phone' : 'all';
     const btn = document.getElementById('goBtn');
     btn.disabled = true; btn.textContent = 'Cerco…';
-    document.getElementById('summary').textContent = scope === 'comune' || scope === 'google' ? 'Sto cercando, di solito 5-20 secondi…'
+    document.getElementById('summary').textContent = scope === 'comune' ? 'Sto cercando, di solito 5-20 secondi…'
       : 'Sto cercando in una zona grande: può volerci fino a 2-3 minuti, non chiudere la pagina…';
     document.getElementById('list').innerHTML = '<div class="spinner"></div>';
     document.getElementById('moreBtn').hidden = true;
     try {
-      const d = await api(`/api/admin/leads?source=${source}&scope=${scope}&need=${need}&city=${encodeURIComponent(city)}&type=${type}`, 200000);
+      const d = await api(`/api/admin/leads?scope=${scope}&need=${need}&city=${encodeURIComponent(city)}&type=${type}`, 200000);
       leads = d.leads; shown = 30;
       if (leads.length) saveSearch(city, type, leads, scope, need);
       checkSites(leads);
-      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope, source })); } catch {}
+      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope })); } catch {}
       if (!leads.length) {
         document.getElementById('summary').textContent = '';
         document.getElementById('list').innerHTML = '<div class="empty">Nessun risultato. Controlla il nome del comune (scritto per intero, es. "Sesto San Giovanni") o prova un altro tipo di attività.</div>';
@@ -458,30 +457,23 @@
 
   // Zona: cambia il testo del campo; per "Tutta Italia" il nome non serve
   const PLACEHOLDERS = { comune: 'Comune (es. Monza)', provincia: 'Provincia (es. Bologna)', regione: 'Regione (es. Emilia-Romagna)', italia: 'Tutta Italia' };
+  const SCOPE_IDS = Object.keys(PLACEHOLDERS);
   function updateScope() {
-    // Google Maps cerca per testo: basta la città o il quartiere, la zona non serve
-    const google = document.getElementById('source').value === 'google';
-    const scopeSel = document.getElementById('scope');
-    scopeSel.hidden = google;
-    const sc = google ? 'comune' : scopeSel.value, c = document.getElementById('city');
-    c.placeholder = google ? 'Città o quartiere (es. Modena centro)' : PLACEHOLDERS[sc];
+    const sc = document.getElementById('scope').value, c = document.getElementById('city');
+    c.placeholder = PLACEHOLDERS[sc];
     c.disabled = sc === 'italia'; c.required = sc !== 'italia';
     if (sc === 'italia') c.value = '';
   }
   document.getElementById('scope').addEventListener('change', updateScope);
-  document.getElementById('source').addEventListener('change', updateScope);
 
   api('/api/admin/me').then(async d => {
     if (!d.admin) { location.href = '/'; return; }
-    const { types, google } = await api('/api/admin/lead-types');
+    const { types } = await api('/api/admin/lead-types');
     document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
-    const gOpt = document.querySelector('#source option[value="google"]');
-    if (!google) { gOpt.disabled = true; gOpt.textContent = '📍 Google Maps (da attivare)'; }
     try {
       const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
       if (last) {
-        document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
-        document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
+        document.getElementById('scope').value = SCOPE_IDS.includes(last.scope) ? last.scope : 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.body.classList.add('ready');
     api('/api/admin/bot/contacted').then(x => { botContacted = x.contacted || {}; render(); }).catch(() => {});

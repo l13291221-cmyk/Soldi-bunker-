@@ -45,16 +45,10 @@ Attenzione ai limiti del piano gratuito di Render:
 
 ## Trova clienti
 Nell'admin, pulsante **🔎 Trova clienti**: scrivi un comune e il tipo di attività (ristoranti, bar, parrucchieri, negozi...).
-Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in automatico: non funziona, non va da telefono, senza https, lento, fermo da anni, in costruzione), con i pulsanti Chiama, Maps e "+ Ordine".
-I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
+Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in automatico: non funziona, non va da telefono, senza https, lento, fermo da anni, in costruzione), con i pulsanti Chiama, Mappa e "+ Ordine".
+I dati vengono da OpenStreetMap (gratis, senza chiavi): il pulsante Mappa apre la scheda dell'attività su OpenStreetMap.
 I siti moderni (Next.js, React, Webflow...) non vengono più segnati come "quasi vuoti": caricano i testi con JavaScript.
 
-### Fonte Google Maps (facoltativa)
-Nel menu **Fonte** puoi scegliere **Google Maps** invece di OpenStreetMap: trova più attività, con telefono e sito aggiornati
-(massimo 60 risultati per ricerca, quindi cerca città per città o per quartiere). I cellulari vengono proposti come WhatsApp "probabile".
-Serve una chiave Google: su [Google Cloud](https://console.cloud.google.com) crea un progetto, attiva **Places API (New)**,
-crea una chiave API (limitala a Places API) e aggiungila su Render come `GOOGLE_PLACES_KEY`. Google chiede un metodo di pagamento
-ma ogni mese c'è una quota gratuita: controlla il listino e imposta un limite di spesa/avviso di budget.
 Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser del dispositivo che usi.
 
 ### Messaggi WhatsApp
@@ -87,10 +81,7 @@ Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altr
 **Cosa fa**
 - **🎯 A chi scrivere**: Tutti, oppure solo Ristoranti, Pizzerie, Bar (e, se vuoi, altre attività). Si sceglie toccando, si salva da solo.
 - Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
-  tutta Italia) e, se c'è `GOOGLE_PLACES_KEY`, **Google Maps** (cellulari, città per città: più città e quartieri scrivi, più ne trova).
-  Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove. Finite le zone scelte, con Google Maps continua da solo
-  con gli altri comuni d'Italia, dal più grande al più piccolo (1.531 comuni sopra gli 8.000 abitanti, in `comuni-italia.json`):
-  così anche con più numeri accesi (es. 3 numeri = 75-90 messaggi al giorno) il bot non resta senza locali a cui scrivere.
+  tutta Italia). Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove.
 - Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
 - Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
   sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema
