@@ -56,7 +56,10 @@ I siti moderni (Next.js, React, Webflow...) non vengono più segnati come "quasi
 - **👁️ Anteprima Maps** su ogni scheda: apre la scheda Google Maps dell'attività dentro la pagina (recensioni, orari, sito),
   così controlli prima di chiamare senza cambiare app. Usa l'incorporamento pubblico di Google: nessuna chiave, nessun costo.
 
-### Fonte Google Maps (facoltativa)
+### Fonte Google Maps
+Nel menu **Fonte** scegli **📍 Google Maps**. **Senza chiave** funziona già: scrivi la città, premi Cerca e la ricerca di Google Maps
+(es. «ristoranti e pizzerie a Monza») compare dentro la pagina; tocchi un locale e vedi telefono, sito e recensioni.
+**Con la chiave** (facoltativa) invece arriva la lista con telefoni, filtri e stati, come per OpenStreetMap:
 Nel menu **Fonte** puoi scegliere **Google Maps** invece di OpenStreetMap: trova più attività, con telefono e sito aggiornati
 (massimo 60 risultati per ricerca, quindi cerca città per città o per quartiere). I cellulari vengono proposti come WhatsApp "probabile".
 Serve una chiave Google: su [Google Cloud](https://console.cloud.google.com) crea un progetto, attiva **Places API (New)**,

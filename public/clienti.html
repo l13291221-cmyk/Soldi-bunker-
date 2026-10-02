@@ -499,9 +499,35 @@
   });
   document.getElementById('moreBtn').addEventListener('click', () => { shown += 30; render(); });
 
+  // Google Maps senza chiave: la ricerca di Google dentro la pagina (incorporamento pubblico, gratis).
+  // La lista con i telefoni da Google arriva solo con la chiave GOOGLE_PLACES_KEY.
+  let googleKey = false;
+  function showGoogleSearch(city, type) {
+    const what = (document.querySelector(`#type option[value="${type}"]`)?.textContent || type).toLowerCase();
+    const q = `${what} a ${city}`;
+    searchId++; leads = []; currentKey = ''; renderSaved();
+    document.getElementById('moreBtn').hidden = true;
+    document.getElementById('mapBtn').hidden = true;
+    document.getElementById('map').hidden = true;
+    document.getElementById('summary').textContent = `Google Maps: ${q}. Tocca un locale sulla mappa per vedere telefono, sito e recensioni.`;
+    document.getElementById('list').innerHTML = `
+      <iframe title="Google Maps: ${escapeHtml(q)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+        style="width:100%;height:min(75vh,620px);border:0;border-radius:14px;display:block;background:var(--bg-2)"
+        src="https://maps.google.com/maps?hl=it&output=embed&q=${encodeURIComponent(q)}"></iframe>
+      <div class="lead-actions">
+        <a class="btn btn-gold btn-sm" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}">Apri in Google Maps</a>
+      </div>`;
+    try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope: 'google', source: 'google' })); } catch {}
+  }
+
   document.getElementById('searchForm').addEventListener('submit', async e => {
     e.preventDefault();
     const source = document.getElementById('source').value;
+    if (source === 'google' && !googleKey) {
+      const city = document.getElementById('city').value.trim();
+      if (city.length < 2) { toast('Scrivi il nome della zona'); return; }
+      return showGoogleSearch(city, document.getElementById('type').value);
+    }
     const scope = source === 'google' ? 'google' : document.getElementById('scope').value;
     const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
     const type = document.getElementById('type').value;
@@ -595,11 +621,12 @@
     const { types, google } = await api('/api/admin/lead-types');
     document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
     const gOpt = document.querySelector('#source option[value="google"]');
-    if (!google) { gOpt.disabled = true; gOpt.textContent = '📍 Google Maps (da attivare)'; }
+    googleKey = !!google;
+    if (!google) gOpt.textContent = '📍 Google Maps (vista mappa)';
     try {
       const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
       if (last) {
-        document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
+        document.getElementById('source').value = last.source === 'google' ? 'google' : 'osm';
         document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.getElementById('map').hidden = !mapOn;
