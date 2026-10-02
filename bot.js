@@ -351,12 +351,14 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const code = err && err.output && err.output.statusCode;
     const R = B.DisconnectReason;
     if (code === R.loggedOut) {
+      autoOff(c.id, 'WhatsApp ha scollegato il bot');
       wipe(c.id);
       Object.assign(c, { status: 'off', linking: false, qr: null, code: null, error: 'WhatsApp è stato scollegato (dal telefono o da WhatsApp). Ricollegalo per farlo ripartire.' });
       console.warn('Bot WhatsApp: scollegato', '+' + rowOf(c.id).phone);
       return;
     }
     if (code === R.forbidden) {
+      autoOff(c.id, 'WhatsApp ha rifiutato il bot');
       Object.assign(c, { status: 'off', linking: false, error: 'WhatsApp ha rifiutato il collegamento (403): il numero potrebbe essere limitato o bloccato. Controlla l\'app WhatsApp Business.' });
       return;
     }
@@ -397,6 +399,18 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     c.limitsAt = Date.now();
     try { c.lock = await c.sock.fetchAccountReachoutTimelock(); } catch { c.lock = null; }
     try { c.cap = await c.sock.fetchNewChatMessageCap(); } catch { c.cap = null; }
+    if (c.lock && c.lock.isActive) autoOff(c.id, 'WhatsApp ha limitato i messaggi a persone nuove');
+  }
+  // WhatsApp ha scollegato o limitato il bot: il numero smette di scrivere e non riparte da solo.
+  // Riprovare porta di solito al blocco del numero intero; si riaccende solo a mano dalla tabella
+  function autoOff(id, why) {
+    const row = rowOf(id);
+    if (!row || (!row.enabled && row.autoOff)) return;
+    row.enabled = false;
+    row.autoOff = { at: Date.now(), why };
+    if (row.st) row.st.nextAt = null;
+    save();
+    console.warn('Bot WhatsApp: numero spento da solo', '+' + row.phone, '-', why);
   }
   function limitPause(c) {
     const now = Date.now();
@@ -804,6 +818,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (c.status === 'linking') return 'In collegamento…';
     if (!linked(row.id)) return 'Da collegare';
     if (c.status !== 'open') return 'Mi ricollego…';
+    if (!row.enabled && row.autoOff) return `Spento da solo: ${row.autoOff.why}`;
     if (!row.enabled) return 'Spento: non scrive a nessuno, ma vede le risposte';
     if (paused(st)) return `In pausa fino al ${when(st.pauseUntil)}: ${st.pauseWhy || ''}`;
     if ((st.sent || 0) >= (st.target || 0)) return 'Finito per oggi';
@@ -838,7 +853,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const rows = numbers().map(n => {
       const cn = conns.get(n.id) || {}, st = n.st || {};
       return {
-        id: n.id, phone: n.phone, label: n.label, enabled: !!n.enabled, addedAt: n.addedAt, linked: linked(n.id),
+        id: n.id, phone: n.phone, label: n.label, enabled: !!n.enabled, autoOff: n.autoOff || null, addedAt: n.addedAt, linked: linked(n.id),
         status: cn.status || 'off', qr: cn.qr || null, code: cn.code || null, error: cn.error || null, info: cn.info || null, lock: cn.lock || null, cap: cn.cap || null,
         sent: st.sent || 0, target: st.target || 0, total: st.total || 0, nextAt: st.nextAt || null,
         warmupDay: c.warmup && (st.days || 0) < WARMUP.length ? (st.days || 0) + 1 : 0,
@@ -936,7 +951,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     app.patch(r + '/numbers/:id', requireAdmin, ready, findRow, (req, res) => {
       const b = req.body || {}, row = req.row;
       if (b.label !== undefined) row.label = String(b.label).trim().slice(0, 40);
-      if (b.enabled !== undefined) { row.enabled = !!b.enabled; row.st.nextAt = null; row.st.pauseUntil = null; row.st.pauseWhy = null; }
+      if (b.enabled !== undefined) { row.enabled = !!b.enabled; row.autoOff = null; row.st.nextAt = null; row.st.pauseUntil = null; row.st.pauseWhy = null; }
       if (b.only) { only(row); row.enabled = true; }
       save();
       res.json(status());
