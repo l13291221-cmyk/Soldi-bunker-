@@ -15,6 +15,7 @@ const DEFAULTS = {
   types: ['ristoranti', 'pizzerie', 'bar'],
   osm: true, // OpenStreetMap: solo chi ha scritto il suo WhatsApp
   google: true, // Google Maps (se c'è la chiave): cellulari, prima di scrivere controllo che abbiano WhatsApp
+  cells: true, // OpenStreetMap: cellulari dei locali SENZA sito; prima di scrivere controllo che abbiano WhatsApp
   sites: true, // OpenStreetMap + siti: apro il sito dei locali e prendo il WhatsApp dal pulsante che hanno messo
   autoCities: true, // finite le zone, continua con gli altri comuni d'Italia (siti dei locali e, se c'è la chiave, Google Maps)
   min: 25, max: 30, // messaggi al giorno (ogni giorno un numero a caso tra i due)
@@ -506,20 +507,22 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const italia = zones.some(z => z.scope === 'italia'); // con «italia» le altre zone su OpenStreetMap sarebbero doppioni
     for (const z of zones) for (const type of c.types) {
       if (c.osm && (!italia || z.scope === 'italia')) out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'wa' });
+      if (c.cells && (!italia || z.scope === 'italia')) out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'cell' });
       if (c.sites && z.scope !== 'italia') out.push({ source: 'osm', scope: z.scope, city: z.city, type, need: 'site' });
       if (c.google && googleOn() && z.scope !== 'italia') out.push({ source: 'google', city: z.city, type, need: 'wa' });
     }
     const google = c.google && googleOn();
-    if (c.autoCities && (c.sites || google)) {
+    if (c.autoCities && (c.cells || c.sites || google)) {
       const mine = new Set(zones.map(z => z.city.toLowerCase()));
       for (const city of COMUNI) if (!mine.has(city.toLowerCase())) for (const type of c.types) {
+        if (c.cells) out.push({ source: 'osm', scope: 'comune', city, type, need: 'cell' });
         if (c.sites) out.push({ source: 'osm', scope: 'comune', city, type, need: 'site' });
         if (google) out.push({ source: 'google', city, type, need: 'wa' });
       }
     }
     return out;
   }
-  const jobKey = j => [j.source, j.scope || '', j.city.toLowerCase(), j.type].join('|') + (j.need === 'site' ? '|site' : '');
+  const jobKey = j => [j.source, j.scope || '', j.city.toLowerCase(), j.type].join('|') + (j.need === 'site' || j.need === 'cell' ? '|' + j.need : '');
   const nextJob = () => jobs().find(j => !((D.searched || {})[jobKey(j)] > Date.now() - RESEARCH_AFTER_MS));
   async function pool(items, n, fn) {
     const q = [...items];
@@ -530,10 +533,18 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const job = nextJob();
     if (!job) return;
     refilling = true; lastSearchAt = Date.now();
-    const label = `${job.city} · ${(leadTypes()[job.type] || {}).label || job.type} · ${job.source === 'google' ? 'Google Maps' : job.need === 'site' ? 'WhatsApp dal sito' : 'OpenStreetMap'}`;
+    const label = `${job.city} · ${(leadTypes()[job.type] || {}).label || job.type} · ${job.source === 'google' ? 'Google Maps' : job.need === 'site' ? 'WhatsApp dal sito' : job.need === 'cell' ? 'Cellulari senza sito' : 'OpenStreetMap'}`;
     Object.assign(lastSearch, { at: new Date().toISOString(), label, found: 0, added: 0, error: null, running: true });
     try {
-      let { leads } = await searchLeads(job);
+      let { leads } = await searchLeads(job.need === 'cell' ? { ...job, need: 'phone' } : job);
+      // «Cellulari senza sito»: locali senza sito (al massimo i social) con un cellulare. Se ha WhatsApp lo controllo prima di scrivere
+      if (job.need === 'cell') {
+        const isCell = n => /^3\d{8,9}$/.test(digitsOf(n).replace(/^39(?=3\d{8,9}$)/, ''));
+        leads = leads.filter(l => !l.website).map(l => {
+          const cells = (l.phones || []).filter(isCell);
+          return (l.whatsapps || []).length ? l : { ...l, whatsapps: cells, waGuess: true };
+        });
+      }
       // «WhatsApp dal sito»: apro i siti e tengo i locali con il sito brutto e un pulsante WhatsApp
       if (job.need === 'site') {
         const done = new Set(Object.values(contacted()).map(x => x.n));
@@ -917,6 +928,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (b.google !== undefined) out.google = !!b.google;
     if (b.autoCities !== undefined) out.autoCities = !!b.autoCities;
     if (b.sites !== undefined) out.sites = !!b.sites;
+    if (b.cells !== undefined) out.cells = !!b.cells;
     const num = (v, d) => { const n = Math.round(+v); return Number.isFinite(n) ? Math.min(60, Math.max(1, n)) : d; };
     if (b.min !== undefined) out.min = num(b.min, c.min);
     if (b.max !== undefined) out.max = num(b.max, c.max);
@@ -940,7 +952,7 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     if (b.warmup !== undefined) out.warmup = !!b.warmup;
     if (!out.types.length) throw new Error('Scegli almeno un tipo di attività');
     if (!out.days.length) throw new Error('Scegli almeno un giorno');
-    if (!out.osm && !out.sites && !out.google) throw new Error('Scegli almeno una fonte (OpenStreetMap, siti dei locali o Google Maps)');
+    if (!out.osm && !out.cells && !out.sites && !out.google) throw new Error('Scegli almeno una fonte (OpenStreetMap, siti dei locali o Google Maps)');
     return out;
   }
 
