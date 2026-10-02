@@ -77,9 +77,10 @@
 <script src="/common.js"></script>
 <script>
   // {nome} {attivita} {tel} {importo} {mesi} {link} {data} {sitocliente} vengono dai campi in alto;
-  // {base} {premium} {sito} {demo} {firma} dal sito e dalle impostazioni del bot
+  // {base} {premium} {sito} {demo} {video} {firma} dal sito e dalle impostazioni del bot
   const SECTIONS = [
     { id: 'domande', title: '❓ Domande e obiezioni', intro: 'Cosa rispondere quando ti scrivono. Tono gentile, frasi corte: su WhatsApp nessuno legge i papiri.', items: [
+      { id: 'si', title: '«Sì» / «Ok, mandate pure»', text: 'Perfetto, grazie! 🙂 Ecco il video di un minuto, così vedete subito come funziona: {video}\n\nE qui un sito di esempio da aprire dal telefono: {demo}\n\nSe vi piace ci sono due abbonamenti:\n✅ *Base – {base} al mese*\n⭐ *Premium – {premium} al mese*\n\nSi attiva in un minuto da qui 👉 {sito}\nPer qualsiasi domanda scrivetemi pure qui.', note: 'Meglio ancora: inoltra il video direttamente come video su WhatsApp (si guarda senza aprire link) e poi manda questo messaggio togliendo la prima riga.' },
       { id: 'costo', title: '«Quanto costa?»', text: 'Ci sono due abbonamenti:\n✅ *Base – {base} al mese*: sito completo, menu, foto, orari, mappa, pulsante WhatsApp e pannello per cambiare tutto da soli dal telefono.\n⭐ *Premium – {premium} al mese*: tutto il Base più l\'indirizzo vostro (www.vostronome.it) e il QR code da stampare.\n\nNessun costo per creare il sito: si attiva qui in un minuto 👉 {sito}' },
       { id: 'pensare', title: '«Ci devo pensare» / «Ci penso»', text: 'Certo, nessuna fretta 🙂 Intanto vi lascio l\'esempio da guardare con calma: {demo}\n\nSe vi viene qualche dubbio scrivetemi pure, rispondo volentieri. Vi riscrivo io tra qualche giorno?' },
       { id: 'social', title: '«Abbiamo già Facebook / Instagram»', text: 'Sono utilissimi! Però chi cerca su Google «ristorante vicino a me» trova prima chi ha un sito: lì ci sono menu, orari, mappa e il pulsante per scrivervi su WhatsApp, tutto in un posto solo.\n\nI social li colleghiamo al sito, così lavorano insieme e vi portano più clienti.' },
@@ -122,7 +123,7 @@
   let edits = {};
   try { edits = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { edits = {}; }
   const saveEdits = () => { try { localStorage.setItem(LS, JSON.stringify(edits)); } catch {} };
-  const site = { base: '59 €', premium: '99 €', sito: location.origin + '/#prezzi', demo: 'https://l13291221-cmyk.github.io/Ristorante-/', firma: 'Simone' };
+  const site = { base: '59 €', premium: '99 €', sito: location.origin + '/#prezzi', demo: 'https://l13291221-cmyk.github.io/Ristorante-/', video: location.origin + '/video.mp4', firma: 'Simone' };
   const FIELDS = ['nome', 'attivita', 'tel', 'importo', 'mesi', 'link', 'data', 'sitocliente'];
   const val = k => document.getElementById('f-' + k).value.trim();
 
@@ -182,7 +183,7 @@
     let t = e.target.value;
     // dati del cliente, prezzi e link tornano segnaposto: così il testo vale anche per il prossimo cliente
     for (const k of FIELDS) { const v = val(k); if (v.length > 2) t = t.split(v).join('{' + k + '}'); }
-    for (const k of ['sito', 'demo', 'base', 'premium', 'firma']) if (String(site[k]).length > 2) t = t.split(site[k]).join('{' + k + '}');
+    for (const k of ['sito', 'demo', 'video', 'base', 'premium', 'firma']) if (String(site[k]).length > 2) t = t.split(site[k]).join('{' + k + '}');
     for (const k of ['importo', 'mesi', 'data']) t = t.split('[' + k + ']').join('{' + k + '}');
     t = t.split('[link per pagare]').join('{link}').split('[link del sito]').join('{sitocliente}');
     edits[box.dataset.id] = t; saveEdits(); render(); toast('Testo salvato su questo telefono');
