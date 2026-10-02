@@ -149,6 +149,8 @@
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
   let leads = [], shown = 30, checks = {}, checking = 0, currentKey = '';
+  // Senza chiave Google, «Google Maps» apre la ricerca nell'app Maps del telefono (gratis, ma i risultati non arrivano qui)
+  let googleKey = false;
   // "-checks2": i controlli vecchi segnavano come vuoti anche i siti moderni, li rifaccio
   try { checks = JSON.parse(localStorage.getItem(LS + '-checks2') || '{}') || {}; localStorage.removeItem(LS + '-checks'); } catch { checks = {}; }
   const saveChecks = () => { try { localStorage.setItem(LS + '-checks2', JSON.stringify(checks)); } catch {} };
@@ -383,6 +385,14 @@
   document.getElementById('searchForm').addEventListener('submit', async e => {
     e.preventDefault();
     const source = document.getElementById('source').value;
+    if (source === 'google' && !googleKey) {
+      const city = document.getElementById('city').value.trim();
+      const typeLabel = document.getElementById('type').selectedOptions[0]?.textContent || '';
+      window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(`${typeLabel} a ${city}`), '_blank', 'noopener');
+      try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type: document.getElementById('type').value, scope: 'google', source })); } catch {}
+      document.getElementById('summary').textContent = `Aperto Google Maps: «${typeLabel} a ${city}». Guarda le schede lì: senza chiave Google i risultati non arrivano in questa pagina.`;
+      return;
+    }
     const scope = source === 'google' ? 'google' : document.getElementById('scope').value;
     const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
     const type = document.getElementById('type').value;
@@ -465,6 +475,7 @@
     scopeSel.hidden = google;
     const sc = google ? 'comune' : scopeSel.value, c = document.getElementById('city');
     c.placeholder = google ? 'Città o quartiere (es. Modena centro)' : PLACEHOLDERS[sc];
+    document.getElementById('goBtn').textContent = google && !googleKey ? 'Apri Maps' : 'Cerca';
     c.disabled = sc === 'italia'; c.required = sc !== 'italia';
     if (sc === 'italia') c.value = '';
   }
@@ -474,13 +485,14 @@
   api('/api/admin/me').then(async d => {
     if (!d.admin) { location.href = '/'; return; }
     const { types, google } = await api('/api/admin/lead-types');
+    googleKey = google;
     document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
     const gOpt = document.querySelector('#source option[value="google"]');
-    if (!google) { gOpt.disabled = true; gOpt.textContent = '📍 Google Maps (da attivare)'; }
+    if (!google) gOpt.textContent = '📍 Google Maps (apre l\'app)';
     try {
       const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
       if (last) {
-        document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
+        document.getElementById('source').value = last.source === 'google' ? 'google' : 'osm';
         document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
     document.body.classList.add('ready');

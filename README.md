@@ -50,6 +50,11 @@ I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda 
 I siti moderni (Next.js, React, Webflow...) non vengono più segnati come "quasi vuoti": caricano i testi con JavaScript.
 
 ### Fonte Google Maps (facoltativa)
+**Senza chiave** (gratis): scegli **📍 Google Maps (apre l'app)**, scrivi la città e il tipo e premi **Apri Maps**: si apre Google Maps
+(l'app sul telefono) già sulla ricerca, es. «Pizzerie a Monza». Le schede le guardi lì: i risultati non arrivano nella pagina e il bot
+WhatsApp continua a usare solo OpenStreetMap.
+
+**Con la chiave** i risultati arrivano direttamente nella pagina e nel bot:
 Nel menu **Fonte** puoi scegliere **Google Maps** invece di OpenStreetMap: trova più attività, con telefono e sito aggiornati
 (massimo 60 risultati per ricerca, quindi cerca città per città o per quartiere). I cellulari vengono proposti come WhatsApp "probabile".
 Serve una chiave Google: su [Google Cloud](https://console.cloud.google.com) crea un progetto, attiva **Places API (New)**,
