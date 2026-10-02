@@ -96,6 +96,10 @@ Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altr
   Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove. Finite le zone scelte, con Google Maps continua da solo
   con gli altri comuni d'Italia, dal più grande al più piccolo (1.531 comuni sopra gli 8.000 abitanti, in `comuni-italia.json`):
   così anche con più numeri accesi (es. 3 numeri = 75-90 messaggi al giorno) il bot non resta senza locali a cui scrivere.
+- **WhatsApp dal sito del locale** (gratis, senza chiave né carta): per ogni zona e per ogni comune d'Italia prende da OpenStreetMap
+  i locali che hanno un sito, apre i siti (fino a 200 per ricerca) e tiene quelli con il **sito brutto** e un **pulsante/link WhatsApp**
+  (wa.me, api.whatsapp.com): quel numero l'ha messo il locale, quindi è WhatsApp dichiarato. Anche in «Trova clienti» il numero
+  WhatsApp trovato sul sito compare da solo dopo il controllo del sito.
 - Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
 - Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
   sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema

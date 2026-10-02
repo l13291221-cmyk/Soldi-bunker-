@@ -458,6 +458,9 @@
         const l = queue.shift();
         try { checks[l.id] = await api('/api/admin/site-check?url=' + encodeURIComponent(l.website), 30000); saveChecks(); }
         catch { checks[l.id] = { bad: false, reasons: [] }; }
+        // Il pulsante WhatsApp messo sul suo sito vale come WhatsApp dichiarato
+        const sw = checks[l.id].whatsapps || [];
+        if (sw.length && !waList(l).length) Object.assign(l, { whatsapps: sw, whatsapp: sw[0] });
         checking--;
         if (my === searchId) render();
       }

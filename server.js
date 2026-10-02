@@ -1192,6 +1192,7 @@ const NEED_TAGS = {
   wa: ['["contact:whatsapp"]', '["whatsapp"]'],
   phone: ['["phone"]', '["contact:phone"]', '["contact:mobile"]', '["contact:whatsapp"]', '["whatsapp"]'],
   all: [''],
+  site: ['["website"]', '["contact:website"]'], // il WhatsApp lo cerco poi nel sito (checkSite)
 };
 
 // ---------- Trova clienti: Google Maps (Places API, serve la chiave GOOGLE_PLACES_KEY) ----------
@@ -1327,6 +1328,12 @@ const siteCheckCache = new Map();
 const FREE_BUILDERS = /(\.wixsite\.com|\.altervista\.org|\.jimdo(site)?\.com|\.webnode\.|\.blogspot\.|\.wordpress\.com|\.business\.site|\.weebly\.com|\.site123\.me|\.godaddysites\.com|\.paginegialle\.it|\.sites\.google\.com)/i;
 const EMPTY_WORDS = /(sito in costruzione|in allestimento|under construction|coming soon|domain (is )?for sale|dominio in vendita|questo dominio|parked (free|domain)|default web page|index of \/|it works!)/i;
 const MODERN_SITE = /\/_next\/|__NEXT_DATA__|__NUXT__|id="__nuxt"|data-reactroot|id="root"><\/div>|id="app"><\/div>|astro-island|\/_astro\/|___gatsby|\/_app\/immutable\/|static\.parastorage\.com|squarespace-cdn\.com|assets\.website-files\.com|webflow\.com/i;
+// Pulsante o link WhatsApp messo dall'attività sul suo sito (wa.me/39333..., api.whatsapp.com/send?phone=...)
+function siteWhatsapps(html) {
+  const re = /(?:wa\.me\/|whatsapp\.com\/send\/?\?(?:[^"'\s<>]*?&(?:amp;)?)?phone=|whatsapp:\/\/send\/?\?(?:[^"'\s<>]*?&(?:amp;)?)?phone=)(?:%2B|\+)?(\d{8,15})/gi;
+  const nums = [...html.matchAll(re)].map(m => /^3\d{8,9}$/.test(m[1]) ? '+39' + m[1] : '+' + m[1]);
+  return splitPhones(nums.join(';'));
+}
 function isPrivateIp(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -1385,7 +1392,7 @@ async function checkSite(rawUrl) {
   const years = [...text.matchAll(/(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–]\s*)?((?:19|20)\d{2})/gi)].map(m => +m[1]);
   const thisYear = new Date().getFullYear();
   if (years.length && Math.max(...years) <= thisYear - 4) reasons.push(`Fermo al ${Math.max(...years)}`);
-  return { bad: reasons.length > 0, reasons, ms, modern };
+  return { bad: reasons.length > 0, reasons, ms, modern, whatsapps: siteWhatsapps(html) };
 }
 app.get('/api/admin/site-check', requireAdmin, async (req, res) => {
   const u = String(req.query.url || '').slice(0, 500);

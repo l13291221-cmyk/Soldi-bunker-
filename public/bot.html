@@ -200,8 +200,9 @@
       <div class="field">
         <label>Dove cercare</label>
         <label class="check"><input type="checkbox" id="osm"><span>OpenStreetMap: solo chi ha scritto il suo WhatsApp<small>Gratis. Sono le attività che dichiarano di usare WhatsApp.</small></span></label>
+        <label class="check"><input type="checkbox" id="sites"><span>WhatsApp dal sito del locale<small>Gratis, senza chiave. Il bot apre i siti dei locali trovati su OpenStreetMap: se il sito è brutto e c'è il pulsante WhatsApp, prende quel numero (WhatsApp dichiarato dal locale).</small></span></label>
         <label class="check"><input type="checkbox" id="google"><span>Google Maps: cellulari delle attività<small id="googleNote">Prima di scrivere il bot controlla che il numero abbia davvero WhatsApp. Usa la chiave Google (quota gratuita mensile, poi a pagamento).</small></span></label>
-        <label class="check"><input type="checkbox" id="autoCities"><span>Finite le zone, continua da solo con le altre città d'Italia<small id="autoNote">Su Google Maps, dalle più grandi alle più piccole: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.</small></span></label>
+        <label class="check"><input type="checkbox" id="autoCities"><span>Finite le zone, continua da solo con le altre città d'Italia<small id="autoNote">Dalle più grandi alle più piccole: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.</small></span></label>
       </div>
       <div class="field grid2">
         <div><label for="min">Messaggi al giorno: da</label><input id="min" type="number" min="1" max="60" inputmode="numeric"></div>
@@ -451,7 +452,8 @@
     g.checked = c.google && S.google; g.disabled = !S.google;
     if (!S.google) document.getElementById('googleNote').textContent = 'Da attivare: serve la chiave GOOGLE_PLACES_KEY su Render (vedi Trova clienti).';
     document.getElementById('autoCities').checked = c.autoCities;
-    document.getElementById('autoNote').textContent = `Su Google Maps, ${S.comuni.toLocaleString('it-IT')} comuni dai più grandi ai più piccoli: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.`;
+    document.getElementById('sites').checked = c.sites;
+    document.getElementById('autoNote').textContent = `${S.google ? 'Siti dei locali e Google Maps' : 'Con «WhatsApp dal sito»'}: ${S.comuni.toLocaleString('it-IT')} comuni dai più grandi ai più piccoli: così il bot non resta mai senza locali a cui scrivere, anche con più numeri accesi.`;
     document.getElementById('min').value = c.min;
     document.getElementById('max').value = c.max;
     document.getElementById('warmup').checked = c.warmup;
@@ -487,6 +489,7 @@
         osm: document.getElementById('osm').checked,
         google: document.getElementById('google').checked,
         autoCities: document.getElementById('autoCities').checked,
+        sites: document.getElementById('sites').checked,
         min: document.getElementById('min').value, max: document.getElementById('max').value,
         warmup: document.getElementById('warmup').checked,
         hours: document.getElementById('hours').value,
