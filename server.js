@@ -1094,6 +1094,7 @@ function splitPhones(raw) {
   return out;
 }
 
+const latLon = (lat, lon) => Number.isFinite(lat) && Number.isFinite(lon) ? { lat: +lat.toFixed(5), lon: +lon.toFixed(5) } : {};
 function leadFromOsm(e) {
   const t = e.tags || {};
   if (!t.name) return null;
@@ -1120,6 +1121,8 @@ function leadFromOsm(e) {
     social: social ? (/^https?:\/\//i.test(social) ? social : 'https://' + social) : '',
     address,
     maps: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([t.name, street, city].filter(Boolean).join(' ')),
+    // posizione per la mappa nella pagina Trova clienti (le vie e le aree hanno il centro in "center")
+    ...latLon(e.lat ?? (e.center && e.center.lat), e.lon ?? (e.center && e.center.lon)),
   };
 }
 

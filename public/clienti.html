@@ -73,7 +73,21 @@
     .saved-item small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
     .saved-item .x { color: var(--muted); padding: 4px 8px; border-radius: 8px; }
     .saved-item .x:hover { color: var(--red); }
+    /* Mappa (Leaflet + OpenStreetMap) e anteprima Google Maps: niente chiavi API */
+    .mapbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 10px; }
+    #map { height: 420px; border-radius: 14px; border: 1px solid var(--line); margin-bottom: 14px; background: var(--bg-2); }
+    #map .leaflet-popup-content { font: 400 .88rem var(--sans); color: #111; }
+    #map .leaflet-popup-content b { display: block; font-size: .95rem; }
+    #map .leaflet-popup-content a { margin-right: 10px; font-weight: 600; }
+    #gdlg { width: min(720px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); }
+    #gdlg::backdrop { background: rgba(0,0,0,.6); }
+    #gdlg .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; }
+    #gdlg .head b { overflow-wrap: anywhere; }
+    #gdlg iframe { width: 100%; height: min(70vh, 520px); border: 0; display: block; background: var(--bg-2); }
+    #gdlg .foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+    .lead.flash { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(214,177,106,.35); }
     @media (max-width: 640px) {
+      #map { height: 320px; }
       .search > *, .search #city, .search button { flex: 1 1 100%; }
       .page { padding-top: 20px; }
       .lead-actions .btn { flex: 1; }
@@ -134,8 +148,18 @@
 
   <div class="hint">I dati vengono da OpenStreetMap o da Google Maps (fino a 60 attività per ricerca: per averne di più cerca città per città). I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
 
-  <p class="summary" id="summary"></p>
+  <div class="mapbar">
+    <p class="summary" id="summary" style="margin:0"></p>
+    <button class="btn btn-ghost btn-sm" id="mapBtn" type="button" hidden>🗺️ Mostra mappa</button>
+  </div>
+  <div id="map" hidden></div>
   <div id="list"></div>
+  <dialog id="gdlg">
+    <div class="head"><b></b><button class="btn btn-ghost btn-sm" type="button" data-close>✕</button></div>
+    <iframe title="Anteprima Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div class="foot"><a class="btn btn-gold btn-sm" data-open target="_blank" rel="noopener">Apri in Google Maps</a>
+      <span class="muted" style="font-size:.82rem;align-self:center">Controlla recensioni, orari e se ha già un sito.</span></div>
+  </dialog>
   <button class="btn btn-ghost more" id="moreBtn" hidden>Mostra altri</button>
 </main>
 
@@ -285,6 +309,7 @@
           ${waList(l).length ? `<button class="btn btn-wa btn-sm" data-wa>💬 Scrivi su WhatsApp</button>` : ''}
           ${tel ? `<a class="btn btn-call btn-sm" href="tel:${escapeHtml(tel)}">📞 Chiama</a>` : ''}
           <a class="btn btn-ghost btn-sm" href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Maps</a>
+          <button class="btn btn-ghost btn-sm" data-preview>👁️ Anteprima Maps</button>
           ${l.website ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.website)}" target="_blank" rel="noopener">Vedi sito</a>` : ''}
           ${l.social ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(l.social)}" target="_blank" rel="noopener">Social</a>` : ''}
         </div>
@@ -293,7 +318,99 @@
       </div>`;
     }).join('') || (leads.length ? '<div class="empty">Nessuna attività con questi filtri. Prova a togliere "Senza sito o sito brutto".</div>' : '');
     document.getElementById('moreBtn').hidden = v.length <= shown;
+    const mapBtn = document.getElementById('mapBtn');
+    mapBtn.hidden = !v.some(hasPos);
+    if (mapBtn.hidden && mapOn) toggleMap(false);
+    if (mapOn) drawMap(v);
   }
+
+  // ---- Anteprima Google Maps dentro la scheda (iframe "output=embed": senza chiave API) ----
+  // Si apre in una finestra sopra la lista, così non si ricarica a ogni aggiornamento della lista
+  function embedLink(l) {
+    // con la posizione di OpenStreetMap Google cerca il nome proprio lì, anche senza indirizzo
+    return 'https://maps.google.com/maps?hl=it&z=17&output=embed&q=' + encodeURIComponent([l.name, l.address || l.zone].filter(Boolean).join(' ')) +
+      (hasPos(l) ? `&ll=${l.lat},${l.lon}` : '');
+  }
+  function showPreview(l) {
+    const d = document.getElementById('gdlg');
+    d.querySelector('.head b').textContent = l.name;
+    d.querySelector('iframe').src = embedLink(l);
+    d.querySelector('[data-open]').href = l.maps;
+    d.showModal();
+  }
+  document.getElementById('gdlg').addEventListener('close', e => { e.target.querySelector('iframe').src = 'about:blank'; });
+  document.getElementById('gdlg').addEventListener('click', e => { if (e.target.id === 'gdlg' || e.target.closest('[data-close]')) e.target.closest('dialog').close(); });
+
+  // ---- Mappa con tutte le attività trovate (Leaflet + OpenStreetMap: gratis, senza chiave) ----
+  const hasPos = l => Number.isFinite(l.lat) && Number.isFinite(l.lon);
+  let mapOn = false, map = null, markers = null, leafletLoading = null, lastBoundsKey = '';
+  try { mapOn = localStorage.getItem(LS + '-map') === '1'; } catch {}
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    return leafletLoading ||= new Promise((ok, ko) => {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(css);
+      const js = document.createElement('script');
+      js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      js.onload = ok; js.onerror = () => { leafletLoading = null; ko(new Error('Mappa non caricata')); };
+      document.head.appendChild(js);
+    });
+  }
+  const PIN = { '': '#d6b16a', scritto: '#25d366', chiamato: '#60a5fa', richiamare: '#f59e0b', interessato: '#4ade80', no: '#6b7280' };
+  async function drawMap(v) {
+    try { await loadLeaflet(); } catch { toast('Mappa non disponibile: controlla la connessione'); toggleMap(false); return; }
+    if (!mapOn) return;
+    if (!map) {
+      map = L.map('map', { scrollWheelZoom: false }).setView([42.5, 12.5], 6);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(map);
+      markers = L.layerGroup().addTo(map);
+    }
+    map.invalidateSize();
+    markers.clearLayers();
+    const pts = v.filter(hasPos);
+    for (const l of pts) {
+      const n = notes[l.id] || {}, tel = l.phones[0] ? l.phones[0].replace(/[^\d+]/g, '') : '';
+      L.circleMarker([l.lat, l.lon], { radius: 8, weight: 2, color: '#0b0b0d', fillColor: PIN[n.s || ''] || PIN[''], fillOpacity: .95 })
+        .bindPopup(`<b>${escapeHtml(l.name)}</b>${escapeHtml(l.kind || '')}${l.address ? '<br>' + escapeHtml(l.address) : ''}
+          ${tel ? '<br>' + escapeHtml(l.phones[0]) : ''}<br><br>
+          <a href="#" data-goto="${escapeHtml(l.id)}">Vai alla scheda</a>
+          <a href="#" data-gprev="${escapeHtml(l.id)}">Anteprima</a>
+          ${tel ? `<a href="tel:${escapeHtml(tel)}">Chiama</a>` : ''}
+          <a href="${escapeHtml(l.maps)}" target="_blank" rel="noopener">Google Maps</a>`)
+        .addTo(markers);
+    }
+    // Ricentro solo quando cambia la ricerca, non a ogni clic su uno stato
+    const key = currentKey + '|' + pts.length;
+    if (pts.length && key !== lastBoundsKey) {
+      lastBoundsKey = key;
+      map.fitBounds(L.latLngBounds(pts.map(l => [l.lat, l.lon])), { padding: [30, 30], maxZoom: 16 });
+    }
+  }
+  function toggleMap(on) {
+    mapOn = on;
+    try { localStorage.setItem(LS + '-map', on ? '1' : '0'); } catch {}
+    document.getElementById('map').hidden = !on;
+    document.getElementById('mapBtn').textContent = on ? '✕ Nascondi mappa' : '🗺️ Mostra mappa';
+    if (on) { lastBoundsKey = ''; drawMap(visible()); }
+  }
+  document.getElementById('mapBtn').addEventListener('click', () => toggleMap(!mapOn));
+  document.getElementById('map').addEventListener('click', e => {
+    const gp = e.target.closest('[data-gprev]');
+    if (gp) { e.preventDefault(); const l = leads.find(x => x.id === gp.dataset.gprev); if (l) showPreview(l); return; }
+    const g = e.target.closest('[data-goto]');
+    if (!g) return;
+    e.preventDefault();
+    const v = visible(), i = v.findIndex(l => l.id === g.dataset.goto);
+    if (i < 0) return;
+    if (i >= shown) { shown = i + 1; render(); }
+    const card = document.querySelector(`.lead[data-id="${CSS.escape(g.dataset.goto)}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1600);
+  });
 
   // ---- Messaggi WhatsApp ----
   const today = () => new Date().toISOString().slice(0, 10);
@@ -357,6 +474,8 @@
   }
 
   document.getElementById('list').addEventListener('click', e => {
+    const pv = e.target.closest('[data-preview]');
+    if (pv) { const l = leads.find(x => x.id === pv.closest('.lead').dataset.id); if (l) showPreview(l); return; }
     const w = e.target.closest('[data-wa]');
     if (w) { const l = leads.find(x => x.id === w.closest('.lead').dataset.id); if (l) sendWhatsApp(l); return; }
     const b = e.target.closest('.status button');
@@ -483,6 +602,8 @@
         document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
         document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
+    document.getElementById('map').hidden = !mapOn;
+    document.getElementById('mapBtn').textContent = mapOn ? '✕ Nascondi mappa' : '🗺️ Mostra mappa';
     document.body.classList.add('ready');
     api('/api/admin/bot/contacted').then(x => { botContacted = x.contacted || {}; render(); }).catch(() => {});
     // Riapro subito l'ultima ricerca salvata, senza aspettare

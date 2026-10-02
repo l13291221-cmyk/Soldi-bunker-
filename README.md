@@ -49,6 +49,13 @@ Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in
 I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
 I siti moderni (Next.js, React, Webflow...) non vengono più segnati come "quasi vuoti": caricano i testi con JavaScript.
 
+### Mappa e anteprima Google Maps (senza chiavi)
+- **🗺️ Mostra mappa**: tutte le attività trovate su una mappa (OpenStreetMap + Leaflet, gratis, nessuna chiave).
+  Il colore del puntino segue lo stato (oro = da contattare, verde = scritto/interessato, blu = chiamato, grigio = no).
+  Dal puntino: «Vai alla scheda», «Anteprima», «Chiama», «Google Maps».
+- **👁️ Anteprima Maps** su ogni scheda: apre la scheda Google Maps dell'attività dentro la pagina (recensioni, orari, sito),
+  così controlli prima di chiamare senza cambiare app. Usa l'incorporamento pubblico di Google: nessuna chiave, nessun costo.
+
 ### Fonte Google Maps (facoltativa)
 Nel menu **Fonte** puoi scegliere **Google Maps** invece di OpenStreetMap: trova più attività, con telefono e sito aggiornati
 (massimo 60 risultati per ricerca, quindi cerca città per città o per quartiere). I cellulari vengono proposti come WhatsApp "probabile".
