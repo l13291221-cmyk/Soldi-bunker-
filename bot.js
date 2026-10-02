@@ -28,23 +28,56 @@ const DEFAULTS = {
   followUp: '', // messaggi dopo il «sì», separati da una riga «---»; vuoto = DEFAULT_FOLLOW
   warmup: true, // i primi giorni ne manda meno: un numero nuovo che scrive subito a tanti sconosciuti viene bloccato
 };
-// Primo messaggio: corto, senza link (sembrano spam), una domanda semplice. Uno per riga, si alternano.
-// {firma} il tuo nome · {nome} nome del locale · {problema} «non avete ancora un sito web»…
+// Primo messaggio: scritto come lo scriverebbe una persona. Corto, senza link (sembrano spam), finisce con una domanda.
+// Uno per riga, si alternano. {saluto} «Buongiorno» o «Buonasera» in base all'ora · {firma} il tuo nome
+// {nome} nome del locale (senza «SRL» e senza maiuscole urlate) · {problema} «non avete ancora un sito web»…
 // {categoria} «pizzerie», «ristoranti», «bar» · {locale} «una pizzeria come la vostra»…
 const DEFAULT_FIRST = [
-  'Salve, sono {firma} di Nerodoro Studio. Ho notato che {problema} e mi occupo proprio di siti per {categoria}. Posso mandarvi un video di un minuto con un esempio? 🙂',
-  'Salve, sono {firma} di Nerodoro Studio 🙂 Facciamo siti web per {categoria} e ho visto che {problema}. Vi interessa vedere un esempio?',
-  'Salve, sono {firma} di Nerodoro Studio. Vi scrivo perché {problema}: abbiamo un sito pronto pensato per {locale}. Vi mando un breve video per vederlo?',
-  'Salve, sono {firma} di Nerodoro Studio. Ho trovato {nome} cercando {categoria} in zona e ho visto che {problema}. Vi farebbe piacere vedere un esempio di sito? 🙂',
+  '{saluto}, sono {firma} di Nerodoro Studio 🙂 Ho visto che {problema}: io faccio proprio siti per {categoria}. Vi va se vi mando un esempio?',
+  '{saluto}! Mi chiamo {firma}, lavoro con Nerodoro Studio e faccio siti web per {categoria}. Ho notato che {problema}… posso farvi vedere un esempio? Ci vuole un minuto',
+  '{saluto}, sono {firma} di Nerodoro Studio. Vi scrivo perché {problema} e ho un sito già pronto pensato per {locale}. Ve lo faccio vedere?',
+  '{saluto}, sono {firma} (Nerodoro Studio). Cercavo {categoria} in zona, ho trovato {nome} e ho visto che {problema}. Vi interessa vedere come potrebbe venire il vostro sito? 🙂',
 ].join('\n');
-// Dopo il «sì»: prima il video (se c'è), poi questi messaggi, uno alla volta. Senza vincoli: le condizioni le vedono sul sito.
+// Dopo il «sì»: due parole («Perfetto, ve lo mando subito»), il video (se c'è), poi questi messaggi, uno alla volta.
+// Senza vincoli: le condizioni le vedono sul sito.
 // {abbonamenti} Base e Premium con prezzo al mese · {sito} link per pagare · {demo} sito di esempio · {nome} · {firma}
 const DEFAULT_FOLLOW = [
-  'Se vi piace e siete interessati, ci sono due abbonamenti:\n\n{abbonamenti}',
-  'Per attivarlo è semplicissimo:\n1️⃣ Andate su {sito}\n2️⃣ Scegliete Base o Premium e scrivete il nome del locale\n3️⃣ Pagate con la carta, in modo sicuro con Stripe (prima di pagare vedete il riepilogo e le condizioni)\n\nSubito dopo il pagamento ricevete il link del vostro sito, pronto da condividere, e un codice personale. Dal pannello cambiate da soli menu, foto e prezzi, anche dal telefono.',
-  'Qui potete vedere un esempio di sito: {demo}\n\nPer qualsiasi domanda scrivetemi pure qui 🙂',
+  'Allora, funziona così: ci sono due abbonamenti 👇\n\n{abbonamenti}',
+  'Se vi va di attivarlo fate tutto da soli in un paio di minuti: andate su {sito}, scegliete Base o Premium e pagate con la carta (il pagamento passa da Stripe, quindi è sicuro). Prima di pagare vedete il riepilogo e le condizioni.\n\nAppena pagato vi arriva il link del vostro sito, già pronto. Menu, foto e prezzi poi li cambiate voi quando volete, anche dal telefono.',
+  'Qui vedete un sito di esempio, così vi fate un\'idea: {demo}\n\nSe avete dubbi o domande scrivetemi pure, vi rispondo io 🙂',
 ].join('\n---\n');
-const VIDEO_CAPTION = 'Ecco il video 🎬 Così funziona il sito: si apre come un\'app, i clienti prenotano in 30 secondi e voi cambiate testi e foto con un tocco.';
+const VIDEO_CAPTION = 'Guardate com\'è 🎬 Si apre come un\'app, i clienti prenotano in 30 secondi e menu e foto li cambiate voi dal telefono.';
+// I testi predefiniti di prima: chi li aveva salvati senza cambiarli riceve quelli nuovi
+const OLD_DEFAULTS = {
+  templates: [
+    'Salve, sono {firma} di Nerodoro Studio. Ho notato che {problema} e mi occupo proprio di siti per {categoria}. Posso mandarvi un video di un minuto con un esempio? 🙂',
+    'Salve, sono {firma} di Nerodoro Studio 🙂 Facciamo siti web per {categoria} e ho visto che {problema}. Vi interessa vedere un esempio?',
+    'Salve, sono {firma} di Nerodoro Studio. Vi scrivo perché {problema}: abbiamo un sito pronto pensato per {locale}. Vi mando un breve video per vederlo?',
+    'Salve, sono {firma} di Nerodoro Studio. Ho trovato {nome} cercando {categoria} in zona e ho visto che {problema}. Vi farebbe piacere vedere un esempio di sito? 🙂',
+  ].join('\n'),
+  followUp: [
+    'Se vi piace e siete interessati, ci sono due abbonamenti:\n\n{abbonamenti}',
+    'Per attivarlo è semplicissimo:\n1️⃣ Andate su {sito}\n2️⃣ Scegliete Base o Premium e scrivete il nome del locale\n3️⃣ Pagate con la carta, in modo sicuro con Stripe (prima di pagare vedete il riepilogo e le condizioni)\n\nSubito dopo il pagamento ricevete il link del vostro sito, pronto da condividere, e un codice personale. Dal pannello cambiate da soli menu, foto e prezzi, anche dal telefono.',
+    'Qui potete vedere un esempio di sito: {demo}\n\nPer qualsiasi domanda scrivetemi pure qui 🙂',
+  ].join('\n---\n'),
+};
+
+// ---------- Come risponde una persona ----------
+// Prima del video, due parole come farebbe chiunque dal telefono
+const ACK_YES = ['Perfetto, ve lo mando subito 🙂', 'Benissimo! Un attimo che ve lo mando', 'Ottimo, eccolo 👇', 'Certo, ve lo giro subito 🙂'];
+// Se invece hanno fatto una domanda o scritto altro («chi siete?», «quanto costa?», un vocale…)
+const ACK_OTHER = [
+  'Grazie della risposta! Intanto vi mando un video di un minuto, così vedete subito com\'è 🙂',
+  'Certo! Vi mando prima un breve video, così è tutto più chiaro',
+  'Grazie! Vi giro un video veloce, così vi fate un\'idea 🙂',
+];
+// A chi dice «no» con garbo si risponde con un saluto, una volta sola, poi la chat si archivia
+const BYE = ['Nessun problema, grazie lo stesso e buon lavoro! 🙂', 'Va bene, scusate il disturbo. Buon lavoro!', 'Capito, grazie per la risposta. Buona continuazione!'];
+// …ma a chi è infastidito («stop», «spam», «non scrivete più») non si scrive niente: si archivia e basta
+const ANNOYED = /\bstop\b|\bbasta\b|spam|non (mi |ci )?(scriv|contatt|disturb|cerc)|cancell|rimuov|togliet|bloc|segnal|denunc|unsubscribe|don'?t (text|write|contact)/i;
+// Una persona non risponde di notte: dalle 21 alle 8:30 la risposta aspetta la mattina dopo
+const AWAKE_FROM = 8 * 60 + 30, AWAKE_TO = 21 * 60;
+const pick = list => list[Math.floor(Math.random() * list.length)];
 // Che tipo di locale è: serve per scrivere «siti per pizzerie», «un bar come il vostro»…
 const CATEGORIES = {
   pizzeria: { plurale: 'pizzerie', locale: 'una pizzeria come la vostra' },
@@ -63,6 +96,16 @@ function categoryOf(lead) {
 }
 const blocks = s => String(s || '').split(/\n\s*-{3,}\s*\n/).map(x => x.trim()).filter(Boolean);
 const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+const sameText = (a, b) => lines(a).join('\n') === lines(b).join('\n');
+// Il nome come lo scriverebbe una persona: «PIZZERIA DA MARIO S.R.L.» → «Pizzeria da Mario»
+const SMALL_WORDS = new Set(['di', 'da', 'del', 'della', 'dei', 'delle', 'e', 'al', 'alla', 'ai', 'il', 'la', 'lo', 'le', 'in']);
+function niceName(name) {
+  let s = String(name || '').trim().replace(/[\s,–-]*\b(s\.?r\.?l\.?s?|s\.?n\.?c|s\.?a\.?s)\.?\s*$/i, '').trim();
+  if (s === s.toUpperCase() && /[A-Z]{4,}/.test(s)) {
+    s = s.toLowerCase().split(/\s+/).map((w, i) => i && SMALL_WORDS.has(w) ? w : w.replace(/(^|['’])(\p{L})/gu, (x, a, b) => a + b.toUpperCase())).join(' ');
+  }
+  return s || String(name || '').trim();
+}
 // Finite le zone scelte, il bot continua da solo con i comuni italiani dal più grande (solo Google Maps:
 // OpenStreetMap con «italia» li copre già tutti)
 const COMUNI = (() => { try { return require('./comuni-italia.json').comuni || []; } catch { return []; } })();
@@ -126,6 +169,16 @@ function local(t = Date.now()) {
   return { day: `${p.year}-${p.month}-${p.day}`, min: +p.hour * 60 + +p.minute + +p.second / 60, wd: WD.indexOf(p.weekday) };
 }
 const hhmm = m => `${Math.floor(m / 60)}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
+// «Buongiorno» fino alle 14, poi «Buonasera», come si usa in Italia
+const saluto = (t = Date.now()) => local(t).min < 14 * 60 ? 'Buongiorno' : 'Buonasera';
+const awake = (t = Date.now()) => { const m = local(t).min; return m >= AWAKE_FROM && m < AWAKE_TO; };
+// Quando risponderebbe una persona: tra «ms»; se però cade di notte, la mattina dopo tra le 8:30 e le 9:30
+function awakeAt(ms) {
+  const t = Date.now() + ms;
+  if (awake(t)) return t;
+  const m = local(t).min;
+  return t + ((m >= AWAKE_TO ? 24 * 60 : 0) - m + AWAKE_FROM + rand(0, 60)) * 60e3;
+}
 // "9:30-12:30, 15-19:30" → [[570, 750], [900, 1170]] (minuti dalla mezzanotte)
 function parseHours(s) {
   const out = [];
@@ -191,6 +244,10 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       saveAuth();
     }
     if (DAY_KEYS.some(k => k in st)) { DAY_KEYS.forEach(k => delete st[k]); save(); }
+    // Testi predefiniti di prima salvati senza cambiarli: vuoto = si usano quelli nuovi
+    const conf = D.config || {};
+    if (sameText(conf.templates, OLD_DEFAULTS.templates)) { conf.templates = ''; save(); }
+    if (sameText(conf.followUp, OLD_DEFAULTS.followUp)) { conf.followUp = ''; save(); }
     // chiavi di numeri tolti dalla tabella
     for (const id of Object.keys(accounts())) if (!rowOf(id)) { delete accounts()[id]; saveAuth(); }
   }
@@ -470,6 +527,9 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       const text = textOf(m.message).trim();
       if (!text) continue;
       const row = rowOf(c.id), t = plain(text);
+      ct.unread = [...(ct.unread || []), k.id].slice(-10); // da segnare come letti quando il bot risponde
+      // Ha già detto di no (e magari risponde al saluto: «grazie a voi»): resta negli archiviati, il bot non scrive più
+      if (ct.s === 'no') { ct.r = text.slice(0, 500); ct.rAt = Date.now(); save(); continue; }
       const no = OPT_OUT.test(t), yes = !no && YES.test(t);
       // Benvenuto/assenza automatici del WhatsApp Business del locale: li segno ma non sono una risposta
       const auto = !no && !yes && (AUTO_REPLY.test(t) || (Date.now() - (ct.at || 0) < 25000 && text.length > 60));
@@ -480,19 +540,35 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       ct.r = text.slice(0, 500); ct.rAt = Date.now();
       if (yes) ct.yes = Date.now();
       save();
-      // «No»: va negli archiviati (anche su WhatsApp) e non riceve più niente
-      if (no) { archiveChat(c, m); continue; }
-      // «Sì», «ok», «okok», una domanda… (tutto tranne il no): video, abbonamenti, come si paga e demo, una volta sola
-      const cf = cfg();
-      if (cf.autoFollow && !ct.follow && !ct.human) {
-        ct.follow = Date.now(); save();
-        const jid = k.remoteJid;
-        setTimeout(async () => {
-          if (!c.sock || c.status !== 'open' || ct.human || ct.s === 'no') { if (ct.s !== 'no') { ct.follow = null; save(); } return; }
-          try { await sendFollowUp(c, jid, ct, num); ct.followDone = Date.now(); save(); }
-          catch (err) { console.error('Bot: risposta al sì non completata:', err.message); ct.followErr = err.message.slice(0, 200); save(); }
-        }, rand(30, 90) * 1000);
+      // «No»: un saluto gentile (se non è infastidito), poi negli archiviati, anche su WhatsApp
+      if (no) { closeChat(c, m, ct, num, t).catch(err => console.warn('Bot: chat non chiusa:', err.message)); continue; }
+      // Tutto il resto («sì», «ok», «okok», una domanda…): video, abbonamenti, come si paga e demo, una volta sola.
+      // Come una persona: risponde dopo 30-90 secondi, il tempo di leggere; se scrivono di notte, la mattina dopo
+      if (cfg().autoFollow && !ct.follow && !ct.human) {
+        Object.assign(ct, { follow: Date.now(), followAt: awakeAt(rand(30, 90) * 1000), followJid: k.remoteJid, followVia: c.id });
+        save();
       }
+    }
+  }
+  // Le risposte al «sì» aspettano la loro ora (anche dopo un riavvio) e partono dal numero che ha ricevuto il «sì»
+  function followTick() {
+    if (!isReady()) return;
+    const now = Date.now();
+    for (const [num, ct] of Object.entries(contacted())) {
+      if (!ct.followAt || ct.followAt > now) continue;
+      // Nel frattempo hai risposto tu dal telefono, hanno detto di no o hai spento le risposte automatiche
+      if (ct.human || ct.s === 'no' || !cfg().autoFollow) { Object.assign(ct, { followAt: null, follow: null }); save(); continue; }
+      const c = conns.get(ct.followVia);
+      if (!c || !c.sock || c.status !== 'open') {
+        if (now - ct.followAt > 2 * 864e5) { Object.assign(ct, { followAt: null, followErr: 'WhatsApp scollegato' }); save(); }
+        continue;
+      }
+      Object.assign(ct, { followAt: null, followStart: now });
+      save();
+      sendFollowUp(c, ct.followJid, ct, num)
+        .then(done => { if (done) ct.followDone = Date.now(); else ct.follow = null; })
+        .catch(err => { console.error('Bot: risposta al sì non completata:', err.message); ct.followErr = err.message.slice(0, 200); })
+        .finally(save);
     }
   }
 
@@ -586,19 +662,19 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     const cat = CATEGORIES[categoryOf(lead)];
     // Il «problema» (senza sito, solo social, difetto del sito) lo prendo dai messaggi di Trova clienti
     const problema = messages.problem('it', lead, { reasons: lead.reasons });
-    let text = own[variant % own.length].replace(/\{nome\}/g, lead.name).replace(/\{problema\}/g, problema)
-      .replace(/\{categoria\}/g, cat.plurale).replace(/\{locale\}/g, cat.locale).replace(/\{firma\}/g, c.firma).replace(/\{sito\}/g, siteUrl);
-    if (local().min >= 14 * 60) text = text.replace(/^Buongiorno\b/, 'Buonasera');
-    return text;
+    return own[variant % own.length].replace(/\{saluto\}/g, saluto()).replace(/\{nome\}/g, niceName(lead.name))
+      .replace(/\{problema\}/g, problema).replace(/\{categoria\}/g, cat.plurale).replace(/\{locale\}/g, cat.locale)
+      .replace(/\{firma\}/g, c.firma).replace(/\{sito\}/g, siteUrl)
+      .replace(/^(Buongiorno|Buonasera)\b/, saluto()); // anche nei testi scritti a mano: mai «Buongiorno» alle sei di sera
   }
 
   // ---------- Dopo il «sì»: video, abbonamenti, come si paga, demo ----------
   const euro = cents => (cents / 100).toLocaleString('it-IT', { minimumFractionDigits: cents % 100 ? 2 : 0 }) + ' €';
-  // I due abbonamenti con il prezzo al mese e cosa comprendono (senza vincoli: stanno nelle condizioni sul sito)
+  // I due abbonamenti con il prezzo al mese e cosa comprendono (senza vincoli: stanno nelle condizioni sul sito).
+  // I testi del sito danno del «tu»: nel messaggio si dà del «voi», come nel resto della chat
+  const toVoi = f => f.replace(/\bla tua\b/g, 'la vostra').replace(/\bil tuo\b/g, 'il vostro').replace(/\btuonome\b/g, 'vostronome');
   function plansText() {
-    const icons = ['✅', '⭐'];
-    return packages().map((p, i) => `${icons[i] || '•'} *${p.name} – ${euro(p.monthly)} al mese*\n` +
-      p.features.map(f => '• ' + f.replace(/\bla tua\b/g, 'la vostra').replace(/\bil tuo\b/g, 'il vostro')).join('\n')).join('\n\n');
+    return packages().map(p => `*${p.name}* – ${euro(p.monthly)} al mese\n` + p.features.map(f => '• ' + toVoi(f)).join('\n')).join('\n\n');
   }
   function followTexts(ct) {
     const c = cfg();
@@ -638,24 +714,66 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     }
     return sendText(c, jid, VIDEO_CAPTION + '\n' + v.link);
   }
-  // Manda tutto, un messaggio alla volta come farebbe una persona. «log» = segna nei messaggi mandati
+  // Dopo il «sì», come farebbe una persona dal telefono: legge (spunte blu), risponde due parole, manda il video,
+  // aspetta che lo guardino, poi abbonamenti, come si paga e demo, un messaggio alla volta.
+  // Si ferma se nel frattempo rispondi tu dal telefono o se dicono di no. Ritorna true se ha mandato tutto.
+  // «log» = segna nei messaggi mandati
   async function sendFollowUp(c, jid, ct, num, log = true) {
     const from = (rowOf(c.id) || {}).phone;
-    const r = await sendVideo(c, jid);
-    if (r && log) logSent(num, ct.n, '🎬 ' + VIDEO_CAPTION, r, 'dopo il sì', from);
-    for (const text of followTexts(ct)) {
-      await sleep(rand(4000, 9000));
+    const goOn = () => {
       if (!c.sock || c.status !== 'open') throw new Error('WhatsApp scollegato a metà');
+      return !ct.human && ct.s !== 'no';
+    };
+    const say = async text => {
       await typing(c, jid, text);
       const m = await sendText(c, jid, text);
       if (log) logSent(num, ct.n, text, m, 'dopo il sì', from);
+    };
+    await readChat(c, jid, ct);
+    await sleep(rand(3000, 8000)); // il tempo di leggere e pensare a cosa rispondere
+    if (!goOn()) return false;
+    // «Perfetto, ve lo mando subito 🙂»; a una domanda o a un vocale: «Grazie! Intanto vi mando un video…»
+    await say(pick(ct.yes || !ct.r || !videoSource() ? ACK_YES : ACK_OTHER));
+    await sleep(rand(3000, 7000));
+    if (!goOn()) return false;
+    const video = await sendVideo(c, jid);
+    if (video && log) logSent(num, ct.n, '🎬 ' + VIDEO_CAPTION, video, 'dopo il sì', from);
+    let pause = video ? rand(25000, 45000) : rand(4000, 9000); // il tempo di guardare il video
+    for (const text of followTexts(ct)) {
+      await sleep(pause);
+      pause = rand(6000, 14000);
+      if (!goOn()) return false;
+      await say(text);
     }
+    return true;
   }
-  // Chi dice di no: chat archiviata anche nell'app WhatsApp
-  async function archiveChat(c, m) {
-    await sleep(rand(3000, 8000));
-    try { await c.sock.chatModify({ archive: true, lastMessages: [{ key: m.key, messageTimestamp: m.messageTimestamp }] }, m.key.remoteJid); }
+  // Chi dice di no: come farebbe una persona, un saluto gentile e la chat archiviata (anche nell'app WhatsApp).
+  // Niente saluto a chi è infastidito («stop», «spam»…), se stai già scrivendo tu dal telefono o se è notte
+  async function closeChat(c, m, ct, num, t) {
+    const jid = m.key.remoteJid;
+    const bye = !ct.human && !ct.bye && !ANNOYED.test(t) && awake();
+    let last = { key: m.key, messageTimestamp: m.messageTimestamp };
+    await sleep(bye ? rand(40, 120) * 1000 : rand(3000, 8000));
+    if (!c.sock || c.status !== 'open') return;
+    if (bye && !ct.human) {
+      ct.bye = Date.now(); save();
+      await readChat(c, jid, ct);
+      await sleep(rand(2000, 5000));
+      const text = pick(BYE);
+      await typing(c, jid, text);
+      const r = await sendText(c, jid, text);
+      logSent(num, ct.n, text, r, 'saluto dopo il no', (rowOf(c.id) || {}).phone);
+      if (r && r.key) last = { key: r.key, messageTimestamp: r.messageTimestamp };
+      await sleep(rand(3000, 8000));
+    }
+    try { await c.sock.chatModify({ archive: true, lastMessages: [last] }, jid); }
     catch (err) { console.warn('Bot: chat non archiviata su WhatsApp:', err.message); }
+  }
+  // Apre la chat e legge i loro messaggi (spunte blu), come chi risponde dal telefono
+  async function readChat(c, jid, ct) {
+    const ids = ct.unread || [];
+    ct.unread = [];
+    if (ids.length) try { await c.sock.readMessages(ids.map(id => ({ remoteJid: jid, id, fromMe: false }))); } catch {}
   }
 
   // L'ID lo scelgo io e lo segno prima: WhatsApp rimanda subito il messaggio come «mio» e non deve
@@ -846,6 +964,14 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     return next ? `Prossimo messaggio verso le ${at(next.st.nextAt)} da +${next.phone}.` : 'Preparo il prossimo messaggio…';
   }
 
+  // A che punto è la risposta al «sì»
+  function followState(ct) {
+    if (ct.followDone) return 'fatto';
+    if (ct.followErr) return 'errore';
+    if (ct.followAt) return 'programmato';
+    if (ct.follow && Date.now() - (ct.followStart || ct.follow) < 20 * 60e3) return 'in corso';
+    return ct.follow ? 'errore' : null; // iniziata e mai finita (es. server riavviato a metà)
+  }
   function status() {
     const g = S(), c = cfg();
     const all = Object.values(contacted());
@@ -869,13 +995,13 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       stats: { total: count('inviato') + count('risposto') + count('no'), replies: count('risposto'), no: count('no'), noWa: count('senza-wa'), errors: count('errore') },
       config: { ...c, templates: lines(c.templates).length ? c.templates : DEFAULT_FIRST, followUp: blocks(c.followUp).length ? c.followUp : DEFAULT_FOLLOW },
       defaults: { templates: DEFAULT_FIRST, followUp: DEFAULT_FOLLOW, demoUrl: DEFAULTS.demoUrl },
-      follow: { video: (videoSource() || {}).link || null, caption: VIDEO_CAPTION, messages: followTexts({ n: 'Pizzeria Da Mario' }) },
+      follow: { ack: ACK_YES[0], video: (videoSource() || {}).link || null, caption: VIDEO_CAPTION, messages: followTexts({ n: 'Pizzeria Da Mario' }) },
       queue: queue().slice(0, 30).map(l => ({ ...l, category: categoryOf(l), preview: buildText(l, g.total || 0) })),
       queueLength: queue().length,
       refilling, lastSearch, exhausted: !queue().length && !nextJob(), jobsTotal: jobs().length,
       sent: (D.sent || []).slice(0, 100).map(x => ({ ...x, s: (contacted()[x.n] || {}).s })),
       replies: (D.replies || []).filter(x => (contacted()[x.n] || {}).s !== 'no').slice(0, 100)
-        .map(x => { const ct = contacted()[x.n] || {}; return { ...x, follow: ct.followDone ? 'fatto' : ct.follow ? 'in corso' : ct.followErr ? 'errore' : null, human: !!ct.human }; }),
+        .map(x => { const ct = contacted()[x.n] || {}; return { ...x, follow: followState(ct), followAt: ct.followAt || null, human: !!ct.human }; }),
       // Chi ha detto no: archiviati (anche nell'app WhatsApp)
       archived: Object.entries(contacted()).filter(([, x]) => x.s === 'no').sort((a, b) => (b[1].rAt || b[1].at) - (a[1].rAt || a[1].at)).slice(0, 200)
         .map(([n, x]) => ({ n, name: x.n, text: x.r || '', at: x.rAt || x.at, from: x.from })),
@@ -907,9 +1033,10 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
     }
     if (Array.isArray(b.days)) out.days = [...new Set(b.days.map(Number).filter(d => d >= 0 && d <= 6))];
     if (b.firma !== undefined) out.firma = String(b.firma).trim().slice(0, 40) || c.firma;
-    if (b.templates !== undefined) out.templates = String(b.templates).slice(0, 4000);
+    // Testi uguali a quelli predefiniti: salvo vuoto, così se un giorno cambiano arrivano anche qui
+    if (b.templates !== undefined) out.templates = sameText(b.templates, DEFAULT_FIRST) ? '' : String(b.templates).slice(0, 4000);
     if (b.autoFollow !== undefined) out.autoFollow = !!b.autoFollow;
-    if (b.followUp !== undefined) out.followUp = String(b.followUp).slice(0, 6000);
+    if (b.followUp !== undefined) out.followUp = sameText(b.followUp, DEFAULT_FOLLOW) ? '' : String(b.followUp).slice(0, 6000);
     const link = (v, what) => {
       const x = String(v || '').trim().slice(0, 500);
       if (x && !/^(https?:\/\/|\/)\S+$/i.test(x)) throw new Error(`${what}: scrivi un link che inizia con https://`);
@@ -1081,9 +1208,10 @@ module.exports = function createBot({ dataDir, isReady, searchLeads, checkSite, 
       migrate();
       for (const n of numbers()) if (linked(n.id)) connect(conn(n.id)).catch(err => { conn(n.id).error = err.message; console.error('Bot WhatsApp:', err.message); });
       setInterval(tick, 20000);
+      setInterval(followTick, 15000);
       tick();
     }, 1000);
   }
 
-  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, normPhone, OPT_OUT, YES, AUTO_REPLY, plain, buildText, followTexts, videoSource, state: () => D, auth: () => A, migrate } };
+  return { routes, backupFiles, start, _test: { parseHours, parseZones, local, planNext, availAfter, clockAfter, normPhone, OPT_OUT, YES, AUTO_REPLY, plain, buildText, followTexts, videoSource, niceName, saluto, awakeAt, ANNOYED, followTick, onMessages, conns, followState, state: () => D, auth: () => A, migrate } };
 };

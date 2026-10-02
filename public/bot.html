@@ -169,13 +169,13 @@
 
   <section class="box">
     <h2>📬 Risposte <span class="tag g" id="newReplies" hidden></span></h2>
-    <p class="muted small" style="margin:-4px 0 12px">Le vedi anche nell'app WhatsApp Business: da lì continui tu. A chi risponde «sì», «ok», «okok», «mandate», con una domanda… il bot manda da solo il video, i due abbonamenti, come si paga e la demo (una volta sola). Chi dice di no va negli archiviati.</p>
+    <p class="muted small" style="margin:-4px 0 12px">Le vedi anche nell'app WhatsApp Business: da lì continui tu. A chi risponde «sì», «ok», «okok», «mandate», con una domanda… il bot risponde come una persona: legge, scrive due parole («Perfetto, ve lo mando subito 🙂») e manda il video, i due abbonamenti, come si paga e la demo (una volta sola). Chi dice di no va negli archiviati.</p>
     <div id="replies"></div>
   </section>
 
   <section class="box">
     <h2>🗄️ Archiviati <span class="tag" id="archivedCount" hidden></span></h2>
-    <p class="muted small" style="margin:-4px 0 12px">Chi ha risposto «no», «non ci interessa», «abbiamo già il sito», 👎… La chat viene archiviata anche nell'app WhatsApp e il bot non scrive più.</p>
+    <p class="muted small" style="margin:-4px 0 12px">Chi ha risposto «no», «non ci interessa», «abbiamo già il sito», 👎… Il bot saluta con garbo («Nessun problema, grazie lo stesso e buon lavoro!»), archivia la chat anche nell'app WhatsApp e non scrive più. A chi è infastidito («stop», «spam», «non scrivete») non manda niente.</p>
     <div id="archived"></div>
   </section>
 
@@ -224,11 +224,11 @@
       <div class="field">
         <label for="templates">Primo messaggio (uno per riga: si alternano, così non sono tutti uguali)</label>
         <textarea id="templates" rows="6"></textarea>
-        <small>Corto e senza link (sembrano spam). Puoi usare {firma} (il tuo nome), {nome} (nome del locale), {problema} (es. «non avete ancora un sito web»), {categoria} («pizzerie», «ristoranti», «bar»), {locale} («una pizzeria come la vostra»).</small>
+        <small>Corto, senza link (sembrano spam), come lo scriveresti tu dal telefono. Puoi usare {saluto} («Buongiorno» o «Buonasera» in base all'ora), {firma} (il tuo nome), {nome} (nome del locale, senza «SRL» e senza maiuscole), {problema} (es. «non avete ancora un sito web»), {categoria} («pizzerie», «ristoranti», «bar»), {locale} («una pizzeria come la vostra»).</small>
       </div>
 
       <h3 style="font:600 1rem var(--sans);letter-spacing:0;margin:24px 0 0">💬 Quando rispondono</h3>
-      <label class="check"><input type="checkbox" id="autoFollow"><span>Rispondi da solo a chi non dice di no<small>«Sì», «ok», «okok», «va bene», «mandate», una domanda… Una volta sola, 30-90 secondi dopo, e solo se nessuno ha già risposto a mano dal telefono. I messaggi automatici del locale («Grazie per averci contattato…») non contano.</small></span></label>
+      <label class="check"><input type="checkbox" id="autoFollow"><span>Rispondi da solo a chi non dice di no<small>«Sì», «ok», «okok», «va bene», «mandate», una domanda… Come una persona: 30-90 secondi dopo legge il messaggio (spunte blu), risponde due parole («Perfetto, ve lo mando subito 🙂»; a una domanda «Grazie! Intanto vi mando un video…»), poi un messaggio alla volta, scrivendo. Se scrivono la sera dopo le 21 o di notte risponde la mattina dopo. Una volta sola, e si ferma se rispondi tu dal telefono. I messaggi automatici del locale («Grazie per averci contattato…») non contano.</small></span></label>
       <div class="field">
         <label for="videoUrl">Video</label>
         <input id="videoUrl" placeholder="Vuoto = il video del sito (video.mp4)">
@@ -360,7 +360,7 @@
         <div class="top"><div><h4>${escapeHtml(r.name || fmtNum(r.n))}</h4><div class="meta">${escapeHtml(fmtNum(r.n))} · ${when(r.at)}${r.to ? ' · a ' + escapeHtml(fmtNum(r.to)) : ''}</div></div>
           ${r.auto ? '<span class="tag">Messaggio automatico del locale</span>' : r.no ? '<span class="tag r">Non interessato</span>' : r.yes ? '<span class="tag g">Interessato</span>' : '<span class="tag y">Ha risposto</span>'}</div>
         <div class="msg">${escapeHtml(r.text)}</div>
-        ${!r.auto && r.follow ? `<div class="meta" style="margin-top:6px">${r.follow === 'fatto' ? '✅ Video, abbonamenti e demo mandati' : r.follow === 'in corso' ? '⏳ Sto mandando video, abbonamenti e demo…' : '⚠️ Video e prezzi non mandati: scrivigli tu'}</div>` : ''}
+        ${!r.auto && r.follow ? `<div class="meta" style="margin-top:6px">${r.follow === 'fatto' ? '✅ Video, abbonamenti e demo mandati' : r.follow === 'in corso' ? '⏳ Sto mandando video, abbonamenti e demo…' : r.follow === 'programmato' ? `⏰ Risposta programmata: ${escapeHtml(when(r.followAt))} (video, abbonamenti e demo)` : '⚠️ Video e prezzi non mandati: scrivigli tu'}</div>` : ''}
         ${!r.auto && !r.follow && r.human ? '<div class="meta" style="margin-top:6px">✍️ Stai rispondendo tu dal telefono</div>' : ''}
         <div class="actions"><a class="btn btn-wa btn-sm" href="${waLink(r.n)}" target="_blank" rel="noopener">💬 Apri chat</a></div>
       </div>`).join('') : '<p class="empty">Ancora nessuna risposta.</p>';
@@ -403,7 +403,7 @@
 
   function renderFollowPreview() {
     const f = S.follow;
-    document.getElementById('followPreview').innerHTML = (f.video ? `<div class="msg">🎬 <a href="${escapeHtml(f.video)}" target="_blank" rel="noopener">Video</a> — ${escapeHtml(f.caption)}</div>` : '<div class="msg">(nessun video)</div>') +
+    document.getElementById('followPreview').innerHTML = `<div class="msg">${escapeHtml(f.ack)}</div>` + (f.video ? `<div class="msg">🎬 <a href="${escapeHtml(f.video)}" target="_blank" rel="noopener">Video</a> — ${escapeHtml(f.caption)}</div>` : '<div class="msg">(nessun video)</div>') +
       f.messages.map(m => `<div class="msg">${escapeHtml(m)}</div>`).join('');
   }
 

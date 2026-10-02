@@ -92,17 +92,25 @@ Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altr
   con gli altri comuni d'Italia, dal più grande al più piccolo (1.531 comuni sopra gli 8.000 abitanti, in `comuni-italia.json`):
   così anche con più numeri accesi (es. 3 numeri = 75-90 messaggi al giorno) il bot non resta senza locali a cui scrivere.
 - Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
-- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
-  sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema
-  del sito e il tipo di locale: «siti per pizzerie», «un bar come il vostro»…). I testi si cambiano nelle impostazioni.
+- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**, scritto come lo
+  scriverebbe una persona: corto, senza link, «Buongiorno» o «Buonasera» in base all'ora, «sono Simone di Nerodoro Studio…»
+  e un po' diverso ogni volta (4 versioni che si alternano, con il problema del sito e il tipo di locale: «siti per pizzerie»,
+  «una pizzeria come la vostra»…). Il nome del locale è scritto in modo naturale: «PIZZERIA DA MARIO S.R.L.»
+  diventa «Pizzeria da Mario». I testi si cambiano nelle impostazioni.
 - **A ognuno scrive una volta sola**, mai due. Le risposte compaiono in **📬 Risposte** (e nell'app, dove continuate voi):
   - **«No»** (anche «no grazie», «nn ci interessa», «abbiamo già il sito», «stop», 👎…) → va negli **🗄️ Archiviati**,
-    la chat viene archiviata anche nell'app WhatsApp e non riceve più niente.
+    la chat viene archiviata anche nell'app WhatsApp e non riceve più niente. Prima, come farebbe una persona, il bot
+    saluta con garbo («Nessun problema, grazie lo stesso e buon lavoro! 🙂»), ma solo di giorno e non a chi è infastidito
+    («stop», «spam», «non scrivete più»…). Se poi rispondono al saluto («grazie a voi») restano negli archiviati.
   - **Tutto il resto** («sì», «sii», «sisi», «ok», «okok», «okk», «va bene», «certo», «mandate», «mi interessa», 👍, una domanda…)
-    → 30-90 secondi dopo il bot manda da solo, un messaggio alla volta: il **video** (`public/video.mp4`, arriva come video
+    → il bot risponde come una persona: 30-90 secondi dopo legge il messaggio (spunte blu), scrive due parole
+    («Perfetto, ve lo mando subito 🙂»; a una domanda o a un vocale «Grazie! Intanto vi mando un video…») e poi manda,
+    un messaggio alla volta e scrivendo, il **video** (`public/video.mp4`, arriva come video
     WhatsApp), i **due abbonamenti** Base e Premium con il prezzo al mese e cosa comprendono (presi dal sito, senza vincoli),
     il **link del sito per pagare** con la spiegazione di come si paga e come funziona, e il **link della demo**
-    (https://l13291221-cmyk.github.io/Ristorante-/). Una volta sola, e non se avete già risposto voi dal telefono.
+    (https://l13291221-cmyk.github.io/Ristorante-/). Dopo il video aspetta mezzo minuto, il tempo di guardarlo.
+    Se scrivono la sera dopo le 21 o di notte, risponde la mattina dopo tra le 8:30 e le 9:30 (anche se il server si riavvia).
+    Una volta sola, e non se avete già risposto voi dal telefono: se scrivete voi a metà, il bot si ferma.
   - I messaggi automatici del WhatsApp Business del locale («Grazie per averci contattato, vi risponderemo…») non contano.
 - **Prova** sulla riga del numero manda al tuo numero personale il primo messaggio e, poco dopo, tutto quello che riceve chi dice sì.
 - Per cambiare il video: sostituisci `public/video.mp4` (sotto 16 MB) e `public/video.jpg` (anteprima), oppure metti un link nelle impostazioni.
