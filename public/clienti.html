@@ -85,7 +85,7 @@
   <div class="wrap">
     <a href="/admin" class="brand"><span class="brand-mark">N</span>Trova clienti</a>
     <nav class="nav">
-      <a href="/bot" class="btn btn-ghost btn-sm">🤖 Bot WhatsApp</a>
+      <a href="/collegamenti" class="btn btn-ghost btn-sm">🔑 Collegamenti</a>
       <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
     </nav>
   </div>
@@ -97,8 +97,11 @@
 
   <form class="search" id="searchForm" autocomplete="off">
     <select id="source" aria-label="Fonte">
+      <option value="tutte">🌐 Tutte le fonti</option>
       <option value="osm">🗺️ OpenStreetMap</option>
       <option value="google">📍 Google Maps</option>
+      <option value="here">🧭 HERE</option>
+      <option value="tomtom">🚗 TomTom</option>
     </select>
     <select id="scope" aria-label="Zona">
       <option value="comune">📍 Comune</option>
@@ -116,7 +119,6 @@
     <button class="chip on" data-f="nosite">Senza sito o sito brutto</button>
     <button class="chip" data-f="waOnly">Solo WhatsApp dichiarato</button>
     <button class="chip" data-f="wa">Solo WhatsApp / cellulare</button>
-    <button class="chip" data-f="hideDone">Nascondi già chiamati</button>
   </div>
 
   <div class="saved" id="saved" hidden>
@@ -132,7 +134,7 @@
   </div>
 
 
-  <div class="hint">I dati vengono da OpenStreetMap o da Google Maps (fino a 60 attività per ricerca: per averne di più cerca città per città). I siti che esistono vengono controllati in automatico (funziona? va bene da telefono? è aggiornato?) e restano in lista solo quelli brutti. Alcune attività hanno un sito che qui non risulta. Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google. I tuoi appunti restano salvati su questo dispositivo.</div>
+  <div class="hint">Fonti: OpenStreetMap (gratis, sempre attiva) e, se le colleghi in <a href="/collegamenti">🔑 Collegamenti</a>, Google Maps, HERE e TomTom. <b>Tutte le fonti</b> le usa insieme e toglie i doppioni. I siti che esistono vengono controllati in automatico e restano in lista solo quelli brutti. <b>Chi hai già scritto, chiamato o segnato «Non interessato» sparisce dall'elenco</b> su tutti i dispositivi (anche chi aveva già ricevuto il messaggio del vecchio bot). Prima di chiamare tocca <b>Maps</b> e controlla la scheda Google.</div>
 
   <p class="summary" id="summary"></p>
   <div id="list"></div>
@@ -148,7 +150,7 @@
   try { notes = JSON.parse(localStorage.getItem(LS) || '{}') || {}; } catch { notes = {}; }
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(notes)); } catch {} };
 
-  let leads = [], shown = 30, checks = {}, checking = 0, currentKey = '';
+  let leads = [], shown = 30, checks = {}, checking = 0, currentKey = '', warnings = [];
   // "-checks2": i controlli vecchi segnavano come vuoti anche i siti moderni, li rifaccio
   try { checks = JSON.parse(localStorage.getItem(LS + '-checks2') || '{}') || {}; localStorage.removeItem(LS + '-checks'); } catch { checks = {}; }
   const saveChecks = () => { try { localStorage.setItem(LS + '-checks2', JSON.stringify(checks)); } catch {} };
@@ -165,9 +167,9 @@
   }
   function saveSearch(city, type, list, scope, need) {
     const key = [city.toLowerCase(), type, scope, need].join('|');
-    const scopeLabel = scope === 'google' ? 'Google Maps' : document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
+    const scopeLabel = document.querySelector(`#scope option[value="${scope}"]`)?.textContent.replace(/^\S+\s/, '') || '';
     const typeLabel = (document.querySelector(`#type option[value="${type}"]`)?.textContent || type) +
-      (scope === 'google' ? ' · Google' : scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
+      (API_SOURCES[scope] ? ' · ' + API_SOURCES[scope] : scope !== 'comune' && scope !== 'italia' ? ` (${scopeLabel.toLowerCase()})` : '') + (need === 'wa' ? ' · solo WhatsApp' : '');
     // tengo solo chi si può contattare, per occupare poco spazio
     const keep = list.filter(l => l.phones.length || l.whatsapp).map(({ maps, ...rest }) => rest);
     searches = [{ key, city, type, scope, need, typeLabel, at: Date.now(), total: list.length, leads: keep }, ...searches.filter(x => x.key !== key)].slice(0, 12);
@@ -180,9 +182,9 @@
   }
   function openSearch(x) {
     leads = x.leads.map(l => ({ ...l, maps: l.maps || mapsLink(l) }));
-    shown = 30; currentKey = x.key;
-    document.getElementById('source').value = x.scope === 'google' ? 'google' : 'osm';
-    document.getElementById('scope').value = x.scope === 'google' ? 'comune' : x.scope || 'comune'; updateScope();
+    shown = 30; currentKey = x.key; keepNow.clear(); warnings = [];
+    document.getElementById('source').value = API_SOURCES[x.scope] ? x.scope : 'osm';
+    document.getElementById('scope').value = API_SOURCES[x.scope] ? 'comune' : x.scope || 'comune'; updateScope();
     document.getElementById('city').value = x.scope === 'italia' ? '' : x.city;
     document.getElementById('type').value = x.type;
     renderSaved(); render(); checkSites(leads);
@@ -191,10 +193,10 @@
     const box = document.getElementById('saved');
     box.hidden = !searches.length;
     document.getElementById('savedList').innerHTML = searches.map((x, i) => {
-      const done = x.leads.filter(l => notes[l.id] && notes[l.id].s).length;
+      const done = x.leads.filter(isGone).length;
       return `<div class="saved-item ${x.key === currentKey ? 'on' : ''}" data-i="${i}" role="button" tabindex="0">
         <span class="info">${escapeHtml(x.city)} · ${escapeHtml(x.typeLabel)}
-          <small>${new Date(x.at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} · ${x.leads.length} contattabili · ${done} già contattati</small></span>
+          <small>${new Date(x.at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} · ${x.leads.length - done} da contattare · ${done} già contattati</small></span>
         <span class="x" data-del="${i}" title="Elimina">✕</span>
       </div>`;
     }).join('');
@@ -212,16 +214,38 @@
     const item = e.target.closest('.saved-item');
     if (item) openSearch(searches[+item.dataset.i]);
   });
-  const filters = { phone: true, nosite: true, waOnly: false, wa: false, hideDone: false };
+  const filters = { phone: true, nosite: true, waOnly: false, wa: false };
+  // Fonti con la chiave (pagina Collegamenti): nelle ricerche salvate «scope» è il nome della fonte
+  const API_SOURCES = { tutte: 'Tutte le fonti', google: 'Google', here: 'HERE', tomtom: 'TomTom' };
   // Cellulare italiano: +39 3xx... oppure 3xx... (10 cifre)
   const isMobile = p => { const d = p.replace(/[^\d]/g, '').replace(/^0039|^39(?=3\d{8,9}$)/, ''); return /^3\d{8,9}$/.test(d); };
   // Numeri WhatsApp validi (le ricerche vecchie potevano avere più numeri incollati insieme)
   const waList = l => (l.whatsapps || (l.whatsapp ? [l.whatsapp] : [])).filter(n => { const d = n.replace(/\D/g, ''); return d.length >= 9 && d.length <= 13; });
   const hasWa = l => waList(l).length > 0 || l.phones.some(isMobile);
-  // Numeri a cui ha già scritto il bot WhatsApp (o qualcuno a mano da qui): nessuno riceve due messaggi
-  let botContacted = {};
-  const botHit = l => [...waList(l), ...l.phones].map(n => botContacted[n.replace(/\D/g, '')]).find(Boolean);
-  const BOT_LABEL = { inviato: 'il bot gli ha scritto', invio: 'il bot gli ha scritto', risposto: 'ha risposto al bot', no: 'ha detto no al bot', 'senza-wa': 'il bot ha visto che non ha WhatsApp', 'a mano': 'già scritto su WhatsApp', saltato: 'tolto dalla coda del bot', errore: 'il bot non è riuscito a scrivergli' };
+  // Già contattati (scritto, chiamato, non interessato, o il vecchio bot): elenco sul server, uguale su tutti i dispositivi.
+  // Spariscono dall'elenco; quelli segnati adesso restano visibili fino alla prossima ricerca, per poter annullare.
+  let contacted = {};
+  const DONE = ['scritto', 'chiamato', 'no'];
+  const keysOf = l => [...waList(l), ...l.phones].map(n => n.replace(/\D/g, '').replace(/^00/, '')).filter(Boolean);
+  const contactOf = l => keysOf(l).map(k => contacted[k]).find(Boolean);
+  const keepNow = new Set();
+  // «Interessato» e «Richiamare» restano sempre: sono clienti ancora da seguire
+  const isGone = l => { const s = (notes[l.id] || {}).s; return s !== 'interessato' && s !== 'richiamare' && (DONE.includes(s) || !!contactOf(l)); };
+  const CONTACT_LABEL = { scritto: 'già scritto', chiamato: 'già chiamato', no: 'non interessato' };
+  function markContacted(l, s) {
+    const phones = [...waList(l), ...l.phones];
+    if (!phones.length) return;
+    keepNow.add(l.id);
+    if (DONE.includes(s)) {
+      keysOf(l).forEach(k => { contacted[k] = { n: l.name, s, at: Date.now() }; });
+      post('/api/admin/contattati', { items: [{ phones, name: l.name, s }] });
+    } else if (s === '') {
+      keysOf(l).forEach(k => { delete contacted[k]; });
+      post('/api/admin/contattati/rimetti', { phones });
+    }
+  }
+  const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => { if (!r.ok) throw new Error(); }).catch(() => toast('Non salvato sul server: controlla la connessione'));
 
   async function api(url, timeoutMs = 20000) {
     const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined });
@@ -247,7 +271,7 @@
       .filter(l => !filters.wa || hasWa(l))
       .filter(l => !filters.waOnly || waList(l).length)
       .filter(l => !filters.nosite || !l.website || (checks[l.id] && checks[l.id].bad))
-      .filter(l => !filters.hideDone || !((notes[l.id] && notes[l.id].s) || botHit(l)))
+      .filter(l => keepNow.has(l.id) || !isGone(l))
       .sort((a, b) => rank(a) - rank(b) || (!a.phones.length - !b.phones.length) || a.name.localeCompare(b.name));
   }
   // Ordine: senza sito, solo social, sito brutto, sito ok
@@ -262,8 +286,10 @@
     const withPhone = leads.filter(l => l.phones.length).length;
     const noSite = leads.filter(l => !l.website && l.phones.length).length;
     const badSite = leads.filter(l => l.website && l.phones.length && checks[l.id] && checks[l.id].bad).length;
+    const gone = leads.filter(l => !keepNow.has(l.id) && isGone(l)).length;
     document.getElementById('summary').textContent = leads.length
       ? `${leads.length} attività · ${withPhone} con telefono · ${noSite} senza sito · ${badSite} con sito brutto` +
+        (gone ? ` · ${gone} già contattati tolti` : '') + (warnings.length ? ` · ⚠️ ${warnings.join(' · ')}` : '') +
         (checking ? ` · controllo i siti (${checking} rimasti)…` : '') + ` · ne mostro ${Math.min(shown, v.length)} di ${v.length}`
       : '';
     document.getElementById('list').innerHTML = v.slice(0, shown).map(l => {
@@ -276,7 +302,7 @@
             <div class="meta">${escapeHtml(l.kind)}${l.address ? ' · ' + escapeHtml(l.address) : ''}</div>
             ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp${l.waGuess ? ' (probabile, è un cellulare)' : ''}: ${escapeHtml(n)}</div>`).join('')}
             ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
-            ${botHit(l) ? `<div class="meta" style="color:var(--gold-2)">🤖 ${BOT_LABEL[botHit(l).s] || 'già contattato'} (${new Date(botHit(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })})</div>` : ''}
+            ${contactOf(l) ? `<div class="meta" style="color:var(--gold-2)">✓ ${CONTACT_LABEL[contactOf(l).s] || 'già contattato'} (${new Date(contactOf(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}): alla prossima ricerca non compare più</div>` : ''}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
@@ -337,7 +363,7 @@
     }
     if (sentLastHour() >= BURST && !confirm(`Hai scritto a ${sentLastHour()} attività nell'ultima ora. Meglio fare una pausa di mezz'ora: tanti messaggi di fila fanno bloccare il numero. Mandare lo stesso?`)) return;
     if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
-    if (botHit(l) && !confirm(`Attenzione: ${BOT_LABEL[botHit(l).s] || 'già contattato'}. Scrivere di nuovo?`)) return;
+    if (contactOf(l) && !confirm(`Attenzione: ${CONTACT_LABEL[contactOf(l).s] || 'già contattato'}. Scrivere di nuovo?`)) return;
     if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
@@ -345,9 +371,7 @@
     });
     const waNum = waList(l)[0].replace(/\D/g, '');
     window.open('https://wa.me/' + waNum + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
-    // Lo dico al bot, così non gli scrive anche lui
-    botContacted[waNum] ||= { s: 'a mano', at: Date.now() };
-    fetch('/api/admin/bot/contacted', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wa: waNum, name: l.name }) }).catch(() => {});
+    markContacted(l, 'scritto');
     daily.n++; daily.total++;
     daily.times = [...(daily.times || []).filter(t => Date.now() - t < 60 * 60 * 1000), Date.now()];
     try { localStorage.setItem(LS + '-daily', JSON.stringify(daily)); } catch {}
@@ -363,6 +387,8 @@
     if (!b) return;
     const id = b.closest('.lead').dataset.id;
     notes[id] = { ...(notes[id] || {}), s: b.dataset.s, at: Date.now() };
+    const l = leads.find(x => x.id === id);
+    if (l) markContacted(l, b.dataset.s);
     save(); render(); renderSaved();
   });
   document.getElementById('list').addEventListener('change', e => {
@@ -383,20 +409,20 @@
   document.getElementById('searchForm').addEventListener('submit', async e => {
     e.preventDefault();
     const source = document.getElementById('source').value;
-    const scope = source === 'google' ? 'google' : document.getElementById('scope').value;
+    const scope = API_SOURCES[source] ? source : document.getElementById('scope').value;
     const city = scope === 'italia' ? 'Italia' : document.getElementById('city').value.trim();
     const type = document.getElementById('type').value;
     // Il filtro WhatsApp/telefono lo applica già il server mappe: molto più veloce sulle zone grandi
     const need = filters.waOnly ? 'wa' : (filters.phone || scope !== 'comune') ? 'phone' : 'all';
     const btn = document.getElementById('goBtn');
     btn.disabled = true; btn.textContent = 'Cerco…';
-    document.getElementById('summary').textContent = scope === 'comune' || scope === 'google' ? 'Sto cercando, di solito 5-20 secondi…'
+    document.getElementById('summary').textContent = scope === 'comune' || API_SOURCES[scope] ? 'Sto cercando, di solito 5-30 secondi…'
       : 'Sto cercando in una zona grande: può volerci fino a 2-3 minuti, non chiudere la pagina…';
     document.getElementById('list').innerHTML = '<div class="spinner"></div>';
     document.getElementById('moreBtn').hidden = true;
     try {
       const d = await api(`/api/admin/leads?source=${source}&scope=${scope}&need=${need}&city=${encodeURIComponent(city)}&type=${type}`, 200000);
-      leads = d.leads; shown = 30;
+      leads = d.leads; shown = 30; keepNow.clear(); warnings = d.warnings || [];
       if (leads.length) saveSearch(city, type, leads, scope, need);
       checkSites(leads);
       try { localStorage.setItem(LS + '-last', JSON.stringify({ city, type, scope, source })); } catch {}
@@ -459,8 +485,8 @@
   // Zona: cambia il testo del campo; per "Tutta Italia" il nome non serve
   const PLACEHOLDERS = { comune: 'Comune (es. Monza)', provincia: 'Provincia (es. Bologna)', regione: 'Regione (es. Emilia-Romagna)', italia: 'Tutta Italia' };
   function updateScope() {
-    // Google Maps cerca per testo: basta la città o il quartiere, la zona non serve
-    const google = document.getElementById('source').value === 'google';
+    // Google, HERE e TomTom cercano per città: provincia e regione non servono
+    const google = !!API_SOURCES[document.getElementById('source').value];
     const scopeSel = document.getElementById('scope');
     scopeSel.hidden = google;
     const sc = google ? 'comune' : scopeSel.value, c = document.getElementById('city');
@@ -473,18 +499,36 @@
 
   api('/api/admin/me').then(async d => {
     if (!d.admin) { location.href = '/'; return; }
-    const { types, google } = await api('/api/admin/lead-types');
+    const { types, sources = {} } = await api('/api/admin/lead-types');
     document.getElementById('type').innerHTML = types.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
-    const gOpt = document.querySelector('#source option[value="google"]');
-    if (!google) { gOpt.disabled = true; gOpt.textContent = '📍 Google Maps (da attivare)'; }
+    // Fonti senza chiave: si vedono ma vanno collegate prima
+    for (const [k, on] of Object.entries(sources)) {
+      const o = document.querySelector(`#source option[value="${k}"]`);
+      if (o && !on) { o.disabled = true; o.textContent += ' (da collegare)'; }
+    }
     try {
       const last = JSON.parse(localStorage.getItem(LS + '-last') || 'null');
       if (last) {
-        document.getElementById('source').value = last.source === 'google' && google ? 'google' : 'osm';
-        document.getElementById('scope').value = last.scope === 'google' ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
+        const src = document.querySelector(`#source option[value="${last.source}"]`);
+        document.getElementById('source').value = src && !src.disabled ? last.source : 'osm';
+        document.getElementById('scope').value = API_SOURCES[last.scope] ? 'comune' : last.scope || 'comune'; updateScope(); if (last.scope !== 'italia') document.getElementById('city').value = last.city; document.getElementById('type').value = last.type; }
     } catch {}
+    updateScope();
     document.body.classList.add('ready');
-    api('/api/admin/bot/contacted').then(x => { botContacted = x.contacted || {}; render(); }).catch(() => {});
+    // Chi avevo già segnato su questo dispositivo va anche sul server, così sparisce ovunque
+    api('/api/admin/contattati').then(x => {
+      contacted = x.contacted || {};
+      const items = [], seen = new Set();
+      for (const l of searches.flatMap(x => x.leads)) {
+        const st = (notes[l.id] || {}).s;
+        if (!DONE.includes(st) || seen.has(l.id) || contactOf(l)) continue;
+        seen.add(l.id);
+        items.push({ phones: [...waList(l), ...l.phones], name: l.name, s: st });
+        keysOf(l).forEach(k => { contacted[k] = { n: l.name, s: st, at: notes[l.id].at || Date.now() }; });
+      }
+      if (items.length) post('/api/admin/contattati', { items });
+      render(); renderSaved();
+    }).catch(() => {});
     // Riapro subito l'ultima ricerca salvata, senza aspettare
     if (searches.length) openSearch(searches[0]); else renderSaved();
   });

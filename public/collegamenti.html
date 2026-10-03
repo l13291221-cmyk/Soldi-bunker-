@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Collegamenti — Nerodoro Studio</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230b0b0d'/><circle cx='50' cy='50' r='38' fill='none' stroke='%23d6b16a' stroke-width='3'/><text x='50' y='66' font-size='46' text-anchor='middle' font-family='Georgia' fill='%23d6b16a'>N</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { visibility: hidden; }
+    body.ready { visibility: visible; }
+    .page { padding: 28px 0 80px; display: grid; gap: 16px; }
+    .box { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; min-width: 0; scroll-margin-top: 80px; }
+    .box h2 { font: 600 1.15rem var(--sans); letter-spacing: 0; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .box > p { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; font-size: .8rem; border-top: 0; }
+    td a { color: var(--gold-2); }
+    .badge { font-size: .74rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+    .badge.on { background: rgba(74,222,128,.12); color: var(--green); border: 1px solid rgba(74,222,128,.3); }
+    .badge.off { background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); }
+    .badge.full { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.35); }
+    ol.steps { margin: 0 0 14px; padding-left: 22px; display: grid; gap: 7px; font-size: .92rem; }
+    ol.steps b { color: var(--text); }
+    ol.steps a { color: var(--gold-2); }
+    .paste { background: var(--bg-2); border: 1px solid var(--gold); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+    .paste label { font-size: .8rem; margin-bottom: 4px; }
+    .row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; }
+    .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; }
+    .info { font-size: .86rem; color: var(--muted); }
+    .info.ok { color: var(--green); }
+    .info.err { color: var(--red); }
+    .cost { border: 1px solid var(--line); background: var(--bg-2); border-radius: 12px; padding: 10px 12px; font-size: .85rem; color: var(--muted); margin: 0 0 12px; }
+    .cost b { color: var(--gold-2); }
+    @media (max-width: 640px) {
+      .page { padding-top: 18px; }
+      .row { grid-template-columns: 1fr; }
+      .acts .btn { flex: 1 1 auto; }
+      .hide-xs { display: none; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a href="/admin" class="brand"><span class="brand-mark">N</span>Collegamenti</a>
+    <nav class="nav">
+      <a href="/clienti" class="btn btn-gold btn-sm">🔎 Trova clienti</a>
+      <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap page">
+  <section class="box">
+    <h2>🔑 Fonti per trovare attività</h2>
+    <p>Più fonti colleghi, più negozi trova «Trova clienti» con <b>🌐 Tutte le fonti</b> (i doppioni vengono tolti da soli). OpenStreetMap è sempre attivo e gratis. Le altre chiedono una chiave: segui i passaggi, incollala nel riquadro dorato e premi <b>Salva</b>, poi <b>Prova</b>.</p>
+    <table>
+      <thead><tr><th>Fonte</th><th>Stato</th><th class="hide-xs">Gratis</th><th>Usate</th></tr></thead>
+      <tbody id="summary">
+        <tr><td>🗺️ OpenStreetMap</td><td><span class="badge on">Sempre attivo</span></td><td class="hide-xs">Sempre, senza chiave</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="box" id="google">
+    <h2>📍 Google Maps <span class="badge off" data-badge>…</span></h2>
+    <p>È la fonte con più attività e con i numeri più aggiornati. Fino a 60 risultati per ricerca.</p>
+    <div class="cost">💶 Google chiede la carta, ma ogni mese c'è una parte gratuita (circa <b>1.000 chiamate</b> con telefono e sito: controlla il <a href="https://mapsplatform.google.com/pricing/" target="_blank" rel="noopener">listino</a>). Una ricerca usa fino a 3 chiamate. Il limite qui sotto ferma il sito <b>prima</b> di uscire dalla parte gratuita.</div>
+    <ol class="steps">
+      <li>Apri <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">console.cloud.google.com</a> con il tuo Gmail, scrivi un nome (es. <b>nerodoro</b>) e premi <b>Crea</b>.</li>
+      <li>Menu ☰ → <b>Fatturazione</b> → collega un account di fatturazione (la carta). Senza, Google non risponde.</li>
+      <li>Apri <a href="https://console.cloud.google.com/apis/library/places.googleapis.com" target="_blank" rel="noopener">Places API (New)</a> e premi <b>Abilita</b>. Deve essere quella con «(New)».</li>
+      <li>Apri <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credenziali</a> → <b>Crea credenziali</b> → <b>Chiave API</b> → copiala (inizia con <b>AIza</b>).</li>
+      <li>Tocca la chiave appena creata → <b>Limitazioni API</b> → <b>Limita chiave</b> → spunta solo <b>Places API (New)</b> → <b>Salva</b>.</li>
+      <li>Blocco di sicurezza in più: <a href="https://console.cloud.google.com/apis/api/places.googleapis.com/quotas" target="_blank" rel="noopener">Quote di Places API (New)</a> → richieste al giorno → <b>30</b>.</li>
+      <li>Incolla la chiave qui sotto → <b>Salva</b> → <b>Prova</b>.</li>
+    </ol>
+    <div class="paste" data-src="google"></div>
+  </section>
+
+  <section class="box" id="here">
+    <h2>🧭 HERE <span class="badge off" data-badge>…</span></h2>
+    <p>Le mappe usate da molte auto: tante attività con telefono e sito. Fino a 100 risultati per parola cercata.</p>
+    <div class="cost">💶 Account gratuito con una quota mensile ampia (circa <b>30.000 chiamate al mese</b>, controlla sul <a href="https://www.here.com/get-started/pricing" target="_blank" rel="noopener">listino HERE</a>). Il limite proposto resta sotto.</div>
+    <ol class="steps">
+      <li>Apri <a href="https://platform.here.com/sign-up" target="_blank" rel="noopener">platform.here.com</a> → crea un account gratuito e conferma l'email.</li>
+      <li>Vai su <a href="https://platform.here.com/admin/apps" target="_blank" rel="noopener">Access Manager → Apps</a> → <b>Register new app</b> → scrivi <b>nerodoro</b> → <b>Register</b>.</li>
+      <li>Nell'app appena creata apri la scheda <b>Credentials</b> → <b>API Keys</b> → <b>Create API key</b> → copia la chiave.</li>
+      <li>Incolla la chiave qui sotto → <b>Salva</b> → <b>Prova</b>.</li>
+    </ol>
+    <div class="paste" data-src="here"></div>
+  </section>
+
+  <section class="box" id="tomtom">
+    <h2>🚗 TomTom <span class="badge off" data-badge>…</span></h2>
+    <p>Un altro elenco di attività, con telefono e sito. Fino a 100 risultati per parola cercata.</p>
+    <div class="cost">💶 Gratis senza carta: circa <b>2.500 chiamate al giorno</b> (controlla sul <a href="https://developer.tomtom.com/pricing" target="_blank" rel="noopener">listino TomTom</a>). Il limite proposto è 2.000 al giorno.</div>
+    <ol class="steps">
+      <li>Apri <a href="https://developer.tomtom.com/user/register" target="_blank" rel="noopener">developer.tomtom.com</a> → registrati e conferma l'email.</li>
+      <li>Vai su <a href="https://developer.tomtom.com/user/me/apps" target="_blank" rel="noopener">Dashboard → Keys</a>: la chiave <b>My first API key</b> è già pronta → copiala.</li>
+      <li>Incolla la chiave qui sotto → <b>Salva</b> → <b>Prova</b>.</li>
+    </ol>
+    <div class="paste" data-src="tomtom"></div>
+  </section>
+
+  <section class="box">
+    <h2>✓ Già contattati</h2>
+    <p id="contacted">…</p>
+    <p class="info">Chi hai scritto o chiamato da «Trova clienti», chi hai segnato «Non interessato» e chi aveva già ricevuto il messaggio del vecchio bot WhatsApp non compare più nelle ricerche, su nessun dispositivo. Per rimetterne uno: nella sua scheda premi «Da contattare». L'elenco è nel backup cifrato su GitHub e resta anche dopo i riavvii di Render.</p>
+  </section>
+
+  <section class="box">
+    <h2>🔒 Dove finiscono le chiavi</h2>
+    <p>Restano sul tuo sito e nel backup <b>cifrato</b> su GitHub (come gli ordini). La pagina ne mostra solo le ultime 4 lettere. In alternativa puoi metterle su Render → Environment: <code>GOOGLE_PLACES_KEY</code>, <code>HERE_API_KEY</code>, <code>TOMTOM_API_KEY</code>. Quella incollata qui vale più di quella di Render.</p>
+  </section>
+</main>
+
+<script src="/common.js"></script>
+<script>
+  async function api(url, opts = {}) {
+    const r = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json' } });
+    if (r.status === 401) { location.href = '/'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Errore');
+    return d;
+  }
+  const GRATIS = { google: '≈ 1.000 chiamate al mese', here: '≈ 30.000 chiamate al mese', tomtom: '≈ 2.500 chiamate al giorno' };
+  const ICON = { google: '📍', here: '🧭', tomtom: '🚗' };
+  const periodo = x => x.per === 'day' ? 'oggi' : 'questo mese';
+  let sources = [];
+
+  function badge(x) {
+    if (!x.on) return '<span class="badge off">Da collegare</span>';
+    if (x.used >= x.limit) return '<span class="badge full">Limite raggiunto</span>';
+    return `<span class="badge on">Collegato${x.fromEnv ? ' (da Render)' : ''}</span>`;
+  }
+  function render() {
+    const tb = document.getElementById('summary');
+    tb.querySelectorAll('tr[data-src]').forEach(r => r.remove());
+    tb.insertAdjacentHTML('beforeend', sources.map(x => `<tr data-src="${x.id}">
+      <td><a href="#${x.id}">${ICON[x.id]} ${escapeHtml(x.label)}</a></td><td>${badge(x)}</td>
+      <td class="hide-xs">${GRATIS[x.id]}</td><td>${x.on ? `${x.used} di ${x.limit} ${periodo(x)}` : '—'}</td></tr>`).join(''));
+    for (const x of sources) {
+      document.querySelector(`#${x.id} [data-badge]`).outerHTML = `<span data-badge>${badge(x)}</span>`;
+      const box = document.querySelector(`.paste[data-src="${x.id}"]`);
+      box.innerHTML = `
+        <div class="row">
+          <div><label for="k-${x.id}">👉 Incolla qui la chiave di ${escapeHtml(x.label)}</label>
+            <input id="k-${x.id}" class="key" autocomplete="off" autocapitalize="off" spellcheck="false"
+              placeholder="${x.on ? 'Collegata: ' + escapeHtml(x.masked) + ' (incolla una nuova per cambiarla)' : 'Incolla la chiave'}"></div>
+          <div><label for="l-${x.id}">Limite al ${x.per === 'day' ? 'giorno' : 'mese'}</label>
+            <input id="l-${x.id}" inputmode="numeric" value="${x.limit}"></div>
+        </div>
+        <div class="acts">
+          <button class="btn btn-gold btn-sm" data-save="${x.id}">💾 Salva</button>
+          <button class="btn btn-ghost btn-sm" data-test="${x.id}" ${x.on ? '' : 'disabled'}>🧪 Prova</button>
+          ${x.on && !x.fromEnv ? `<button class="btn btn-danger btn-sm" data-del="${x.id}">Scollega</button>` : ''}
+        </div>
+        <div class="info" data-out>${x.on ? `Usate ${x.used} di ${x.limit} chiamate ${periodo(x)}. Proposto: ${x.suggested}.` : 'Non ancora collegato.'}</div>`;
+    }
+  }
+  async function load() {
+    const d = await api('/api/admin/collegamenti');
+    sources = d.sources;
+    document.getElementById('contacted').textContent = d.contacted === 1 ? '1 numero già contattato.' : `${d.contacted} numeri già contattati.`;
+    render();
+  }
+
+  document.querySelector('main').addEventListener('click', async e => {
+    const b = e.target.closest('[data-save],[data-test],[data-del]');
+    if (!b) return;
+    const id = b.dataset.save || b.dataset.test || b.dataset.del;
+    const out = document.querySelector(`.paste[data-src="${id}"] [data-out]`);
+    b.disabled = true;
+    try {
+      if (b.dataset.save) {
+        const key = document.getElementById('k-' + id).value.trim();
+        const limit = Number(document.getElementById('l-' + id).value.replace(/\D/g, ''));
+        await api('/api/admin/collegamenti/' + id, { method: 'POST', body: JSON.stringify({ ...(key && { key }), limit }) });
+        await load();
+        toast('Salvato');
+        // Appena incollata una chiave: la provo subito
+        if (key) document.querySelector(`[data-test="${id}"]`)?.click();
+      } else if (b.dataset.del) {
+        if (!confirm('Scollegare questa fonte? La chiave viene tolta dal sito.')) { b.disabled = false; return; }
+        await api('/api/admin/collegamenti/' + id, { method: 'POST', body: JSON.stringify({ key: '' }) });
+        await load(); toast('Scollegato');
+      } else {
+        out.className = 'info'; out.textContent = 'Provo…';
+        const r = await api(`/api/admin/collegamenti/${id}/prova`, { method: 'POST' });
+        await load();
+        const o = document.querySelector(`.paste[data-src="${id}"] [data-out]`);
+        o.className = 'info ok'; o.textContent = '✅ Funziona: ' + r.info;
+      }
+    } catch (err) {
+      if (err.message === '401') return;
+      const o = document.querySelector(`.paste[data-src="${id}"] [data-out]`);
+      o.className = 'info err'; o.textContent = '❌ ' + err.message + (b.dataset.test ? ' — controlla di aver abilitato l\'API giusta e di aver copiato tutta la chiave.' : '');
+      b.disabled = false;
+    }
+  });
+
+  api('/api/admin/me').then(d => {
+    if (!d.admin) { location.href = '/'; return; }
+    document.body.classList.add('ready');
+    load().catch(err => toast(err.message));
+    if (location.hash) setTimeout(() => document.querySelector(location.hash)?.scrollIntoView(), 50);
+  });
+</script>
+</body>
+</html>
