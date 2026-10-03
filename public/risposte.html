@@ -42,7 +42,7 @@
   <div class="wrap">
     <a href="/admin" class="brand"><span class="brand-mark">N</span>Risposte pronte</a>
     <nav class="nav">
-      <a href="/bot" class="btn btn-ghost btn-sm hide-sm">🤖 Bot</a>
+      <a href="/clienti" class="btn btn-ghost btn-sm hide-sm">🔎 Clienti</a>
       <a href="/admin" class="btn btn-ghost btn-sm">← Admin</a>
     </nav>
   </div>
@@ -77,7 +77,7 @@
 <script src="/common.js"></script>
 <script>
   // {nome} {attivita} {tel} {importo} {mesi} {link} {data} {sitocliente} vengono dai campi in alto;
-  // {base} {premium} {sito} {demo} {firma} dal sito e dalle impostazioni del bot
+  // {base} {premium} {sito} {demo} {firma} dal sito
   const SECTIONS = [
     { id: 'domande', title: '❓ Domande e obiezioni', intro: 'Cosa rispondere quando ti scrivono. Tono gentile, frasi corte: su WhatsApp nessuno legge i papiri.', items: [
       { id: 'costo', title: '«Quanto costa?»', text: 'Ci sono due abbonamenti:\n✅ *Base – {base} al mese*: sito completo, menu, foto, orari, mappa, pulsante WhatsApp e pannello per cambiare tutto da soli dal telefono.\n⭐ *Premium – {premium} al mese*: tutto il Base più l\'indirizzo vostro (www.vostronome.it) e il QR code da stampare.\n\nNessun costo per creare il sito: si attiva qui in un minuto 👉 {sito}' },
@@ -93,7 +93,7 @@
       { id: 'pagare', title: '«Come si paga?»', text: 'È semplicissimo:\n1️⃣ Andate su {sito}\n2️⃣ Scegliete Base o Premium e scrivete il nome del locale\n3️⃣ Inserite i dati e pagate con la carta (anche Apple Pay o Google Pay)\n\nOggi pagate solo il primo mese, poi l\'addebito è automatico ogni mese. Subito dopo ricevete il link del vostro sito.' },
       { id: 'chiamata', title: '«Mi chiami?» / «Possiamo sentirci?»', text: 'Certo! A che ora vi va bene? Vi chiamo io a questo numero 🙂' },
       { id: 'email', title: '«Mandatemi tutto per email»', text: 'Certo! A quale indirizzo? Vi mando l\'esempio, i prezzi e come si attiva.' },
-      { id: 'no', title: '«No, non ci interessa»', text: 'Nessun problema, grazie per avermi risposto! Se un giorno vi servisse sono qui. Buon lavoro 🙂', note: 'Il bot li mette già negli archiviati: non riscrivere più a chi ha detto no.' },
+      { id: 'no', title: '«No, non ci interessa»', text: 'Nessun problema, grazie per avermi risposto! Se un giorno vi servisse sono qui. Buon lavoro 🙂', note: 'In Trova clienti segnalalo come «Non interessato»: sparisce dall\'elenco e non gli riscrivi più.' },
     ] },
     { id: 'dopo', title: '⏰ Messaggi dopo X giorni', intro: 'Da mandare a mano quando passa il tempo indicato. Un solo promemoria per volta: insistere fa bloccare il numero.', items: [
       { id: 'noresp', title: 'Nessuna risposta al primo messaggio', when: 'Dopo 3-4 giorni · una volta sola', text: 'Buongiorno! Vi riscrivo solo per sapere se avete visto il mio messaggio: vi interessa vedere un esempio di sito per {attivita}? Se no, nessun problema 🙂' },
@@ -206,10 +206,6 @@
       const c = await api('/api/config');
       const eur = cents => (cents / 100).toLocaleString('it-IT', { minimumFractionDigits: cents % 100 ? 2 : 0 }) + ' €';
       if (c.packages) { site.base = eur(c.packages.base.monthly); site.premium = eur(c.packages.premium.monthly); }
-    } catch {}
-    try {
-      const b = await api('/api/admin/bot');
-      if (b.config) { site.demo = b.config.demoUrl || site.demo; site.firma = b.config.firma || site.firma; }
     } catch {}
     render();
     document.body.classList.add('ready');

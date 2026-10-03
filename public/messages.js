@@ -1,6 +1,6 @@
 // Messaggi WhatsApp pronti per i potenziali clienti, in più lingue.
 // Ogni lingua ha 3 versioni che si alternano, così i messaggi non sono tutti identici.
-// Lo usano la pagina Trova clienti (browser) e il bot WhatsApp sul server (require).
+// Lo usa la pagina Trova clienti.
 const LEAD_MESSAGES = (function () {
   // Come descrivere il "problema" dell'attività in ogni lingua
   const PROBLEMS = {

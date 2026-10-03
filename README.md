@@ -49,82 +49,27 @@ Mostra solo le attività **senza sito** o con un **sito brutto** (controllato in
 I dati vengono da OpenStreetMap (gratis): prima di chiamare controlla la scheda Google Maps.
 I siti moderni (Next.js, React, Webflow...) non vengono più segnati come "quasi vuoti": caricano i testi con JavaScript.
 
-### Fonte Google Maps (facoltativa)
-Nel menu **Fonte** puoi scegliere **Google Maps** invece di OpenStreetMap: trova più attività, con telefono e sito aggiornati
-(massimo 60 risultati per ricerca, quindi cerca città per città o per quartiere). I cellulari vengono proposti come WhatsApp "probabile".
-Serve una chiave Google: su [Google Cloud](https://console.cloud.google.com) crea un progetto, attiva **Places API (New)**,
-crea una chiave API (limitala a Places API) e aggiungila su Render come `GOOGLE_PLACES_KEY`. Google chiede un metodo di pagamento
-ma ogni mese c'è una quota gratuita: controlla il listino e imposta un limite di spesa/avviso di budget.
-Lo stato (chiamato / interessato / no) e gli appunti restano salvati nel browser del dispositivo che usi.
+### 🔑 Collegamenti: Google Maps, HERE, TomTom (facoltativi)
+Nell'admin, pulsante **🔑 Collegamenti** (`/collegamenti`): per ogni fonte ci sono i passaggi per creare la chiave e il riquadro
+dove incollarla (**Salva**, poi **Prova**). In «Trova clienti» il menu **Fonte** ha anche **🌐 Tutte le fonti**: cerca su
+OpenStreetMap e su tutte le fonti collegate insieme, unisce le schede della stessa attività e toglie i doppioni.
+- **Google Maps** (Places API New): la fonte più completa, 60 risultati per ricerca. Chiede la carta; parte gratuita ≈ 1.000 chiamate al mese.
+- **HERE**: account gratuito, ≈ 30.000 chiamate al mese.
+- **TomTom**: gratis senza carta, ≈ 2.500 chiamate al giorno.
+Ogni fonte ha un **limite di chiamate** (proposti: 900 al mese, 25.000 al mese, 2.000 al giorno) che si cambia dalla pagina:
+raggiunto il limite il sito smette di chiamarla, così si resta nella parte gratuita. Controllate comunque i listini, cambiano spesso.
+Per Google mettete anche la quota giornaliera nella Cloud Console (spiegato nella pagina).
+Le chiavi restano nel backup cifrato; in alternativa si possono mettere su Render (`GOOGLE_PLACES_KEY`, `HERE_API_KEY`, `TOMTOM_API_KEY`).
+
+### ✓ Già contattati
+Chi scrivi su WhatsApp da qui, chi segni «Chiamato» o «Non interessato» **sparisce dall'elenco** su tutti i dispositivi
+(«Interessato» e «Richiamare» restano). Per rimetterlo: «Da contattare» nella sua scheda. Ci sono anche tutti quelli a cui aveva
+già scritto il vecchio bot WhatsApp (presi una volta dal suo ultimo backup sul ramo `backup-bot`). L'elenco è nel backup cifrato.
 
 ### Messaggi WhatsApp
 Filtro **"Solo WhatsApp dichiarato"** + pulsante **💬 Scrivi su WhatsApp**: apre WhatsApp con un messaggio già scritto,
 personalizzato con il nome dell'attività e il suo problema (senza sito, solo social, difetto del sito), in 5 lingue
 (IT, EN, FR, ES, DE) e 3 versioni che si alternano. Il limite di messaggi al giorno si sceglie (30, 50, 75 o 100, predefinito 100); ogni 30 messaggi in un'ora consiglia una pausa.
-Se il bot WhatsApp ha già scritto a un'attività, nella scheda compare «🤖 …»; se scrivi tu a mano, il bot non le scriverà più.
-
-## 🤖 Bot WhatsApp (messaggi automatici)
-Nell'admin, pulsante **🤖 Bot** (`/bot`): il sito scrive **da solo** dal vostro WhatsApp Business alle attività senza sito,
-con solo i social o con il sito brutto, **20-30 messaggi al giorno sparsi nelle fasce orarie**, tutti i giorni, finché è acceso.
-
-**Come si attiva**
-1. Apri `/bot` → nella tabella **📱 Numeri WhatsApp** scegli il prefisso (🇮🇹 +39, 🇿🇦 +27, 🇬🇧 +44…) e scrivi il numero
-   del WhatsApp Business (es. `333 1234567` o `071 093 3377`) → **Aggiungi e collega**.
-2. Sul telefono: WhatsApp Business → ⋮ / Impostazioni → **Dispositivi collegati** → **Collega un dispositivo** →
-   **Collega con il numero di telefono** → scrivi il codice che compare sotto il numero. (Oppure **QR** e inquadralo da un altro schermo.)
-3. Controlla le impostazioni (zone, tipi di attività, fasce orarie, il tuo nome) e premi **Salva**.
-4. Premi **Prova** sulla riga del numero e scrivi un tuo numero personale per vedere come arriva il messaggio.
-5. Accendi l'interruttore in alto. Fine: il bot lavora da solo, anche a pagina chiusa.
-
-**Cambiare numero**: aggiungi il numero nuovo nella tabella (con «Scrive solo questo numero» spunta, il vecchio si spegne da solo)
-e collegalo. Ogni riga ha:
-- **Scrive** (acceso/spento): solo i numeri accesi mandano i primi messaggi, ognuno con i suoi messaggi al giorno.
-  I numeri spenti ma collegati restano in ascolto: le risposte dei clienti arrivano lo stesso nella pagina.
-- **Collega / QR / Riprova / Prova / Scollega / Elimina**. Eliminare un numero lo scollega anche da WhatsApp.
-- Stato, messaggi di oggi e in tutto, e la partenza graduale: **ogni numero nuovo riparte da 10 messaggi al giorno**.
-Chi ha già ricevuto un messaggio da un numero non viene ricontattato dagli altri. Massimo 10 numeri.
-
-**Cosa fa**
-- **🎯 A chi scrivere**: Tutti, oppure solo Ristoranti, Pizzerie, Bar (e, se vuoi, altre attività). Si sceglie toccando, si salva da solo.
-- Cerca i clienti come «Trova clienti»: **OpenStreetMap** (solo chi ha dichiarato il suo WhatsApp; con la zona «italia» cerca in
-  tutta Italia) e, se c'è `GOOGLE_PLACES_KEY`, **Google Maps** (cellulari, città per città: più città e quartieri scrivi, più ne trova).
-  Rifà le stesse ricerche ogni 30 giorni per trovare le attività nuove. Finite le zone scelte, con Google Maps continua da solo
-  con gli altri comuni d'Italia, dal più grande al più piccolo (1.531 comuni sopra gli 8.000 abitanti, in `comuni-italia.json`):
-  così anche con più numeri accesi (es. 3 numeri = 75-90 messaggi al giorno) il bot non resta senza locali a cui scrivere.
-- Poco prima di scrivere controlla il sito (stessi controlli di «Trova clienti»): chi ha un sito fatto bene viene saltato.
-- Controlla che il numero abbia davvero WhatsApp, simula la scrittura e manda il **primo messaggio**: corto, senza link,
-  sempre «Salve, sono Simone di Nerodoro Studio…» e un po' diverso ogni volta (4 versioni che si alternano, con il problema
-  del sito e il tipo di locale: «siti per pizzerie», «un bar come il vostro»…). I testi si cambiano nelle impostazioni.
-- **A ognuno scrive una volta sola**, mai due. Le risposte compaiono in **📬 Risposte** (e nell'app, dove continuate voi):
-  - **«No»** (anche «no grazie», «nn ci interessa», «abbiamo già il sito», «stop», 👎…) → va negli **🗄️ Archiviati**,
-    la chat viene archiviata anche nell'app WhatsApp e non riceve più niente.
-  - **Tutto il resto** («sì», «sii», «sisi», «ok», «okok», «okk», «va bene», «certo», «mandate», «mi interessa», 👍, una domanda…)
-    → 30-90 secondi dopo il bot manda da solo, un messaggio alla volta: il **video** (`public/video.mp4`, arriva come video
-    WhatsApp), i **due abbonamenti** Base e Premium con il prezzo al mese e cosa comprendono (presi dal sito, senza vincoli),
-    il **link del sito per pagare** con la spiegazione di come si paga e come funziona, e il **link della demo**
-    (https://l13291221-cmyk.github.io/Ristorante-/). Una volta sola, e non se avete già risposto voi dal telefono.
-  - I messaggi automatici del WhatsApp Business del locale («Grazie per averci contattato, vi risponderemo…») non contano.
-- **Prova** sulla riga del numero manda al tuo numero personale il primo messaggio e, poco dopo, tutto quello che riceve chi dice sì.
-- Per cambiare il video: sostituisci `public/video.mp4` (sotto 16 MB) e `public/video.jpg` (anteprima), oppure metti un link nelle impostazioni.
-- Ogni giorno, per ogni numero acceso, sceglie a caso quanti messaggi mandare (tra «da» e «a», predefinito 25-30) e li sparge a caso nelle fasce orarie
-  (predefinito 9:30-12:30 e 15:00-19:30, ora italiana, dal lunedì al sabato), con almeno 4 minuti tra uno e l'altro.
-- **Partenza graduale**: i primi 4 giorni manda 10, 15, 20, 25 messaggi. Se WhatsApp avvisa o limita le chat nuove,
-  il bot dimezza o si mette in pausa da solo fino a quando WhatsApp lo permette di nuovo.
-
-**Da sapere**
-- Il bot si collega come «dispositivo collegato» (come WhatsApp Web, nella lista appare «Chrome (Ubuntu)»), con la libreria
-  [Baileys](https://github.com/WhiskeySockets/Baileys). Non è l'API ufficiale di Meta: WhatsApp può limitare o bloccare i numeri
-  che scrivono a tanti sconosciuti e ricevono segnalazioni. Usate un numero di lavoro e non alzate troppo i messaggi al giorno.
-- Il telefono può restare spento, ma aprite WhatsApp Business almeno una volta ogni 14 giorni, altrimenti WhatsApp scollega i dispositivi.
-- Privacy: per la legge italiana i messaggi pubblicitari automatici richiedono di norma il consenso. Scrivere solo a chi ha
-  pubblicato il WhatsApp come contatto dell'attività, una volta sola e smettendo al primo «no», riduce il problema ma non lo elimina.
-- Su Render gratuito il server deve restare sveglio: ci pensa già la «Sveglia siti» (auto-ping ogni 5 minuti).
-
-**Backup del bot**: il collegamento di ogni numero a WhatsApp e l'elenco di chi ha già ricevuto il messaggio sono salvati (cifrati come gli altri
-backup) dall'azione **Backup dati** sul ramo **`backup-bot`**, che tiene **solo l'ultima copia** (cambiano a ogni messaggio:
-con la cronologia il repository crescerebbe di continuo). Dopo un deploy o un riavvio il sito li riprende e il bot riparte da solo.
-L'azione con l'orario funziona solo dal ramo **main**: copiate su main il file `.github/workflows/backup.yml` di questo ramo,
-altrimenti la pagina del bot mostra un avviso e a ogni riavvio di Render bisogna ricollegare WhatsApp.
 
 ## Pacchetti
 - **Base** (`PREZZO`, default 990 €): sito web completo (assistenza non inclusa).
@@ -146,14 +91,13 @@ e i link si compilano da soli; le spunte restano salvate sul telefono.
 ## Backup automatico su GitHub (nessuna chiave da impostare)
 Render gratuito cancella `data/` a ogni Manual Deploy o riavvio. Ogni 5 minuti l'azione **Backup dati**
 (`.github/workflows/backup.yml`) scarica dal sito ordini (con accettazioni, disdette, dati dei clienti e tutto ciò che serve
-per le ricevute), siti pronti (con PIN e token) e sveglia siti, e li salva sul ramo **`backup-dati`** di questo repository.
+per le ricevute), siti pronti (con PIN e token), sveglia siti, già contattati e chiavi dei Collegamenti, e li salva sul ramo **`backup-dati`** di questo repository.
 Usa il permesso che GitHub Actions ha già: non serve nessun token. Dopo un deploy il sito riprende tutto da lì da solo.
 Il repository è pubblico, quindi i file (`backup/*.enc.json`) sono **cifrati** (AES-256-GCM) con una chiave ricavata da
 `STRIPE_SECRET_KEY`: senza quella chiave nessuno può leggerli. Se un giorno cambi la chiave Stripe, metti quella vecchia in `BACKUP_KEY`.
 - L'azione con l'orario funziona solo quando il file è sul ramo **main** del repository.
 - Prima di un Manual Deploy, per salvare subito: GitHub → Actions → Backup dati → **Run workflow** (o «Salva ora» nell'admin).
 - Se il sito su Render ha un altro indirizzo, cambia `SITE` nel file dell'azione.
-- I dati del bot WhatsApp vanno sul ramo **`backup-bot`** (solo l'ultima copia, vedi «Bot WhatsApp»).
 
 ## Assistenza con pagamento diretto
 Il link di pagamento dell'assistenza (20 €/mese, ricorrente, solo carta) **lo crea il sito da solo su Stripe** al primo avvio
@@ -202,7 +146,7 @@ Pulsanti: **💬 Scrivi su WhatsApp** e **✉️ Manda email** con il messaggio 
 a posto) e **Segna come risolto**.
 
 ## 💬 Risposte pronte (`/risposte`)
-Nell'admin («Risposte pronte», anche dalla pagina del bot) i messaggi già scritti, con **Copia**, **WhatsApp** e **Email**:
+Nell'admin («Risposte pronte») i messaggi già scritti, con **Copia**, **WhatsApp** e **Email**:
 - **Domande e obiezioni**: «Quanto costa?», «Ci penso», «Abbiamo già Facebook», «Abbiamo già un sito», «Costa troppo»,
   «C'è un vincolo?» (risposta chiara: 24 mesi), «Chi siete?», «Posso modificarlo io?», «Come si paga?»…
 - **Dopo X giorni**: nessuna risposta (una volta sola), video visto ma nessuna risposta, «ci penso», volevano pagare ma non l'hanno fatto.

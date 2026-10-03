@@ -1194,78 +1194,203 @@ const NEED_TAGS = {
   all: [''],
 };
 
-// ---------- Trova clienti: Google Maps (Places API, serve la chiave GOOGLE_PLACES_KEY) ----------
-const GOOGLE_PLACES_KEY = process.env.GOOGLE_PLACES_KEY || '';
+// ---------- Collegamenti: le chiavi delle altre fonti di attività (pagina /collegamenti) ----------
+// Le chiavi si incollano nella pagina Collegamenti (salvate in data/collegamenti.json, nel backup cifrato)
+// oppure su Render come variabili d'ambiente. Ogni fonte ha un limite di chiamate per restare nella quota gratuita:
+// raggiunto il limite il sito smette di chiamarla fino al giorno/mese dopo, così non arrivano addebiti.
+const LINKS_FILE = path.join(__dirname, 'data', 'collegamenti.json');
+let links = (() => { try { return JSON.parse(fs.readFileSync(LINKS_FILE, 'utf8')); } catch { return {}; } })();
+function saveLinks() {
+  fs.mkdirSync(path.dirname(LINKS_FILE), { recursive: true });
+  fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2));
+}
+// max = limite proposto, un po' sotto la quota gratuita di ogni servizio (si cambia dalla pagina)
+const SOURCES = {
+  google: { label: 'Google Maps', env: 'GOOGLE_PLACES_KEY', per: 'month', max: 900 },
+  here: { label: 'HERE', env: 'HERE_API_KEY', per: 'month', max: 25000 },
+  tomtom: { label: 'TomTom', env: 'TOMTOM_API_KEY', per: 'day', max: 2000 },
+};
+const keyOf = s => String((links.keys || {})[s] || process.env[SOURCES[s].env] || '').trim();
+const limitOf = s => { const v = (links.limits || {})[s]; return Number.isInteger(v) && v >= 0 ? v : SOURCES[s].max; };
+const periodOf = s => new Date().toISOString().slice(0, SOURCES[s].per === 'day' ? 10 : 7);
+const usedOf = s => { const u = (links.usage || {})[s]; return u && u.p === periodOf(s) ? u.n : 0; };
+// Da chiamare prima di ogni richiesta a pagamento: conta e blocca oltre il limite
+function useCall(s) {
+  if (usedOf(s) >= limitOf(s)) {
+    throw leadError(429, `${SOURCES[s].label}: limite gratuito raggiunto (${limitOf(s)} chiamate al ${SOURCES[s].per === 'day' ? 'giorno' : 'mese'}). Si cambia in Collegamenti.`);
+  }
+  links.usage ||= {};
+  links.usage[s] = { p: periodOf(s), n: usedOf(s) + 1 };
+  saveLinks();
+}
+
+const isMobileIt = p => /^3\d{8,9}$/.test(p.replace(/\D/g, '').replace(/^39(?=3\d{8,9}$)/, ''));
+// Scheda uguale per Google, HERE e TomTom (stessi campi di quelle di OpenStreetMap)
+function leadFromApi({ id, name, kind, phones, site, address, maps, source }) {
+  if (!name) return null;
+  const ph = splitPhones(phones.filter(Boolean).join(';')).slice(0, 3);
+  site = String(site || '').trim();
+  if (site && !/^https?:\/\//i.test(site)) site = 'https://' + site;
+  const social = SOCIAL_RE.test(site) ? site : '';
+  address = String(address || '').replace(/,?\s*Italia$/, '');
+  return {
+    id: source[0] + crypto.createHash('sha1').update(String(id)).digest('hex').slice(0, 16),
+    name, kind: kind || '', phones: ph,
+    // Queste fonti non dicono chi ha WhatsApp: un cellulare di un'attività quasi sempre ce l'ha
+    whatsapps: ph.filter(isMobileIt), whatsapp: ph.find(isMobileIt) || '', waGuess: true,
+    website: site && !social ? site : '', social, address,
+    maps: maps || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([name, address].filter(Boolean).join(' ')),
+    source,
+  };
+}
+// Parole da cercare per ogni tipo (una chiamata per parola)
+const TEXT_QUERY = {
+  ristoranti: ['ristorante', 'pizzeria'], pizzerie: ['pizzeria'], bar: ['bar', 'gelateria'], bellezza: ['parrucchiere', 'centro estetico'],
+  negozi: ['negozio'], alimentari: ['panetteria', 'macelleria', 'alimentari'], artigiani: ['officina', 'artigiano'],
+  alloggi: ['hotel', 'bed and breakfast'], professionisti: ['studio dentistico', 'commercialista'],
+};
+const apiError = async (name, r) => {
+  const d = await r.json().catch(() => ({}));
+  const msg = (d.error && (d.error.message || d.error)) || d.title || d.error_description || d.errorText || (d.detailedError && d.detailedError.message) || 'errore';
+  return new Error(`${name} ${r.status}: ${String(msg).slice(0, 200)}`);
+};
+
+// Google Maps (Places API New): fino a 60 risultati (3 pagine da 20) per ricerca
 const GOOGLE_QUERY = {
   ristoranti: 'ristoranti e pizzerie', pizzerie: 'pizzerie', bar: 'bar e caffè', bellezza: 'parrucchieri ed estetiste', negozi: 'negozi',
   alimentari: 'panetterie macellerie e alimentari', artigiani: 'artigiani e officine', alloggi: 'B&B e hotel', professionisti: 'studi professionali',
 };
-const isMobileIt = p => /^3\d{8,9}$/.test(p.replace(/\D/g, '').replace(/^39(?=3\d{8,9}$)/, ''));
-function leadFromGoogle(p) {
-  if (!p.displayName || p.businessStatus === 'CLOSED_PERMANENTLY') return null;
-  const phones = splitPhones(p.internationalPhoneNumber || p.nationalPhoneNumber || '');
-  const site = p.websiteUri || '';
-  const social = SOCIAL_RE.test(site) ? site : '';
-  return {
-    id: 'g' + p.id,
-    name: p.displayName.text,
-    kind: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '',
-    phones,
-    // Google non dice chi ha WhatsApp: un cellulare di un'attività quasi sempre ce l'ha
-    whatsapps: phones.filter(isMobileIt),
-    whatsapp: phones.find(isMobileIt) || '',
-    waGuess: true,
-    website: site && !social ? site : '',
-    social,
-    address: (p.formattedAddress || '').replace(/, Italia$/, ''),
-    maps: p.googleMapsUri || 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(p.displayName.text),
-    source: 'google',
-  };
-}
 async function googleLeads(type, city) {
   const fields = ['id', 'displayName', 'formattedAddress', 'nationalPhoneNumber', 'internationalPhoneNumber', 'websiteUri',
     'googleMapsUri', 'businessStatus', 'primaryTypeDisplayName'].map(f => 'places.' + f).join(',') + ',nextPageToken';
   const out = [];
   let pageToken = '';
-  // Google dà al massimo 60 risultati (3 pagine da 20) per ricerca
   for (let page = 0; page < 3; page++) {
+    useCall('google');
     const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_PLACES_KEY, 'X-Goog-FieldMask': fields },
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': keyOf('google'), 'X-Goog-FieldMask': fields },
       body: JSON.stringify({ textQuery: `${GOOGLE_QUERY[type]} a ${city}`, languageCode: 'it', regionCode: 'IT', pageSize: 20, ...(pageToken && { pageToken }) }),
       signal: AbortSignal.timeout(20000),
     });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Google ' + r.status + ': ' + ((d.error && d.error.message) || 'errore').slice(0, 200));
+    if (!r.ok) throw await apiError('Google', r);
+    const d = await r.json();
     out.push(...(d.places || []));
     if (!d.nextPageToken) break;
     pageToken = d.nextPageToken;
   }
-  return out.map(leadFromGoogle).filter(Boolean);
+  return out.filter(p => p.displayName && p.businessStatus !== 'CLOSED_PERMANENTLY').map(p => leadFromApi({
+    id: p.id, name: p.displayName.text, kind: p.primaryTypeDisplayName && p.primaryTypeDisplayName.text,
+    phones: [p.internationalPhoneNumber || p.nationalPhoneNumber], site: p.websiteUri, address: p.formattedAddress,
+    maps: p.googleMapsUri, source: 'google',
+  }));
 }
 
-// Errore con il codice HTTP da rispondere (lo usano la pagina Trova clienti e il bot WhatsApp)
+// HERE: prima trova il centro della città, poi fino a 100 attività vicine per ogni parola
+const hereCenter = new Map();
+async function hereLeads(type, city) {
+  const key = encodeURIComponent(keyOf('here'));
+  let at = hereCenter.get(city.toLowerCase());
+  if (!at) {
+    useCall('here');
+    const r = await fetch(`https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(city)}&in=countryCode:ITA&lang=it-IT&limit=1&apiKey=${key}`, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw await apiError('HERE', r);
+    const p = ((await r.json()).items || [])[0];
+    if (!p || !p.position) throw leadError(404, `HERE non trova "${city}"`);
+    at = p.position.lat + ',' + p.position.lng;
+    hereCenter.set(city.toLowerCase(), at);
+  }
+  const out = [];
+  for (const q of TEXT_QUERY[type]) {
+    useCall('here');
+    const r = await fetch(`https://discover.search.hereapi.com/v1/discover?q=${encodeURIComponent(q)}&at=${at}&limit=100&lang=it-IT&apiKey=${key}`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw await apiError('HERE', r);
+    out.push(...((await r.json()).items || []));
+  }
+  return out.filter(it => !it.resultType || it.resultType === 'place').map(it => {
+    const ct = it.contacts || [];
+    const cat = (it.categories || []).find(c => c.primary) || (it.categories || [])[0] || {};
+    return leadFromApi({
+      id: it.id, name: it.title, kind: cat.name, address: it.address && it.address.label, source: 'here',
+      phones: ct.flatMap(c => [...(c.mobile || []), ...(c.phone || [])]).map(x => x.value),
+      site: ct.flatMap(c => c.www || []).map(x => x.value)[0],
+    });
+  });
+}
+
+// TomTom: fino a 100 attività per ogni parola, cercando «parola città»
+async function tomtomLeads(type, city) {
+  const out = [];
+  for (const q of TEXT_QUERY[type]) {
+    useCall('tomtom');
+    const r = await fetch(`https://api.tomtom.com/search/2/search/${encodeURIComponent(q + ' ' + city)}.json?key=${encodeURIComponent(keyOf('tomtom'))}&countrySet=IT&language=it-IT&idxSet=POI&limit=100`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw await apiError('TomTom', r);
+    out.push(...((await r.json()).results || []));
+  }
+  return out.filter(x => x.poi).map(x => leadFromApi({
+    id: x.id, name: x.poi.name, kind: (x.poi.categories || [])[0], phones: [x.poi.phone], site: x.poi.url,
+    address: x.address && x.address.freeformAddress, source: 'tomtom',
+  }));
+}
+const API_SEARCH = { google: googleLeads, here: hereLeads, tomtom: tomtomLeads };
+
+// Stessa attività da più fonti: una scheda sola, con tutti i numeri e il sito se una fonte lo conosce
+function mergeLeads(list) {
+  const out = [], byKey = new Map();
+  for (const l of list) {
+    if (!l) continue;
+    const keys = [...l.phones, ...(l.whatsapps || [])].map(phoneKey).filter(Boolean);
+    keys.push('n|' + l.name.toLowerCase().replace(/\W+/g, '') + '|' + l.address.toLowerCase().replace(/\W+/g, '').slice(0, 20));
+    const a = keys.map(k => byKey.get(k)).find(Boolean);
+    if (!a) { out.push(l); keys.forEach(k => byKey.set(k, l)); continue; }
+    a.phones = [...new Set([...a.phones, ...l.phones])].slice(0, 3);
+    a.whatsapps = [...new Set([...(a.whatsapps || []), ...(l.whatsapps || [])])];
+    a.whatsapp ||= l.whatsapp;
+    if (l.waGuess === false) a.waGuess = false; // WhatsApp dichiarato su OpenStreetMap
+    a.website ||= l.website; a.social ||= l.social; a.address ||= l.address; a.kind ||= l.kind;
+    keys.forEach(k => byKey.has(k) || byKey.set(k, a));
+  }
+  return out;
+}
+const needFilter = (leads, need) => need === 'wa' ? leads.filter(l => (l.whatsapps || []).length)
+  : need === 'all' ? leads : leads.filter(l => l.phones.length || l.whatsapp);
+
+// Errore con il codice HTTP da rispondere
 const leadError = (status, message, detail) => Object.assign(new Error(message), { status, detail });
 // Cerca le attività di una zona: q = { source, scope, city, type, need } come nella pagina Trova clienti
 async function searchLeads(q) {
-  if (q.source === 'google') {
-    if (!GOOGLE_PLACES_KEY) throw leadError(400, 'Google Maps non è attivo: manca la chiave GOOGLE_PLACES_KEY su Render.');
+  if (API_SEARCH[q.source] || q.source === 'tutte') {
     const city = String(q.city || '').trim().slice(0, 60);
-    const type = GOOGLE_QUERY[q.type] ? q.type : 'ristoranti';
+    const type = LEAD_TYPES[q.type] ? q.type : 'ristoranti';
     if (city.length < 2) throw leadError(400, 'Scrivi il nome della zona');
-    const key = ['google', city.toLowerCase(), type, q.need].join('|');
-    const cached = leadCache.get(key);
-    if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return { leads: cached.leads, city, type, source: 'google' };
-    try {
-      let leads = await googleLeads(type, city);
-      if (q.need === 'wa') leads = leads.filter(l => l.whatsapps.length);
-      else if (q.need !== 'all') leads = leads.filter(l => l.phones.length);
-      leadCache.set(key, { at: Date.now(), leads });
-      return { leads, city, type, source: 'google' };
-    } catch (err) {
-      console.error('Google Places error:', err.message);
-      throw leadError(502, 'Google Maps non risponde.', err.message);
-    }
+    const all = q.source === 'tutte';
+    if (!all && !keyOf(q.source)) throw leadError(400, `${SOURCES[q.source].label} non è collegato: incolla la chiave nella pagina 🔑 Collegamenti.`);
+    const warnings = [];
+    const fromApi = async s => {
+      const key = [s, city.toLowerCase(), type].join('|');
+      const cached = leadCache.get(key);
+      if (cached && Date.now() - cached.at < 24 * 60 * 60 * 1000) return cached.leads;
+      try {
+        const leads = mergeLeads(await API_SEARCH[s](type, city));
+        leadCache.set(key, { at: Date.now(), leads });
+        return leads;
+      } catch (err) {
+        console.error(`${SOURCES[s].label} error:`, err.message);
+        if (!all) throw err.status ? err : leadError(502, `${SOURCES[s].label} non risponde.`, err.message);
+        warnings.push(`${SOURCES[s].label}: ${err.message}`);
+        return [];
+      }
+    };
+    // «Tutte le fonti»: le fonti collegate più OpenStreetMap, insieme, senza doppioni
+    const parts = await Promise.all([
+      ...(all ? Object.keys(API_SEARCH).filter(keyOf) : [q.source]).map(fromApi),
+      ...(all ? [searchLeads({ source: 'osm', scope: 'comune', city, type, need: q.need === 'all' ? 'all' : 'phone' })
+        .then(r => r.leads.map(l => ({ ...l, source: 'osm', ...((l.whatsapps || []).length && { waGuess: false }) })))
+        .catch(err => { warnings.push('OpenStreetMap: ' + err.message); return []; })] : []),
+    ]);
+    const leads = needFilter(mergeLeads(parts.flat().map(l => ({ ...l, phones: [...l.phones], whatsapps: [...(l.whatsapps || [])] }))), q.need);
+    if (!leads.length && warnings.length) throw leadError(502, 'Nessuna fonte ha risposto.', warnings.join(' · '));
+    return { leads, city, type, source: q.source, warnings };
   }
   const scope = SCOPES[q.scope] ? q.scope : 'comune';
   const city = scope === 'italia' ? 'Italia' : String(q.city || '').trim().replace(/["\\]/g, '').slice(0, 60);
@@ -1413,7 +1538,109 @@ app.get('/api/admin/leads-debug', requireAdmin, async (req, res) => {
   res.json(out);
 });
 app.get('/api/admin/lead-types', requireAdmin, (req, res) => {
-  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })), google: !!GOOGLE_PLACES_KEY });
+  res.json({ types: Object.entries(LEAD_TYPES).map(([id, t]) => ({ id, label: t.label })), google: !!keyOf('google'),
+    sources: Object.fromEntries(Object.keys(SOURCES).map(s => [s, !!keyOf(s)])) });
+});
+
+// ---------- Già contattati: chi ha già ricevuto un messaggio o una chiamata non torna più nell'elenco ----------
+// { "393331234567": { n: nome, s: 'scritto' | 'chiamato' | 'no', at, src: 'manuale' | 'bot' } }, nel backup cifrato
+const CONTACTED_FILE = path.join(__dirname, 'data', 'contattati.json');
+let contacted = (() => { try { return JSON.parse(fs.readFileSync(CONTACTED_FILE, 'utf8')); } catch { return {}; } })();
+function saveContacted() {
+  fs.mkdirSync(path.dirname(CONTACTED_FILE), { recursive: true });
+  fs.writeFileSync(CONTACTED_FILE, JSON.stringify(contacted));
+}
+// I numeri delle schede sono già internazionali (+39…): la chiave sono solo le cifre
+function phoneKey(p) {
+  const d = String(p || '').replace(/\D/g, '').replace(/^00/, '');
+  return d.length >= 8 && d.length <= 15 ? d : '';
+}
+const CONTACT_STATES = ['scritto', 'chiamato', 'no'];
+app.get('/api/admin/contattati', requireAdmin, (req, res) => res.json({ contacted }));
+// { items: [{ phones: [...], name, s }] }: anche più schede insieme (gli appunti vecchi di un telefono)
+app.post('/api/admin/contattati', requireAdmin, (req, res) => {
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 5000) : [];
+  let added = 0;
+  for (const it of items) {
+    const s = CONTACT_STATES.includes(it && it.s) ? it.s : 'scritto';
+    for (const k of (Array.isArray(it.phones) ? it.phones : []).slice(0, 6).map(phoneKey).filter(Boolean)) {
+      if (contacted[k] && contacted[k].s === s) continue;
+      contacted[k] = { n: String(it.name || (contacted[k] && contacted[k].n) || '').slice(0, 120), s, at: Date.now(), src: 'manuale' };
+      added++;
+    }
+  }
+  if (added) saveContacted();
+  res.json({ ok: true, added });
+});
+// «Da contattare»: torna nell'elenco
+app.post('/api/admin/contattati/rimetti', requireAdmin, (req, res) => {
+  const phones = Array.isArray(req.body && req.body.phones) ? req.body.phones.slice(0, 6) : [];
+  let removed = 0;
+  for (const k of phones.map(phoneKey)) if (k && contacted[k]) { delete contacted[k]; removed++; }
+  if (removed) saveContacted();
+  res.json({ ok: true, removed });
+});
+
+// ---------- Pagina Collegamenti: chiavi, limiti e prova delle fonti ----------
+const maskKey = k => k ? '••••' + k.slice(-4) : '';
+app.get('/api/admin/collegamenti', requireAdmin, (req, res) => {
+  res.json({
+    sources: Object.entries(SOURCES).map(([id, x]) => ({
+      id, label: x.label, on: !!keyOf(id), masked: maskKey(keyOf(id)),
+      fromEnv: !(links.keys || {})[id] && !!process.env[x.env], env: x.env,
+      per: x.per, limit: limitOf(id), used: usedOf(id), suggested: x.max,
+    })),
+    contacted: Object.keys(contacted).length,
+  });
+});
+app.post('/api/admin/collegamenti/:id', requireAdmin, (req, res) => {
+  const id = req.params.id, b = req.body || {};
+  if (!SOURCES[id]) return res.status(404).json({ error: 'Fonte sconosciuta' });
+  if (b.key !== undefined) {
+    const key = String(b.key).trim();
+    if (key && !/^[\w.~+/=-]{10,300}$/.test(key)) return res.status(400).json({ error: 'Chiave non valida: copiala di nuovo, senza spazi' });
+    links.keys = { ...(links.keys || {}), [id]: key };
+  }
+  if (b.limit !== undefined) {
+    const n = Number(b.limit);
+    if (!Number.isInteger(n) || n < 0 || n > 1000000) return res.status(400).json({ error: 'Limite non valido' });
+    links.limits = { ...(links.limits || {}), [id]: n };
+  }
+  saveLinks();
+  for (const k of leadCache.keys()) if (k.startsWith(id + '|')) leadCache.delete(k);
+  res.json({ ok: true });
+});
+// Prova con una sola chiamata piccola (conta nel limite)
+const SOURCE_TESTS = {
+  google: async () => {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST', signal: AbortSignal.timeout(20000),
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': keyOf('google'), 'X-Goog-FieldMask': 'places.displayName' },
+      body: JSON.stringify({ textQuery: 'pizzeria a Milano', languageCode: 'it', regionCode: 'IT', pageSize: 1 }),
+    });
+    if (!r.ok) throw await apiError('Google', r);
+    const p = ((await r.json()).places || [])[0];
+    return p ? 'trovato «' + p.displayName.text + '»' : 'risponde';
+  },
+  here: async () => {
+    const r = await fetch(`https://geocode.search.hereapi.com/v1/geocode?q=Milano&in=countryCode:ITA&limit=1&apiKey=${encodeURIComponent(keyOf('here'))}`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw await apiError('HERE', r);
+    const p = ((await r.json()).items || [])[0];
+    return p ? 'trovato «' + p.title + '»' : 'risponde';
+  },
+  tomtom: async () => {
+    const r = await fetch(`https://api.tomtom.com/search/2/search/pizzeria%20Milano.json?key=${encodeURIComponent(keyOf('tomtom'))}&countrySet=IT&idxSet=POI&limit=1`, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw await apiError('TomTom', r);
+    const p = ((await r.json()).results || [])[0];
+    return p && p.poi ? 'trovato «' + p.poi.name + '»' : 'risponde';
+  },
+};
+app.post('/api/admin/collegamenti/:id/prova', requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  if (!SOURCES[id]) return res.status(404).json({ error: 'Fonte sconosciuta' });
+  if (!keyOf(id)) return res.status(400).json({ error: 'Prima incolla la chiave e salva' });
+  try { useCall(id); res.json({ ok: true, info: await SOURCE_TESTS[id]() }); }
+  catch (err) { res.status(err.status || 502).json({ error: err.message }); }
 });
 
 // ---------- Sveglia siti: visita i link ogni 5 minuti (anti-spegnimento Render gratuito) ----------
@@ -1519,32 +1746,15 @@ const BACKUP_FILES = {
   'orders.json': { file: () => DB_FILE, get: () => orders, set: v => { orders = v; } },
   'siti-pronti.json': { file: () => POOL_FILE, get: () => pool, set: v => { pool = v; } },
   'monitors.json': { file: () => MONITORS_FILE, get: () => monitors, set: v => { monitors = v; } },
+  'contattati.json': { file: () => CONTACTED_FILE, get: () => contacted, set: v => { contacted = v; } },
+  'collegamenti.json': { file: () => LINKS_FILE, get: () => links, set: v => { links = v; } },
 };
 const backupState = {
-  enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastExport: null, lastBotExport: null, lastError: null, restored: [],
+  enabled: backupOn, repo: BACKUP_REPO, ready: !backupOn, lastExport: null, lastError: null, restored: [],
   actionsUrl: `https://github.com/${BACKUP_REPO}/actions/workflows/backup.yml`,
 };
 
-// ---------- Bot WhatsApp: scrive da solo 20-30 messaggi al giorno ai clienti trovati (pagina /bot) ----------
-const bot = require('./bot')({
-  dataDir: path.join(__dirname, 'data'),
-  isReady: () => backupState.ready,
-  searchLeads, checkSite,
-  leadTypes: () => LEAD_TYPES,
-  googleOn: () => !!GOOGLE_PLACES_KEY,
-  messages: require('./public/messages.js'),
-  siteUrl: BASE_URL,
-  publicDir: path.join(__dirname, 'public'),
-  packages: () => ['base', 'premium'].map(k => PACKAGES[k]), // i due abbonamenti da mandare a chi dice sì
-});
-bot.routes(app, requireAdmin);
-// I dati del bot (contatti già scritti e collegamento a WhatsApp) cambiano a ogni messaggio:
-// vanno sul ramo BACKUP_BOT_BRANCH, che tiene solo l'ultima copia, così il repository non si gonfia
-const BACKUP_BOT_BRANCH = String(process.env.BACKUP_BOT_BRANCH || 'backup-bot').trim();
-const BACKUP_SETS = [
-  { name: 'dati', branch: BACKUP_BRANCH, files: BACKUP_FILES },
-  { name: 'bot', branch: BACKUP_BOT_BRANCH, files: bot.backupFiles },
-];
+const BACKUP_SETS = [{ name: 'dati', branch: BACKUP_BRANCH, files: BACKUP_FILES }];
 function backupSoon() {} // il salvataggio lo fa l'azione di GitHub ogni ora
 
 // I dati cifrati per l'azione di GitHub. Finché la ripresa all'avvio non è riuscita risponde 503:
@@ -1552,19 +1762,18 @@ function backupSoon() {} // il salvataggio lo fa l'azione di GitHub ogni ora
 app.get('/api/backup-export', (req, res) => {
   if (!backupOn) return res.status(503).json({ error: 'Backup non attivo: manca STRIPE_SECRET_KEY' });
   if (!backupState.ready) return res.status(503).json({ error: 'Sto ancora riprendendo il backup, riprova tra poco' });
-  // ?set=bot → i file del bot (per il ramo backup-bot); senza → ordini, siti pronti e sveglia siti
-  const set = BACKUP_SETS.find(x => x.name === req.query.set) || BACKUP_SETS[0];
+  const set = BACKUP_SETS[0];
   const files = {};
   for (const [name, f] of Object.entries(set.files)) files[encName(name)] = encryptBackup(JSON.stringify(f.get(), null, 2));
   const at = new Date().toISOString();
-  if (set.name === 'bot') backupState.lastBotExport = at; else backupState.lastExport = at;
+  backupState.lastExport = at;
   res.set('Cache-Control', 'no-store').json({ at, set: set.name, files });
 });
 
 // All'avvio: riprende i file dal ramo backup-dati (lettura pubblica, nessuna chiave) e li unisce a quelli di qui
+const RAW_HOST = process.env.BACKUP_RAW || 'https://raw.githubusercontent.com';
 async function restoreBackup() {
-  const rawHost = process.env.BACKUP_RAW || 'https://raw.githubusercontent.com';
-  const all = BACKUP_SETS.flatMap(set => Object.entries(set.files).map(([name, f]) => [name, f, `${rawHost}/${BACKUP_REPO}/${set.branch}/backup`]));
+  const all = BACKUP_SETS.flatMap(set => Object.entries(set.files).map(([name, f]) => [name, f, `${RAW_HOST}/${BACKUP_REPO}/${set.branch}/backup`]));
   for (let attempt = 1; ; attempt++) {
     try {
       for (const [name, f, base] of all) {
@@ -1600,6 +1809,28 @@ async function restoreBackup() {
 }
 app.get('/api/admin/backup', requireAdmin, (req, res) => res.json(backupState));
 
-bot.start();
-if (backupOn) restoreBackup(); else console.warn('⚠️  Backup non attivo (manca STRIPE_SECRET_KEY): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
+// Il bot WhatsApp automatico è stato tolto: chi aveva già ricevuto un suo messaggio resta fuori dall'elenco.
+// Li prendo dal suo ultimo backup (ramo backup-bot, cifrato) e dal suo vecchio file, se c'è ancora su questo disco.
+const BOT_WROTE = ['inviato', 'invio', 'risposto', 'no', 'a mano'];
+async function importOldBot() {
+  const texts = [];
+  try { texts.push(fs.readFileSync(path.join(__dirname, 'data', 'bot.json'), 'utf8')); } catch {}
+  try {
+    const r = await fetch(`${RAW_HOST}/${BACKUP_REPO}/${process.env.BACKUP_BOT_BRANCH || 'backup-bot'}/backup/bot.enc.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (r.ok) texts.push(decryptBackup(await r.text()));
+  } catch (err) { console.error('Contatti del vecchio bot non letti:', err.message); }
+  let added = 0;
+  for (const text of texts) {
+    let d;
+    try { d = JSON.parse(text); } catch { continue; }
+    for (const [k, v] of Object.entries((d && d.contacted) || {})) {
+      if (!v || !BOT_WROTE.includes(v.s) || contacted[phoneKey(k)]) continue;
+      contacted[phoneKey(k)] = { n: String(v.n || '').slice(0, 120), s: v.s === 'no' ? 'no' : 'scritto', at: v.at || Date.now(), src: 'bot' };
+      added++;
+    }
+  }
+  if (added) { saveContacted(); console.log(`Già contattati: aggiunti ${added} numeri a cui aveva scritto il vecchio bot`); }
+}
+
+if (backupOn) restoreBackup().then(importOldBot); else console.warn('⚠️  Backup non attivo (manca STRIPE_SECRET_KEY): con Render gratuito ordini e siti pronti si perdono a ogni deploy.');
 app.listen(PORT, () => console.log(`Nerodoro Studio attivo su ${BASE_URL}`));
