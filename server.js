@@ -1355,7 +1355,7 @@ function mergeLeads(list) {
 const needFilter = (leads, need) => need === 'wa' ? leads.filter(l => (l.whatsapps || []).length)
   : need === 'all' ? leads : leads.filter(l => l.phones.length || l.whatsapp);
 
-// Errore con il codice HTTP da rispondere (lo usano la pagina Trova clienti e il bot WhatsApp)
+// Errore con il codice HTTP da rispondere
 const leadError = (status, message, detail) => Object.assign(new Error(message), { status, detail });
 // Cerca le attività di una zona: q = { source, scope, city, type, need } come nella pagina Trova clienti
 async function searchLeads(q) {
