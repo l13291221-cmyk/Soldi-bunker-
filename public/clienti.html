@@ -232,15 +232,24 @@
   // «Interessato» e «Richiamare» restano sempre: sono clienti ancora da seguire
   const isGone = l => { const s = (notes[l.id] || {}).s; return s !== 'interessato' && s !== 'richiamare' && (DONE.includes(s) || !!contactOf(l)); };
   const CONTACT_LABEL = { scritto: 'già scritto', chiamato: 'già chiamato', no: 'non interessato' };
+  // Stessa attività con un altro numero (il vecchio bot segnava solo il numero a cui scriveva, così un locale
+  // con due cellulari riceveva due messaggi): stesso nome di un contattato → avviso, non la tolgo
+  // perché nomi come «Bar Sport» ci sono in tutte le città
+  const nameKey = n => String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  let contactedNames = new Map();
+  const indexNames = () => { contactedNames = new Map(Object.values(contacted).filter(x => nameKey(x.n).length >= 4).map(x => [nameKey(x.n), x])); };
+  const sameName = l => !contactOf(l) && contactedNames.get(nameKey(l.name));
   function markContacted(l, s) {
     const phones = [...waList(l), ...l.phones];
     if (!phones.length) return;
     keepNow.add(l.id);
     if (DONE.includes(s)) {
       keysOf(l).forEach(k => { contacted[k] = { n: l.name, s, at: Date.now() }; });
+      indexNames();
       post('/api/admin/contattati', { items: [{ phones, name: l.name, s }] });
     } else if (s === '') {
       keysOf(l).forEach(k => { delete contacted[k]; });
+      indexNames();
       post('/api/admin/contattati/rimetti', { phones });
     }
   }
@@ -303,6 +312,7 @@
             ${waList(l).map(n => `<div class="meta" style="color:var(--green)">🟢 WhatsApp${l.waGuess ? ' (probabile, è un cellulare)' : ''}: ${escapeHtml(n)}</div>`).join('')}
             ${l.phones.map(p => `<div class="meta" style="color:var(--text)">${isMobile(p) ? '📱 Cellulare' : '☎️ Fisso'}: ${escapeHtml(p)}</div>`).join('')}
             ${contactOf(l) ? `<div class="meta" style="color:var(--gold-2)">✓ ${CONTACT_LABEL[contactOf(l).s] || 'già contattato'} (${new Date(contactOf(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}): alla prossima ricerca non compare più</div>` : ''}
+            ${sameName(l) ? `<div class="meta" style="color:var(--red)">⚠️ Un locale con lo stesso nome è già stato contattato (${CONTACT_LABEL[sameName(l).s] || 'già contattato'}, ${new Date(sameName(l).at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}) da un altro numero: controlla che non sia lo stesso</div>` : ''}
             ${checks[l.id] && checks[l.id].bad ? `<div class="reasons">⚠️ ${checks[l.id].reasons.map(escapeHtml).join(' · ')}</div>` : ''}
           </div>
           ${siteTag(l)}
@@ -364,6 +374,7 @@
     if (sentLastHour() >= BURST && !confirm(`Hai scritto a ${sentLastHour()} attività nell'ultima ora. Meglio fare una pausa di mezz'ora: tanti messaggi di fila fanno bloccare il numero. Mandare lo stesso?`)) return;
     if (daily.n >= DAILY_MAX && !confirm(`Hai già scritto a ${daily.n} attività oggi (limite ${DAILY_MAX}). Rischi il blocco del numero. Continuare lo stesso?`)) return;
     if (contactOf(l) && !confirm(`Attenzione: ${CONTACT_LABEL[contactOf(l).s] || 'già contattato'}. Scrivere di nuovo?`)) return;
+    if (sameName(l) && !confirm(`Un locale chiamato «${l.name}» è già stato contattato da un altro numero. Se è lo stesso riceve due messaggi. Scrivere lo stesso?`)) return;
     if (!goodHour() && daily.n === 0 && !confirm(`L'orario migliore per scrivere ai locali è ${HOUR_FROM}:00-${HOUR_TO}:00. Mandare lo stesso adesso?`)) return;
     const text = LEAD_MESSAGES.build({
       lang: langSel.value, variant: daily.total, lead: l, check: checks[l.id],
@@ -527,7 +538,7 @@
         keysOf(l).forEach(k => { contacted[k] = { n: l.name, s: st, at: notes[l.id].at || Date.now() }; });
       }
       if (items.length) post('/api/admin/contattati', { items });
-      render(); renderSaved();
+      indexNames(); render(); renderSaved();
     }).catch(() => {});
     // Riapro subito l'ultima ricerca salvata, senza aspettare
     if (searches.length) openSearch(searches[0]); else renderSaved();
