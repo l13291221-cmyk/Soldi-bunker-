@@ -2,11 +2,18 @@
 auto_clicker.py - Auto-clicker per Windows con posizione e tempi casuali.
 
 Avvio:   doppio click su AutoClicker.exe  (oppure: python auto_clicker.py)
-Stop:    CTRL+C nella finestra nera
+Stop:    chiudi la finestra nera con la X, oppure CTRL+C dentro la finestra nera
          (oppure porta il mouse in un angolo dello schermo: failsafe di pyautogui)
+
+Ogni decisione casuale (tempo, posizione, pausa) e' un tiro di un dado da
+1.000.000 di facce:
+  - ogni faccia ha la stessa probabilita' (1 su 1.000.000);
+  - ogni tiro e' indipendente dai precedenti e nessuna faccia viene mai tolta;
+  - il dado usa la casualita' del sistema operativo (la stessa usata per creare
+    password e chiavi di sicurezza), quindi non si puo' prevedere.
 """
 
-import random
+import secrets
 import sys
 import time
 
@@ -30,19 +37,42 @@ except ImportError:
 # ---------------------------------------------------------------- impostazioni
 SECONDI_COUNTDOWN = 5
 
-OFFSET_X = 80             # offset orizzontale casuale: da -80 a +80 pixel
-OFFSET_Y = 15             # offset verticale casuale:   da -15 a +15 pixel
+FACCE_DADO = 1000000      # il dado va da 1 a 1.000.000
 
-FACCE_DADO = 1000000      # dado da 1 a 1.000.000
-ATTESA_MAX = 40           # attesa sempre dentro i 40 secondi
+ATTESA_MAX = 40           # attesa = (dado / 1.000.000) * 40  -> sempre dentro i 40 secondi
 
-FACCE_DADO_PAUSA = 10     # se esce 1 su un dado da 10 -> pausa lunga (10%)
+OFFSET_X = 80             # spostamento destra/sinistra: da -80 a +80 pixel
+OFFSET_Y = 15             # spostamento su/giu':         da -15 a +15 pixel
+
+SOGLIA_PAUSA = 100000     # pausa lunga se il dado fa 100.000 o meno -> esattamente il 10%
 PAUSA_MIN = 120           # pausa lunga minima: 2 minuti
 PAUSA_MAX = 240           # pausa lunga massima: 4 minuti
 
 # Failsafe: se porti il mouse in un angolo dello schermo, il programma si ferma
 # al click successivo. E' una sicurezza in piu' oltre a CTRL+C.
 pyautogui.FAILSAFE = True
+
+
+# ---------------------------------------------------------------- il dado
+def tira_dado():
+    """
+    Tira un dado da 1 a 1.000.000, come un dado vero:
+    ogni faccia ha la stessa probabilita', ogni tiro e' indipendente,
+    nessuna faccia viene tolta. secrets usa la casualita' del sistema operativo,
+    quindi il risultato e' imprevedibile.
+    """
+    return secrets.randbelow(FACCE_DADO) + 1
+
+
+def dado_in_spostamento(dado, massimo):
+    """
+    Trasforma un tiro da 1 a 1.000.000 in uno spostamento da -massimo a +massimo pixel.
+    Il milione di facce e' diviso in parti uguali tra tutti gli spostamenti possibili:
+    per X sono 161 spostamenti (circa 6.211 facce ciascuno),
+    per Y sono 31 spostamenti (circa 32.258 facce ciascuno).
+    """
+    possibili = 2 * massimo + 1
+    return (dado - 1) * possibili // FACCE_DADO - massimo
 
 
 # ---------------------------------------------------------------- funzioni
@@ -86,86 +116,69 @@ def countdown_e_salva_posizione():
     return x, y
 
 
-class GeneratorePosizioni:
+def scegli_posizione(base_x, base_y, ultima, larghezza, altezza):
     """
-    Sceglie ogni volta un pixel casuale intorno al punto salvato
-    (X da -80 a +80, Y da -15 a +15) e non ripete mai un pixel gia' cliccato.
+    Tira due dadi da 1.000.000: uno decide destra/sinistra, l'altro su/giu'.
+    Insieme danno qualsiasi direzione: sopra, sotto, di lato, in diagonale.
+    Si ritira solo se il punto uscirebbe dallo schermo, oppure se e' identico
+    al click appena fatto (cosi' non clicca mai due volte di fila nello stesso pixel).
     """
-
-    def __init__(self, base_x, base_y):
-        self.base_x = base_x
-        self.base_y = base_y
-        self.larghezza, self.altezza = pyautogui.size()
-        self.usate = set()
-        self.ultima = None
-        # Quanti pixel diversi si possono usare intorno al punto (solo quelli dentro lo schermo).
-        self.totale = sum(
-            1
-            for dx in range(-OFFSET_X, OFFSET_X + 1)
-            for dy in range(-OFFSET_Y, OFFSET_Y + 1)
-            if self._dentro_lo_schermo(base_x + dx, base_y + dy)
-        )
-
-    def _dentro_lo_schermo(self, x, y):
-        # 1 pixel di margine dai bordi: negli angoli esatti scatterebbe il failsafe.
-        return 1 <= x <= self.larghezza - 2 and 1 <= y <= self.altezza - 2
-
-    def prossima(self):
-        # Se sono stati usati tutti i pixel possibili, si ricomincia da capo
-        # (tenendo fuori l'ultimo cliccato, cosi' non si ripete mai due volte di fila).
-        if len(self.usate) >= self.totale:
-            print("  (Usati tutti i pixel possibili intorno al punto: ricomincio da capo)")
-            self.usate = {self.ultima}
-
-        while True:
-            x = self.base_x + random.randint(-OFFSET_X, OFFSET_X)
-            y = self.base_y + random.randint(-OFFSET_Y, OFFSET_Y)
-            if self._dentro_lo_schermo(x, y) and (x, y) not in self.usate:
-                self.usate.add((x, y))
-                self.ultima = (x, y)
-                return x, y
+    while True:
+        dado_x = tira_dado()
+        dado_y = tira_dado()
+        dx = dado_in_spostamento(dado_x, OFFSET_X)
+        dy = dado_in_spostamento(dado_y, OFFSET_Y)
+        x, y = base_x + dx, base_y + dy
+        # 1 pixel di margine dai bordi: negli angoli esatti scatterebbe il failsafe
+        dentro_lo_schermo = 1 <= x <= larghezza - 2 and 1 <= y <= altezza - 2
+        if dentro_lo_schermo and (x, y) != ultima:
+            return x, y, dado_x, dado_y, dx, dy
 
 
 def main():
     disattiva_quick_edit()
-    print("=" * 60)
-    print("  AUTO-CLICKER   -   premi CTRL+C per fermarlo")
-    print("=" * 60)
+    print("=" * 70)
+    print("  AUTO-CLICKER   -   per fermarlo chiudi questa finestra o premi CTRL+C")
+    print("=" * 70)
 
     base_x, base_y = countdown_e_salva_posizione()
     print(f"\nPosizione salvata: X={base_x}, Y={base_y}")
 
-    generatore = GeneratorePosizioni(base_x, base_y)
-    if generatore.totale < 2:
+    if not pyautogui.onScreen(base_x, base_y):
         print("Il mouse deve stare sullo schermo principale. Riavvia e riprova.")
         return
 
-    print(f"Pixel diversi disponibili intorno al punto: {generatore.totale}")
-    print("Parto! (CTRL+C per fermare)\n")
+    larghezza, altezza = pyautogui.size()
+    print("Parto!\n")
 
+    ultima = None
     numero_click = 0
     while True:
-        # 1) Tiro il dado da 1 a 1.000.000 e calcolo l'attesa (sempre dentro i 40 secondi)
-        dado = random.randint(1, FACCE_DADO)
-        attesa = (dado / FACCE_DADO) * ATTESA_MAX
-        print(f"[Click {numero_click + 1}] Dado: {dado}  ->  attesa: {attesa:.2f} secondi")
+        numero_click += 1
 
-        # 2) Aspetto
+        # 1) Dado del TEMPO: quanto aspettare prima del click (sempre dentro i 40 secondi)
+        dado_tempo = tira_dado()
+        attesa = (dado_tempo / FACCE_DADO) * ATTESA_MAX
+        print(f"[Click {numero_click}] Dado tempo: {dado_tempo:>7}  ->  attesa {attesa:.2f} secondi")
         aspetta(attesa)
 
-        # 3) Scelgo una nuova posizione casuale intorno a dove ho lasciato il mouse
-        x, y = generatore.prossima()
-
-        # 4) Clicco
+        # 2) Dadi della POSIZIONE: dove cliccare intorno a dove hai lasciato il mouse
+        x, y, dado_x, dado_y, dx, dy = scegli_posizione(base_x, base_y, ultima, larghezza, altezza)
         pyautogui.click(x, y)
-        numero_click += 1
-        print(f"           Cliccato in: X={x}, Y={y}")
+        ultima = (x, y)
+        print(f"           Dado X: {dado_x:>7}   Dado Y: {dado_y:>7}  ->  "
+              f"cliccato in X={x}, Y={y}  (spostamento {dx:+d}, {dy:+d})")
 
-        # 5) Ogni tanto pausa lunga: 1 su 10
-        if random.randint(1, FACCE_DADO_PAUSA) == 1:
-            pausa = random.randint(PAUSA_MIN, PAUSA_MAX)
-            print(f"PAUSA LUNGA - torno tra {pausa} secondi")
+        # 3) Dado della PAUSA: con 100.000 o meno (10%) fa la pausa lunga
+        dado_pausa = tira_dado()
+        if dado_pausa <= SOGLIA_PAUSA:
+            dado_durata = tira_dado()
+            pausa = PAUSA_MIN + (dado_durata / FACCE_DADO) * (PAUSA_MAX - PAUSA_MIN)
+            print(f"           Dado pausa: {dado_pausa:>7}  ->  "
+                  f"PAUSA LUNGA - torno tra {pausa:.0f} secondi  (dado durata: {dado_durata})")
             aspetta(pausa)
+        else:
+            print(f"           Dado pausa: {dado_pausa:>7}  ->  niente pausa (serve {SOGLIA_PAUSA} o meno)")
 
         print()
 
