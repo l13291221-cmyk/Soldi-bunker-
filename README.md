@@ -1,11 +1,11 @@
-# Premi INVIO automatico (Windows)
+# Preme il tasto P da solo (Windows)
 
 ## ⬇️ [Scarica AutoClicker.exe](https://github.com/l13291221-cmyk/Soldi-bunker-/releases/latest/download/AutoClicker.exe)
 
 1. Clicca il link qui sopra: si scarica `AutoClicker.exe`.
 2. Aprilo con **doppio click**. Non serve installare Python né altro.
-3. Hai 5 secondi: clicca sulla finestra dove vuoi che prema **INVIO** e lasciala in primo piano.
-   Da lì in poi preme INVIO da solo.
+3. Hai 5 secondi: clicca sulla finestra dove vuoi che prema **P** e lasciala in primo piano.
+   Da lì in poi preme P da solo.
 
 **Quando preme:** a ogni giro tira un dado da 1 a 1.000.000 e aspetta
 (dado / 1.000.000) × 40 secondi, quindi sempre meno di 40 secondi.

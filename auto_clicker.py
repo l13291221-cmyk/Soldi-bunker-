@@ -1,5 +1,5 @@
 """
-auto_clicker.py - Preme il tasto INVIO a tempi casuali (Windows).
+auto_clicker.py - Preme il tasto P a tempi casuali (Windows).
 
 Avvio:   doppio click su AutoClicker.exe  (oppure: python auto_clicker.py)
 Stop:    chiudi la finestra nera con la X, oppure CTRL+C dentro la finestra nera
@@ -12,7 +12,7 @@ Ogni decisione casuale (tempo e pausa lunga) e' un tiro di un dado da
   - il dado usa la casualita' del sistema operativo (la stessa usata per creare
     password e chiavi di sicurezza), quindi non si puo' prevedere.
 
-INVIO arriva alla finestra in primo piano: quella su cui hai cliccato per ultima.
+Il tasto arriva alla finestra in primo piano: quella su cui hai cliccato per ultima.
 """
 
 import secrets
@@ -39,7 +39,8 @@ except ImportError:
 # ---------------------------------------------------------------- impostazioni
 SECONDI_COUNTDOWN = 5
 
-TASTO = "enter"           # il tasto da premere
+TASTO = "p"               # il tasto da premere (minuscolo: P senza maiuscole)
+NOME_TASTO = "P"          # come viene scritto nella finestra nera
 
 FACCE_DADO = 1000000      # il dado va da 1 a 1.000.000
 
@@ -97,8 +98,8 @@ def aspetta(secondi):
 
 
 def countdown():
-    """Lascia 5 secondi per cliccare sulla finestra che deve ricevere INVIO."""
-    print("Clicca sulla finestra dove vuoi che prema INVIO e lasciala in primo piano")
+    """Lascia 5 secondi per cliccare sulla finestra che deve ricevere il tasto."""
+    print(f"Clicca sulla finestra dove vuoi che prema {NOME_TASTO} e lasciala in primo piano")
     for secondi in range(SECONDI_COUNTDOWN, 0, -1):
         print(f"  {secondi}...")
         aspetta(1)
@@ -107,7 +108,7 @@ def countdown():
 def main():
     disattiva_quick_edit()
     print("=" * 70)
-    print("  PREMI INVIO AUTOMATICO   -   per fermarlo chiudi questa finestra o CTRL+C")
+    print(f"  PREME {NOME_TASTO} DA SOLO   -   per fermarlo chiudi questa finestra o CTRL+C")
     print("=" * 70)
 
     countdown()
@@ -117,15 +118,15 @@ def main():
     while True:
         numero += 1
 
-        # 1) Dado del TEMPO: quanto aspettare prima di premere INVIO (sempre dentro i 40 secondi)
+        # 1) Dado del TEMPO: quanto aspettare prima di premere il tasto (sempre dentro i 40 secondi)
         dado_tempo = tira_dado()
         attesa = (dado_tempo / FACCE_DADO) * ATTESA_MAX
-        print(f"[Invio {numero}] Dado tempo: {dado_tempo:>7}  ->  attesa {attesa:.2f} secondi")
+        print(f"[{NOME_TASTO} n.{numero}] Dado tempo: {dado_tempo:>7}  ->  attesa {attesa:.2f} secondi")
         aspetta(attesa)
 
-        # 2) Premo INVIO
+        # 2) Premo il tasto
         pyautogui.press(TASTO)
-        print("           Premuto INVIO")
+        print(f"           Premuto {NOME_TASTO}")
 
         # 3) Dado della PAUSA: con 100.000 o meno (10%) fa la pausa lunga
         dado_pausa = tira_dado()
