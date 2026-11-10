@@ -1,0 +1,66 @@
+# Crea AutoClicker.exe su un PC Windows di GitHub e lo pubblica come download:
+# https://github.com/<proprietario>/<repository>/releases/latest/download/AutoClicker.exe
+name: Crea AutoClicker.exe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - auto_clicker.py
+      - requirements.txt
+      - .github/workflows/crea-exe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crea-exe
+  cancel-in-progress: true
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa le librerie
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Crea AutoClicker.exe
+        run: pyinstaller --onefile --console --name AutoClicker auto_clicker.py
+
+      - name: Controlla che l'exe parta
+        shell: pwsh
+        run: |
+          New-Item vuoto.txt -ItemType File -Force | Out-Null
+          $p = Start-Process -FilePath dist\AutoClicker.exe -PassThru -NoNewWindow `
+                 -RedirectStandardInput vuoto.txt `
+                 -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          Start-Sleep -Seconds 3
+          if ($p.HasExited) {
+            Get-Content out.txt, err.txt
+            throw "AutoClicker.exe si e' chiuso subito (codice $($p.ExitCode))"
+          }
+          Stop-Process -Id $p.Id -Force
+          Get-Process AutoClicker -ErrorAction SilentlyContinue | Stop-Process -Force
+          Write-Host "OK: l'exe e' partito ed e' nel countdown."
+
+      - name: Pubblica il download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete auto-clicker --cleanup-tag --yes || true
+          gh release create auto-clicker dist/AutoClicker.exe \
+            --target "$GITHUB_SHA" \
+            --title "Auto-clicker per Windows" \
+            --latest \
+            --notes "Scarica AutoClicker.exe e aprilo con doppio click. Non serve installare niente.
+          Hai 5 secondi per mettere il mouse dove vuoi cliccare. Per fermarlo: CTRL+C nella finestra nera."

@@ -1,8 +1,8 @@
 """
 auto_clicker.py - Auto-clicker per Windows con posizione e tempi casuali.
 
-Avvio:   python auto_clicker.py
-Stop:    CTRL+C nella finestra del terminale
+Avvio:   doppio click su AutoClicker.exe  (oppure: python auto_clicker.py)
+Stop:    CTRL+C nella finestra nera
          (oppure porta il mouse in un angolo dello schermo: failsafe di pyautogui)
 """
 
@@ -10,10 +10,20 @@ import random
 import sys
 import time
 
+
+def pausa_prima_di_chiudere():
+    """Tiene aperta la finestra, cosi' si riesce a leggere il messaggio prima che sparisca."""
+    try:
+        input("\nPremi INVIO per chiudere...")
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
 try:
     import pyautogui
 except ImportError:
     print("Manca la libreria pyautogui. Installala con:  pip install pyautogui")
+    pausa_prima_di_chiudere()
     sys.exit(1)
 
 
@@ -36,6 +46,26 @@ pyautogui.FAILSAFE = True
 
 
 # ---------------------------------------------------------------- funzioni
+def disattiva_quick_edit():
+    """
+    Solo Windows: se per sbaglio si clicca dentro la finestra nera, Windows
+    "congela" il programma finche' non si preme un tasto (modalita' Modifica rapida).
+    Qui la spegniamo, cosi' il clicker non si blocca mai.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)               # input della console
+        modo = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(modo)):
+            # toglie ENABLE_QUICK_EDIT_MODE (0x40), tiene ENABLE_EXTENDED_FLAGS (0x80)
+            kernel32.SetConsoleMode(handle, (modo.value & ~0x0040) | 0x0080)
+    except Exception:
+        pass
+
+
 def aspetta(secondi):
     """Aspetta a piccoli passi, cosi' CTRL+C risponde subito anche durante le attese lunghe."""
     fine = time.monotonic() + secondi
@@ -97,6 +127,7 @@ class GeneratorePosizioni:
 
 
 def main():
+    disattiva_quick_edit()
     print("=" * 60)
     print("  AUTO-CLICKER   -   premi CTRL+C per fermarlo")
     print("=" * 60)
@@ -144,5 +175,13 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nFermato con CTRL+C. Ciao!")
+        sys.exit(0)
     except pyautogui.FailSafeException:
         print("\nFermato: il mouse e' stato portato in un angolo dello schermo (failsafe).")
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        print("\nC'e' stato un errore imprevisto.")
+    # Si arriva qui solo se il programma si e' fermato per un motivo diverso da CTRL+C:
+    # la finestra resta aperta per far leggere il messaggio.
+    pausa_prima_di_chiudere()
