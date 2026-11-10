@@ -1,0 +1,75 @@
+# ================== IMPOSTAZIONI DELLA SCHEDINA ==================
+# Cambia i numeri dopo il simbolo =, salva il file (CTRL+S), stacca la schedina.
+# Le righe che iniziano con # sono solo spiegazioni.
+# Le modifiche valgono dalla prossima volta che attacchi la schedina.
+
+
+# ---------- COSA FA ----------
+#   righello   = muove il cursore a scatti di 100 passi: serve a trovare i numeri del punto
+#   prova      = porta il cursore sul punto ogni 5 secondi, SENZA cliccare: per controllare
+#   gioca      = gioca a caso e in sottofondo i due dadi cliccano sul punto
+#   solo_click = non gioca, clicca solo sul punto con i due dadi
+modalita = righello
+
+
+# ---------- DOVE CLICCARE ----------
+# Quanti passi dall'ANGOLO IN ALTO A SINISTRA dello schermo (li trovi col righello).
+punto_destra = 800
+punto_giu = 450
+
+
+# ---------- DADO DELLA POSIZIONE ----------
+# Spostamento casuale intorno al punto: da -X a +X passi e da -Y a +Y passi.
+spostamento_x = 80
+spostamento_y = 15
+
+
+# ---------- DADO DEL TEMPO ----------
+# Attesa tra un click e l'altro = (dado / 1.000.000) x questi secondi.
+attesa_max = 40
+
+
+# ---------- PAUSA LUNGA ----------
+# Dopo un click, con questa probabilita' (in %) si ferma del tutto per un po'.
+pausa_percentuale = 10
+pausa_min = 120
+pausa_max = 240
+
+
+# ---------- COME GIOCA (solo modalita gioca) ----------
+# Quanto spesso fa ogni cosa: numero piu' alto = lo fa piu' spesso. 0 = non lo fa mai.
+cammina = 35
+gira = 15
+spara = 15
+spara_in_aria = 10
+salta = 10
+accovacciati = 5
+ricarica = 5
+fermo = 5
+
+
+# ---------- TASTI DEL GIOCO ----------
+# Lettere (w, a, s, d...), numeri, spazio, ctrl, shift, alt, invio, tab, f1...f12,
+# freccia_su, freccia_giu, freccia_sinistra, freccia_destra.
+# Per sparare usa sempre il click sinistro del mouse.
+tasto_avanti = w
+tasto_indietro = s
+tasto_sinistra = a
+tasto_destra = d
+tasto_salto = spazio
+tasto_accovacciati = ctrl
+tasto_ricarica = r
+
+
+# ---------- QUANTO GIRA LA VISUALE ----------
+# 1 = normale, 2 = il doppio, 0.5 = la meta'.
+sensibilita = 1
+
+
+# ---------- ALTRO ----------
+# Secondi di attesa dopo che la attacchi, prima di iniziare (la lucina lampeggia piano).
+attesa_iniziale = 15
+
+# 1 = se la attacchi al PC e premi BLOC MAIUSC si ferma (per modificare i file in sicurezza).
+# Mettilo a 0 solo se sulla Play non parte mai e la lucina resta accesa fissa.
+controllo_pc = 1

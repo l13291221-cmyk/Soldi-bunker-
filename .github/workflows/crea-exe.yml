@@ -1,6 +1,8 @@
-# Crea AutoClicker.exe su un PC Windows di GitHub e lo pubblica come download:
+# Crea AutoClicker.exe su un PC Windows di GitHub e il pacchetto per la schedina
+# Raspberry Pi Pico, e li pubblica come download:
 # https://github.com/<proprietario>/<repository>/releases/latest/download/AutoClicker.exe
-name: Crea AutoClicker.exe
+# https://github.com/<proprietario>/<repository>/releases/latest/download/SchedinaPico.zip
+name: Crea AutoClicker.exe e SchedinaPico.zip
 
 on:
   push:
@@ -8,6 +10,7 @@ on:
     paths:
       - auto_clicker.py
       - requirements.txt
+      - schedina_pico/**
       - .github/workflows/crea-exe.yml
   workflow_dispatch:
 
@@ -52,15 +55,31 @@ jobs:
           Get-Process AutoClicker -ErrorAction SilentlyContinue | Stop-Process -Force
           Write-Host "OK: l'exe e' partito ed e' nel countdown."
 
+      - name: Prepara SchedinaPico.zip
+        shell: pwsh
+        run: |
+          python -m py_compile schedina_pico/code.py
+          $dir = "SchedinaPico"
+          $file = "$dir/2_file_da_copiare_sulla_schedina"
+          New-Item -ItemType Directory -Force $file | Out-Null
+          $uf2 = "$dir/1_CircuitPython_per_Raspberry_Pi_Pico.uf2"
+          Invoke-WebRequest -Uri "https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2" -OutFile $uf2
+          $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
+          Copy-Item schedina_pico/code.py, schedina_pico/impostazioni.txt $file
+          Copy-Item schedina_pico/GUIDA.txt "$dir/LEGGIMI_GUIDA.txt"
+          Compress-Archive -Path $dir -DestinationPath SchedinaPico.zip -Force
+          Get-Item SchedinaPico.zip | Select-Object Name, Length
+
       - name: Pubblica il download
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete auto-clicker --cleanup-tag --yes || true
-          gh release create auto-clicker dist/AutoClicker.exe \
+          gh release create auto-clicker dist/AutoClicker.exe SchedinaPico.zip \
             --target "$GITHUB_SHA" \
-            --title "Auto-clicker per Windows" \
+            --title "Auto-clicker e schedina" \
             --latest \
-            --notes "Scarica AutoClicker.exe e aprilo con doppio click. Non serve installare niente.
-          Hai 5 secondi per mettere il mouse dove vuoi cliccare. Per fermarlo: CTRL+C nella finestra nera."
+            --notes "AutoClicker.exe: aprilo con doppio click, preme il tasto P con i tempi del dado. Per fermarlo chiudi la finestra nera.
+          SchedinaPico.zip: tutto per la schedina Raspberry Pi Pico da attaccare alla Play. Dentro c'e' la guida LEGGIMI_GUIDA.txt."
