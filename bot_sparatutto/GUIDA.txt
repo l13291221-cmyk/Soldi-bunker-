@@ -1,0 +1,172 @@
+GUIDA - BOT SPARATUTTO (Raspberry Pi Pico + PC)
+===============================================
+
+OBIETTIVO DEL BOT (e' scritto nel codice):
+  1. VINCERE la partita: restare vivo ed eliminare i nemici
+  2. APRIRE PIU' CASSE POSSIBILI: casse delle armi e casse dei materiali
+     (e raccogliere le armi per terra)
+
+COME FUNZIONA
+- Il programma BotSparatutto.exe sul PC GUARDA lo schermo e DECIDE cosa fare.
+- La schedina Raspberry Pi Pico fa da TASTIERA + MOUSE: preme i tasti che il
+  programma le dice. Per il gioco sono una tastiera e un mouse veri.
+- La schedina da sola non vede lo schermo: serve sempre il programma sul PC.
+- Il gioco deve girare su QUESTO PC (la schedina ha una sola presa USB:
+  sta attaccata al PC dove giochi).
+- I comandi sono quelli di Fortnite per tastiera e mouse (si cambiano in
+  impostazioni.yaml se il tuo gioco ne usa altri).
+
+Usalo solo nei giochi e nelle modalita' dove e' permesso (contro i personaggi
+offline / i bot). Nei giochi online contro persone vere e' vietato e ti bannano.
+
+COME SI ADATTA AD OGNI GIOCO (da solo)
+- OCCHIO UNIVERSALE: una rete neurale gia' addestrata riconosce i personaggi
+  in qualsiasi gioco, senza calibrare niente.
+- A inizio partita, la prima volta, muove la visuale per qualche secondo e
+  impara quanto e' sensibile il mouse e quanto serve per girarsi di 360 gradi.
+- Mentre spara impara la forza giusta della mira.
+- Capisce da solo che il TUO personaggio (se il gioco e' in terza persona)
+  non e' un nemico e smette di mirarlo.
+- Con "Impara guardando me" impara i colori delle casse e dove miri tu.
+- Tutto quello che impara lo salva in calibrazione.yaml: la volta dopo lo sa
+  gia'. QUANDO CAMBI GIOCO cancella calibrazione.yaml (o usa una copia della
+  cartella per ogni gioco).
+
+Cosa c'e' nella cartella:
+- BotSparatutto.exe     -> il programma (doppio click)
+- impostazioni.yaml     -> tasti e regolazioni (si apre con Blocco note)
+- istruzioni.txt        -> le TUE istruzioni (es. "quando muore la squadra
+                           passa alla partita successiva")
+- immagini/             -> pulsanti e scritte da riconoscere
+- modelli/              -> l'occhio universale (e la tua IA, se la crei)
+- Schedina/             -> tutto per preparare la Raspberry Pi Pico
+
+
+PASSO 1 - PREPARARE LA SCHEDINA (una volta sola)
+------------------------------------------------
+1. Tieni premuto il pulsantino bianco BOOTSEL sulla schedina.
+2. Tenendolo premuto, collega la schedina al PC con un cavo micro-USB che
+   passa i DATI (alcuni cavi caricano soltanto). Poi lascia il pulsante.
+3. Sul PC compare una chiavetta chiamata RPI-RP2.
+4. Trascina dentro RPI-RP2 il file
+      Schedina/1_CircuitPython_per_Raspberry_Pi_Pico.uf2
+5. Dopo qualche secondo compare una nuova chiavetta: CIRCUITPY.
+6. Copia dentro CIRCUITPY i due file della cartella
+      Schedina/2_file_da_copiare_sulla_schedina   (boot.py e code.py)
+   Se chiede di sostituire: SI'. (Se c'era la vecchia schedina "gioca a caso",
+   viene sostituita da questa.)
+7. STACCA e RIATTACCA la schedina (boot.py vale solo dopo averla riattaccata).
+
+La lucina verde:  spenta = aspetta il programma   accesa = collegata al programma
+                  lampeggia veloce = manca boot.py o non l'hai riattaccata
+
+Sicurezza: se chiudi il programma o stacchi il cavo, la schedina rilascia da
+sola tutti i tasti entro 1 secondo.
+
+
+PASSO 2 - PROVA LA SCHEDINA
+---------------------------
+1. Doppio click su BotSparatutto.exe.
+   (Se Windows dice "Windows ha protetto il PC": Ulteriori informazioni ->
+   Esegui comunque. Succede con tutti i programmi senza firma a pagamento.)
+2. Scegli 3 (Prova la schedina): il mouse deve fare un quadrato.
+
+
+PASSO 3 - LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
+---------------------------------------------------------------
+- Sezione "COMANDI DEL GIOCO - STILE FORTNITE": ci sono gia' i tasti di
+  Fortnite per tastiera e mouse (muro F1, pavimento F2, scale F3, tetto F4,
+  E per aprire, 1 piccone, 2-6 armi...). Se nel tuo gioco un tasto e' diverso,
+  cambialo. Esempio: se costruisci con X scrivi   muro: x
+- titolo_finestra_gioco: scrivi il nome del gioco (come appare nella barra
+  della finestra). Cosi' se passi a un'altra finestra il bot si ferma da solo.
+  CONSIGLIATO.
+
+
+PASSO 4 - LE ISTRUZIONI (es. passa alla partita successiva da solo)
+--------------------------------------------------------------------
+In istruzioni.txt c'e' gia':
+   QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora, aspetta 5, conta partita
+Al bot servono le due immagini:
+1. Gioca finche' la squadra muore e compare la scritta (es. "Squadra eliminata").
+2. Menu 6 (Salva un'immagine), nome: squadra_eliminata. Hai 5 secondi per
+   tornare al gioco: fa la foto. Poi trascina un rettangolo intorno alla
+   scritta e premi INVIO.
+3. Di nuovo menu 6, nome: gioca_ancora, e seleziona il pulsante per la
+   partita successiva.
+Puoi scrivere tutte le istruzioni che vuoi: le spiegazioni sono in cima a
+istruzioni.txt.
+
+
+PASSO 5 - INSEGNAGLI LE CASSE (5 minuti)
+----------------------------------------
+Menu 4 (Impara guardando me): giochi TU normalmente e apri piu' casse che puoi
+(almeno 8-10, sia quelle delle armi sia quelle dei materiali). Ogni volta che
+premi E il bot guarda cosa c'e' davanti a te. Premi F9 quando hai finito: ti
+fa vedere i colori che tornano sempre e ti chiede cosa sono
+(c = casse armi, m = casse materiali, a = armi).
+Impara anche DOVE MIRI tu sui nemici, e salva foto per l'IA (passo 8).
+
+(In alternativa: menu 5, clicchi tu sul colore delle casse in una foto.)
+Facoltativo: menu 7 per la barra della vita (cosi' sa quando curarsi e quando
+costruire un muro perche' lo colpiscono), menu 5 -> 5 per il colore dei
+compagni di squadra (cosi' non gli spara).
+
+
+PASSO 6 - PROVA E GIOCA
+-----------------------
+1. Menu 2 (Prova): non preme niente, ma ti apre una finestra con quello che
+   vede (rosso = nemici, giallo = casse armi, verde = casse materiali,
+   blu = armi). Controlla che riconosca bene.
+2. Menu 1 (Avvia il bot): hai 5 secondi per cliccare sulla finestra del gioco.
+   La PRIMA volta, a inizio partita, muove la visuale da solo per qualche
+   secondo per imparare il gioco: e' normale.
+   F8 = pausa / riprendi        F9 = chiudi il bot
+3. Ogni minuto scrive quante casse ha aperto. Alla fine salva tutto in
+   statistiche.txt.
+
+
+PASSO 7 - SE QUALCOSA NON VA
+----------------------------
+- "Schedina non trovata": controlla boot.py e code.py su CIRCUITPY, stacca e
+  riattacca. Oppure in impostazioni.yaml scrivi la porta (es. porta: COM5).
+- Non vede i nemici: abbassa rilevatore_universale -> confidenza (es. 0.35).
+  Se il gioco ha personaggi strani (robot, mostri) serve l'IA del tuo gioco
+  (passo 8) oppure il colore dei nemici (menu 5 -> 4).
+- Mira il tuo personaggio: di solito lo capisce da solo in pochi secondi.
+  Se no, menu 8 (zone da ignorare) e selezionalo.
+- Mira troppo forte/piano: e' raro perche' la impara da solo; puoi cambiare
+  mira -> forza.
+- Non trova le immagini: abbassa rilevamento -> somiglianza_immagini (es. 0.7)
+  o risalvale.
+- Il bot "dimentica" o fa cose strane dopo aver cambiato gioco: cancella
+  calibrazione.yaml.
+- La finestra nera si chiude subito: aprila dal Prompt dei comandi per
+  leggere l'errore, e mandamelo.
+
+
+PASSO 8 - DIVENTARE FORTISSIMO: L'IA DEL TUO GIOCO (facoltativo)
+-----------------------------------------------------------------
+L'occhio universale riconosce i personaggi, ma un'IA addestrata sulle foto
+del TUO gioco riconosce molto meglio nemici, casse, casse dei materiali e armi.
+1. Raccogli le foto: il menu 4 le salva da solo (una ogni 2 secondi), oppure
+   in impostazioni.yaml metti apprendimento -> salva_foto_ogni: 5 e lascia
+   giocare il bot. Finiscono nella cartella foto_per_ia, GIA' CON LE
+   ETICHETTE (scritte dal bot: non sono perfette).
+   Ne servono almeno 300-500.
+2. Correggi le etichette (consigliato): carica la cartella su roboflow.com
+   (gratis) o usa il programma "labelImg", e sistema i rettangoli.
+   Classi, in quest'ordine: 0 nemico, 1 cassa, 2 materiali, 3 arma.
+3. Addestra gratis su Google Colab (colab.research.google.com):
+   comprimi foto_per_ia in foto_per_ia.zip, caricalo su Colab e scrivi:
+       !pip install ultralytics
+       !unzip -q foto_per_ia.zip
+       from ultralytics import YOLO
+       m = YOLO("yolo11n.pt")
+       m.train(data="/content/foto_per_ia/dataset.yaml", epochs=100, imgsz=640)
+       m.export(format="onnx", imgsz=640, opset=12)
+   (Runtime -> Cambia tipo di runtime -> GPU, cosi' va molto piu' veloce.)
+4. Scarica il file best.onnx (in runs/detect/train/weights), mettilo nella
+   cartella modelli e in impostazioni.yaml scrivi:
+       modello_ia:
+         file: modelli/best.onnx

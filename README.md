@@ -1,3 +1,26 @@
+# Bot sparatutto (Raspberry Pi Pico + PC)
+
+## ⬇️ [Scarica BotSparatutto.zip](https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto.zip)
+
+**Obiettivo (scritto nel codice):** vincere la partita (restare vivo ed eliminare i nemici)
+e aprire più casse possibili (casse delle armi e casse dei materiali).
+
+- Il programma `BotSparatutto.exe` sul PC **guarda lo schermo** e decide cosa fare;
+  la schedina **Raspberry Pi Pico** fa da tastiera + mouse e preme i tasti.
+- **Si adatta a ogni gioco:** un "occhio universale" (rete neurale YOLOX) riconosce i personaggi
+  in qualsiasi gioco; a inizio partita impara da solo sensibilità del mouse e giro completo,
+  mentre spara impara la forza giusta della mira, e capisce da solo che il tuo personaggio
+  non è un nemico. Con *Impara guardando me* impara i colori delle casse guardando te giocare.
+- **Comandi stile Fortnite** (tastiera e mouse) già impostati in `impostazioni.yaml`, modificabili.
+- **Le tue istruzioni** in `istruzioni.txt`, es.
+  `QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora` (passa da solo alla partita successiva).
+- **F8** pausa / riprendi, **F9** chiude. Se il programma si chiude, la schedina rilascia tutti i tasti da sola.
+
+Guida passo passo: [`bot_sparatutto/GUIDA.txt`](bot_sparatutto/GUIDA.txt) (nello zip: `LEGGIMI_GUIDA.txt`).
+Da usare solo nei giochi/modalità dove è permesso (contro personaggi offline).
+
+---
+
 # Preme il tasto P da solo (Windows)
 
 ## ⬇️ [Scarica AutoClicker.exe](https://github.com/l13291221-cmyk/Soldi-bunker-/releases/latest/download/AutoClicker.exe)

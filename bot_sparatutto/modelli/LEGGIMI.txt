@@ -1,0 +1,13 @@
+Qui ci sono le "reti neurali" che il bot usa per vedere.
+
+yolox_tiny.onnx / yolox_nano.onnx = l'OCCHIO UNIVERSALE.
+  Riconoscono i personaggi (persone) in qualsiasi gioco, senza calibrare niente.
+  Il bot sceglie da solo il piu' forte che il tuo PC fa girare veloce.
+  Sono i modelli YOLOX di Megvii, addestrati sul dataset COCO, licenza Apache 2.0:
+  https://github.com/Megvii-BaseDetection/YOLOX
+  Se mancano, il bot li scarica da solo la prima volta (serve internet).
+
+best.onnx (se lo crei tu) = l'IA del TUO gioco: riconosce nemici, casse,
+  casse dei materiali e armi di quel gioco preciso. E' la cosa che lo rende
+  piu' forte di tutto. Come si fa: GUIDA.txt, parte "DIVENTARE FORTISSIMO".
+  Poi in impostazioni.yaml:  modello_ia -> file: modelli/best.onnx

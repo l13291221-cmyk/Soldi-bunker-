@@ -3,3 +3,7 @@ __pycache__/
 build/
 dist/
 *.spec
+bot_sparatutto/modelli/*.onnx
+bot_sparatutto/calibrazione.yaml
+bot_sparatutto/statistiche.txt
+bot_sparatutto/foto_per_ia/

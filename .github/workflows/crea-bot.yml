@@ -1,0 +1,96 @@
+# Crea BotSparatutto.exe su un PC Windows di GitHub, lo prova, e pubblica
+# BotSparatutto.zip (programma + impostazioni + occhio universale + file per la schedina):
+# https://github.com/<proprietario>/<repository>/releases/download/bot-sparatutto/BotSparatutto.zip
+name: Crea BotSparatutto.zip
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - bot_sparatutto/**
+      - .github/workflows/crea-bot.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crea-bot
+  cancel-in-progress: true
+
+jobs:
+  bot:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa le librerie
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r bot_sparatutto/requirements.txt pyinstaller
+
+      - name: Scarica l'occhio universale (YOLOX, Apache 2.0)
+        shell: pwsh
+        run: |
+          $modelli = @{
+            "yolox_nano" = "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d"
+            "yolox_tiny" = "427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7"
+          }
+          foreach ($nome in $modelli.Keys) {
+            $file = "bot_sparatutto/modelli/$nome.onnx"
+            Invoke-WebRequest -Uri "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/$nome.onnx" -OutFile $file
+            $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+            if ($hash -ne $modelli[$nome]) { throw "$nome scaricato male: $hash" }
+          }
+
+      - name: Prove automatiche
+        working-directory: bot_sparatutto
+        run: python test_bot.py
+
+      - name: Crea BotSparatutto.exe
+        working-directory: bot_sparatutto
+        run: >
+          pyinstaller --onefile --console --name BotSparatutto
+          --hidden-import pynput.keyboard._win32 --hidden-import pynput.mouse._win32
+          --hidden-import pynput._util.win32
+          bot.py
+
+      - name: Prepara la cartella e controlla che l'exe funzioni
+        shell: pwsh
+        run: |
+          python -m py_compile bot_sparatutto/pico/code.py bot_sparatutto/pico/boot.py
+          $dir = "BotSparatutto"
+          $schedina = "$dir/Schedina/2_file_da_copiare_sulla_schedina"
+          New-Item -ItemType Directory -Force $dir, "$dir/immagini", "$dir/modelli", $schedina | Out-Null
+          Copy-Item bot_sparatutto/dist/BotSparatutto.exe $dir
+          Copy-Item bot_sparatutto/impostazioni.yaml, bot_sparatutto/istruzioni.txt $dir
+          Copy-Item bot_sparatutto/GUIDA.txt "$dir/LEGGIMI_GUIDA.txt"
+          Copy-Item bot_sparatutto/immagini/LEGGIMI.txt "$dir/immagini"
+          Copy-Item bot_sparatutto/modelli/LEGGIMI.txt, bot_sparatutto/modelli/*.onnx "$dir/modelli"
+          Copy-Item bot_sparatutto/pico/boot.py, bot_sparatutto/pico/code.py $schedina
+          $uf2 = "$dir/Schedina/1_CircuitPython_per_Raspberry_Pi_Pico.uf2"
+          Invoke-WebRequest -Uri "https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2" -OutFile $uf2
+          $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
+          & "$dir/BotSparatutto.exe" --autotest
+          if ($LASTEXITCODE -ne 0) { throw "BotSparatutto.exe --autotest e' fallito" }
+          Remove-Item "$dir/statistiche.txt", "$dir/calibrazione.yaml" -ErrorAction SilentlyContinue
+          Compress-Archive -Path $dir -DestinationPath BotSparatutto.zip -Force
+          Get-Item BotSparatutto.zip | Select-Object Name, Length
+
+      - name: Pubblica il download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete bot-sparatutto --cleanup-tag --yes || true
+          gh release create bot-sparatutto BotSparatutto.zip \
+            --target "$GITHUB_SHA" \
+            --title "Bot sparatutto" \
+            --latest=false \
+            --notes "BotSparatutto.zip: estrai la cartella, apri LEGGIMI_GUIDA.txt e poi BotSparatutto.exe con doppio click.
+          Dentro ci sono anche i file per la schedina Raspberry Pi Pico (cartella Schedina)."

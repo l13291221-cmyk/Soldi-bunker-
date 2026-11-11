@@ -1,0 +1,11 @@
+Qui vanno le immagini (pezzetti di schermo) che il bot deve riconoscere:
+pulsanti, scritte, schermate. Si salvano dal menu "Salva un'immagine".
+
+Esempi di nomi che usano le istruzioni gia' scritte:
+  squadra_eliminata.png  -> la scritta che compare quando la tua squadra e' tutta morta
+  gioca_ancora.png       -> il pulsante per andare alla partita successiva
+
+Poi in istruzioni.txt scrivi ad esempio:
+  QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora
+
+Se cambi la risoluzione del gioco, risalva le immagini.

@@ -1,0 +1,260 @@
+# =====================================================================
+#                IMPOSTAZIONI DEL BOT SPARATUTTO
+# =====================================================================
+# OBIETTIVO DEL BOT (scritto nel codice, cervello.py):
+#   1. VINCERE la partita: restare vivo ed eliminare i nemici
+#   2. APRIRE PIU' CASSE POSSIBILI: casse delle armi e casse dei materiali
+#
+# Aprilo con Blocco note, cambia quello che c'e' dopo i due punti ":" e salva.
+# Le righe che iniziano con # sono solo spiegazioni.
+# ATTENZIONE: non cambiare gli spazi all'inizio delle righe (servono!).
+#
+# Quello che il bot impara da solo (o che calibri dal menu) lo scrive in
+# calibrazione.yaml, che vince su questo file. Per fargli "dimenticare" tutto
+# e ricominciare (es. quando cambi gioco) cancella calibrazione.yaml.
+
+
+# ---------------------------------------------------------------------
+# COME PREME I TASTI
+# ---------------------------------------------------------------------
+comandi:
+  # schedina = con la Raspberry Pi Pico (funziona con tutti i giochi)
+  # software = senza schedina, preme Windows (per provare; alcuni giochi lo ignorano)
+  # prova    = non preme niente, scrive solo cosa farebbe
+  modo: schedina
+  # auto = la trova da sola. Se non la trova scrivi la porta, es: COM5
+  porta: auto
+
+
+# ---------------------------------------------------------------------
+# TASTI PER COMANDARE IL BOT (mentre gioca)
+# ---------------------------------------------------------------------
+tasti_bot:
+  pausa: f8      # pausa / riprendi
+  esci: f9       # chiude il bot
+
+
+# =====================================================================
+# COMANDI DEL GIOCO  -  STILE FORTNITE (TASTIERA E MOUSE)
+# =====================================================================
+# Sono i tasti predefiniti di Fortnite per tastiera e mouse. Se nel tuo gioco
+# un tasto e' diverso, cambialo qui. Esempio: se costruisci i muri con X
+# scrivi   muro: x
+# Nomi dei tasti: lettere (a...z), numeri ("1"...), f1...f12, spazio, invio, esc,
+# tab, ctrl, shift, alt, freccia_su/giu/sinistra/destra,
+# mouse_sinistro, mouse_destro, mouse_centrale, mouse4, mouse5, rotella_su, rotella_giu.
+# I numeri vanno tra virgolette: "1"
+# Al posto del tasto puoi scrivere un'altra azione: es.  cura: arma_5
+# Puoi aggiungere tutti i tasti che vuoi e usarli nelle istruzioni (QUANDO ... FAI premi mappa).
+tasti:
+  # --- movimento ---
+  avanti: w
+  indietro: s
+  sinistra: a
+  destra: d
+  salta: spazio
+  accovacciati: ctrl
+  corri: shift
+  # --- combattimento ---
+  spara: mouse_sinistro
+  mira: mouse_destro          # mirino (zoom)
+  ricarica: r
+  interagisci: e              # apri casse (armi e materiali), raccogli armi
+  piccone: "1"                # strumento per raccogliere materiali
+  arma_1: "2"
+  arma_2: "3"
+  arma_3: "4"
+  arma_4: "5"
+  arma_5: "6"
+  cura: arma_5                # lo slot dove tieni le cure
+  # --- costruzione ---
+  muro: f1
+  pavimento: f2
+  scale: f3
+  tetto: f4
+  trappola: f5
+  modifica: g
+  costruisci: muro            # "costruisci" = metti un muro
+  # --- altro ---
+  mappa: m
+  inventario: i
+  emote: b
+
+
+# ---------------------------------------------------------------------
+# MACRO = sequenze di azioni con un nome, da usare nelle istruzioni
+# ---------------------------------------------------------------------
+# Si scrivono come le azioni di istruzioni.txt, separate da virgole.
+macro:
+  # un muro davanti e torna all'arma (usata quando ti colpiscono forte)
+  muro: premi muro, aspetta 0.05, clicca, aspetta 0.05, premi arma_1
+  # 4 muri intorno (si gira di 90 gradi tra uno e l'altro)
+  scatola: premi muro, aspetta 0.05, clicca, gira 90, clicca, gira 90, clicca, gira 90, clicca, gira 90, premi arma_1
+  # si cura (usata quando ha poca vita e non ci sono nemici)
+  cura: premi cura, aspetta 0.2, tieni spara 4, premi arma_1
+  # passa alla partita successiva (usala in istruzioni.txt)
+  partita_successiva: aspetta 3, clicca gioca_ancora, aspetta 5, conta partita
+
+
+# ---------------------------------------------------------------------
+# COME SI ADATTA AL GIOCO (impara da solo)
+# ---------------------------------------------------------------------
+rilevatore_universale:
+  # L'"occhio universale": una rete neurale gia' addestrata che riconosce i
+  # personaggi in QUALSIASI gioco, senza calibrare niente.
+  attivo: true
+  # auto = sceglie da solo il modello piu' forte che il tuo PC fa girare veloce
+  # (yolox_tiny = piu' preciso, yolox_nano = piu' veloce). Oppure: modelli/yolox_nano.onnx
+  file: auto
+  confidenza: 0.45            # piu' basso = vede piu' nemici ma sbaglia di piu'
+  usa_gpu: false              # true = prova a usare la scheda video (OpenCL)
+
+apprendimento:
+  attivo: true
+  calibra_da_solo: true          # a inizio partita impara sensibilita' del mouse e giro completo
+  mira_adattiva: true            # impara la forza giusta della mira mentre spara
+  impara_cose_attaccate: true    # capisce da solo che il TUO personaggio non e' un nemico
+  # Ogni quanti secondi salva una foto etichettata mentre gioca (0 = mai).
+  # Servono per addestrare l'IA del tuo gioco (vedi GUIDA.txt): con 5 si raccolgono in fretta.
+  salva_foto_ogni: 0
+  foto_in_impara_ogni: 2         # lo stesso, nel menu "Impara guardando me"
+
+
+# ---------------------------------------------------------------------
+# SCHERMO
+# ---------------------------------------------------------------------
+schermo:
+  monitor: 1                  # 1 = schermo principale, 2 = il secondo...
+  fps_massimi: 60             # quante volte al secondo guarda lo schermo
+  scala_analisi: 0.5          # 0.5 = cerca i colori a meta' risoluzione (piu' veloce). 1 = piu' preciso
+  # Il bot gioca SOLO se in primo piano c'e' una finestra con questo nel titolo.
+  # Scrivi il nome del gioco: cosi' se vai su un'altra finestra si ferma da solo.
+  titolo_finestra_gioco: ""
+  mirino: [0.5, 0.5]          # dov'e' il mirino: [0.5, 0.5] = centro dello schermo
+  # Zone da ignorare [x, y, larghezza, altezza] in frazioni (0 = sinistra/alto, 1 = destra/basso).
+  # Si impostano meglio col menu "Zone da ignorare".
+  zone_ignorate: []
+  mostra_finestra: false      # true = mostra una finestra con quello che vede
+
+
+# ---------------------------------------------------------------------
+# MIRA  (sensibilita', giro e forza li impara da solo)
+# ---------------------------------------------------------------------
+mira:
+  pixel_per_passo: 1.0        # imparato da solo (o menu "Calibra la mira")
+  passi_per_giro: 3600        # imparato da solo (o menu "Calibra il giro completo")
+  forza: 0.6                  # di partenza: poi la regola da solo (0.3 morbida ... 0.9 scattante)
+  massimo_passi: 400          # spostamento massimo del mouse per fotogramma
+  altezza_mira_universale: 0.15   # dove mira sui personaggi: 0 = cima della testa, 0.5 = pancia
+  altezza_mira: 0.2           # lo stesso, per i nemici trovati coi colori
+  spostamento_y: 0            # pixel in piu' verso il basso (se il colore e' la barra SOPRA il nemico)
+  anticipo: 0.05              # secondi: mira un po' avanti ai nemici che corrono
+  tolleranza: 0.35            # quanto deve essere vicino il mirino per sparare (parte della larghezza del nemico)
+  tolleranza_minima_px: 4
+  rinculo: 0                  # passi al secondo verso il basso mentre spara (contro il rinculo)
+  mira_col_tasto_destro: false   # true = tiene premuto "mira" quando vede un nemico
+
+
+# ---------------------------------------------------------------------
+# COMBATTIMENTO  (obiettivo 1: vincere)
+# ---------------------------------------------------------------------
+combattimento:
+  attivo: true
+  spara: tieni                # tieni = tiene premuto   raffica = a colpi brevi
+  raffica_secondi: 0.25
+  pausa_raffica_secondi: 0.12
+  schiva: true                # si sposta a destra e sinistra mentre spara
+  salta_ogni_tanto: false
+  insegui: true               # va verso i nemici lontani
+  distanza_insegui: 0.08      # "lontano" = nemico piu' basso di questa parte dello schermo
+  memoria_secondi: 0.35       # per quanto continua a sparare se il nemico sparisce un attimo
+  ricarica_dopo: true         # ricarica finito il combattimento
+  # Se perde questa vita (in %) in meno di un secondo, esegue la macro qui sotto.
+  # Serve la barra della vita calibrata. 0 = mai.
+  vita_persa_per_costruire: 15
+  macro_quando_colpito: muro  # oppure: scatola
+  attesa_tra_muri: 3.0
+
+
+# ---------------------------------------------------------------------
+# CASSE E ARMI  (obiettivo 2: aprire piu' casse possibili)
+# ---------------------------------------------------------------------
+raccolta:
+  casse: true                 # casse delle armi
+  casse_materiali: true       # casse dei materiali / munizioni
+  armi: true                  # armi per terra
+  # chi va a prendere prima (piu' alto = prima)
+  priorita_casse: 2.0
+  priorita_materiali: 1.6
+  priorita_armi: 1.0
+  tempo_apertura_cassa: 1.2   # secondi che tiene premuto "interagisci" su una cassa
+  tempo_raccolta_arma: 0.1
+  # Nome di un'immagine (salvata col menu) della scritta tipo "Premi E per aprire":
+  # se la vede, preme subito interagisci. Lascia "" se non ti serve.
+  immagine_interazione: ""
+  vicino_altezza: 0.12        # e' "vicino" se l'oggetto e' alto almeno questa parte dello schermo
+  vicino_fondo: 0.85          # ...oppure se arriva in basso fino a questa parte dello schermo
+  tempo_massimo_avvicinamento: 10   # secondi: se non ci arriva lascia perdere
+
+
+# ---------------------------------------------------------------------
+# ESPLORAZIONE (quando non vede niente: cerca casse nuove)
+# ---------------------------------------------------------------------
+esplorazione:
+  corri: true
+  guarda_intorno_ogni: 12     # secondi tra un "giro su se stesso" e l'altro (0 = mai)
+  passi_giro_intorno: 8       # in quanti scatti fa il giro
+  sensibilita_blocco: 2.5     # piu' alto = si accorge prima di essere bloccato contro un muro
+  rimetti_visuale_dritta: true
+
+
+# ---------------------------------------------------------------------
+# VITA (si imposta col menu "Calibra la barra della vita")
+# ---------------------------------------------------------------------
+vita:
+  zona: null
+  colore: []
+  cura_sotto: 40              # sotto questa vita (in %) si cura, se non ci sono nemici
+  macro_cura: cura
+
+
+# ---------------------------------------------------------------------
+# COLORI (li impara guardandoti col menu "Impara guardando me",
+#         oppure li calibri a mano col menu "Calibra i colori")
+# ---------------------------------------------------------------------
+# tinta 0-179 (0 e 179 = rosso, 30 = giallo, 60 = verde, 120 = blu, 150 = viola)
+# saturazione 0-255 (0 = grigio, 255 = colore pieno), luminosita 0-255 (0 = nero)
+# Se la tinta va "dal grande al piccolo" (es. [170, 8]) vuol dire che fa il giro: rosso.
+colori:
+  cassa:                      # casse delle armi (luce dorata)
+    - {tinta: [20, 32], saturazione: [160, 255], luminosita: [200, 255]}
+  materiali: []               # casse dei materiali / munizioni
+  arma: []                    # armi per terra
+  nemico: []                  # di solito non serve: ci pensa l'occhio universale
+  alleato: []                 # segno dei compagni di squadra (es. nome blu): non gli spara
+  testa: []
+
+
+# ---------------------------------------------------------------------
+# IA DEL TUO GIOCO (facoltativa, la piu' forte): YOLO addestrato sulle foto del tuo gioco
+# ---------------------------------------------------------------------
+# Metti il file .onnx nella cartella modelli e scrivi qui il nome, es: modelli/best.onnx
+# "classi" = i nomi delle classi NELLO STESSO ORDINE con cui hai addestrato il modello
+# (se usi le foto salvate dal bot l'ordine e' gia' questo).
+modello_ia:
+  file: ""
+  dimensione: 640
+  confidenza: 0.4
+  classi: [nemico, cassa, materiali, arma]
+
+
+# ---------------------------------------------------------------------
+# ALTRO
+# ---------------------------------------------------------------------
+rilevamento:
+  area_minima: 0.00015        # oggetti piu' piccoli di cosi' (parte dello schermo) vengono ignorati
+  somiglianza_immagini: 0.8   # 0.8 = l'immagine deve somigliare all'80%. Abbassa se non la trova
+regole:
+  attesa_tra_ripetizioni: 3   # secondi prima che la stessa istruzione possa ripartire
+menu:
+  passi_per_pixel: 1.0        # per cliccare nei menu (di solito va bene 1)

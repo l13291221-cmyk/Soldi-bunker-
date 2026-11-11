@@ -1,0 +1,73 @@
+# =====================================================================
+#              ISTRUZIONI PER IL BOT  -  scrivile tu!
+# =====================================================================
+# Una istruzione per riga, cosi':
+#
+#     QUANDO <condizione> FAI <azione>, <azione>, <azione>...
+#
+# Le istruzioni vengono prima di tutto il resto (anche del combattimento).
+# Se ne valgono due insieme, vince quella piu' in alto.
+# Le righe che iniziano con # non contano: per spegnere un'istruzione mettici # davanti.
+#
+# ---------------------------------------------------------------------
+# CONDIZIONI
+# ---------------------------------------------------------------------
+#   vedi NOME                -> sullo schermo c'e' l'immagine immagini/NOME.png
+#                               (le salvi col menu "Salva un'immagine")
+#   non vedi NOME            -> l'immagine NON c'e'
+#   vedi nemico / vedi cassa / vedi materiali / vedi arma
+#   vita sotto 30            -> vita sotto il 30%  (serve la barra della vita calibrata)
+#   vita sopra 80
+#   nessun nemico da 60 secondi
+#   fermo da 5 secondi       -> e' bloccato da 5 secondi
+#   casse aperte 50          -> ha aperto almeno 50 casse (armi + materiali)
+#   ogni 30 secondi          -> (anche: ogni 2 minuti)
+#   inizio                   -> una volta sola, quando parte il bot
+# Puoi unirle con "e":   QUANDO vedi zona_rossa e vita sotto 50 FAI ...
+#
+# ---------------------------------------------------------------------
+# AZIONI (separate da virgole oppure da "poi")
+# ---------------------------------------------------------------------
+#   premi x                  -> preme e rilascia X (o un tasto del gioco: premi costruisci)
+#   premi esc 2 volte
+#   tieni e 2                -> tiene premuto E per 2 secondi
+#   clicca                   -> click sinistro dove si trova il cursore
+#   clicca destro
+#   clicca NOME              -> porta il cursore sull'immagine NOME e ci clicca
+#   aspetta 2                -> aspetta 2 secondi
+#   aspetta NOME             -> aspetta finche' compare l'immagine NOME (massimo 30 secondi)
+#   aspetta NOME 60          -> ...massimo 60 secondi
+#   gira 90                  -> gira la visuale di 90 gradi (-90 = a sinistra), "girati" = 180
+#   scrivi gg                -> scrive un testo
+#   costruisci / salta / ricarica / cura / apri
+#   NOME_MACRO               -> una macro di impostazioni.yaml (es: muro, scatola, partita_successiva)
+#   conta partita            -> aggiunge 1 alle partite nelle statistiche
+#   pausa                    -> mette in pausa il bot (F8 per riprendere)
+#   esci                     -> chiude il bot
+#
+# =====================================================================
+#   LE TUE ISTRUZIONI  (cambiale come vuoi)
+# =====================================================================
+
+# Quando muore tutta la squadra, passa da solo alla partita successiva.
+# Prima salva le immagini "squadra_eliminata" (la scritta che compare quando
+# siete tutti morti) e "gioca_ancora" (il pulsante per la partita successiva).
+QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora, aspetta 5, conta partita
+
+# Se compare il pulsante "gioca" nel menu principale, lo clicca.
+# QUANDO vedi gioca FAI clicca gioca, aspetta 10
+
+# Se compare la schermata "pronto?" preme invio.
+# QUANDO vedi pronto FAI premi invio
+
+# Quando ha poca vita e non ci sono nemici, si cura.
+# QUANDO vita sotto 30 e nessun nemico da 3 secondi FAI cura
+
+# Quando ha poca vita e c'e' un nemico, si chiude in una scatola di muri.
+# QUANDO vita sotto 30 e vedi nemico FAI scatola
+
+# Se e' bloccato da tanto: salta, gira e va avanti.
+QUANDO fermo da 6 secondi FAI premi salta, girati, tieni avanti 1
+
+# Se non vede nemici da 2 minuti, apre la mappa e la richiude (esempio).
+# QUANDO nessun nemico da 120 secondi FAI premi m, aspetta 2, premi m
