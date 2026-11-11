@@ -89,6 +89,10 @@ PASSO 4 - USARLA
       modalita = gioca        (gioca a caso + clicca sul punto con i dadi)
    oppure
       modalita = solo_click   (clicca solo sul punto con i dadi)
+   oppure
+      modalita = avanti_e_spazio   (tiene sempre premuto W, preme SPAZIO ogni
+                                    0-20 secondi col dado, e clicca sul punto
+                                    con i dadi; clicca_anche = 0 per non cliccare)
    Salva e stacca.
 2. Attaccala alla Play. Dopo 15 secondi parte da sola.
 3. Per fermarla: staccala.
@@ -109,5 +113,5 @@ SE QUALCOSA NON VA
 - Sulla Play la lucina resta accesa fissa e non parte mai:
   in impostazioni.txt metti controllo_pc = 0.
 - La lucina lampeggia veloce: hai scritto male la modalita
-  (deve essere: righello, prova, gioca oppure solo_click).
+  (deve essere: righello, prova, gioca, solo_click oppure avanti_e_spazio).
 - Il cursore non arriva mai nell'angolo: dimmelo, aumento la spinta.

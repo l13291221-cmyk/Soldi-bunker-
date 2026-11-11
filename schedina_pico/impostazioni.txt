@@ -9,6 +9,8 @@
 #   prova      = porta il cursore sul punto ogni 5 secondi, SENZA cliccare: per controllare
 #   gioca      = gioca a caso e in sottofondo i due dadi cliccano sul punto
 #   solo_click = non gioca, clicca solo sul punto con i due dadi
+#   avanti_e_spazio = tiene SEMPRE premuto W, preme SPAZIO ogni 0-20 secondi (col dado)
+#                e in sottofondo i due dadi cliccano sul punto
 modalita = righello
 
 
@@ -34,6 +36,17 @@ attesa_max = 40
 pausa_percentuale = 10
 pausa_min = 120
 pausa_max = 240
+
+
+# ---------- AVANTI E SPAZIO (solo modalita avanti_e_spazio) ----------
+# Tiene sempre premuto questo tasto:
+tasto_tenuto = w
+# e ogni tanto preme quest'altro. Quando: lo decide il dado, tra min e max secondi.
+tasto_ogni_tanto = spazio
+ogni_tanto_min = 0
+ogni_tanto_max = 20
+# 1 = in sottofondo clicca anche sul punto con i due dadi (come solo_click), 0 = non clicca
+clicca_anche = 1
 
 
 # ---------- COME GIOCA (solo modalita gioca) ----------

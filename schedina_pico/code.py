@@ -5,6 +5,8 @@
 #   gioca      = gioca a caso (cammina, gira, spara, salta...) e in sottofondo
 #                i due dadi decidono quando e dove cliccare sul punto
 #   solo_click = clicca solo sul punto, sempre con i due dadi
+#   avanti_e_spazio = tiene SEMPRE premuto W, preme SPAZIO ogni 0-20 secondi
+#                (deciso dal dado) e in sottofondo clicca sul punto con i due dadi
 #   prova      = porta il cursore sul punto ogni 5 secondi SENZA cliccare
 #   righello   = muove il cursore a scatti di 100 passi per trovare i numeri del punto
 #
@@ -62,6 +64,11 @@ PREDEFINITE = {
     "sensibilita": 1.0,
     "attesa_iniziale": 15,
     "controllo_pc": 1,
+    "tasto_tenuto": "w",
+    "tasto_ogni_tanto": "spazio",
+    "ogni_tanto_min": 0.0,
+    "ogni_tanto_max": 20.0,
+    "clicca_anche": 1,
 }
 
 
@@ -97,6 +104,8 @@ def leggi_impostazioni(percorso="impostazioni.txt"):
             imp[chiave] = abs(int(round(numero)))
     if imp["pausa_min"] > imp["pausa_max"]:
         imp["pausa_min"], imp["pausa_max"] = imp["pausa_max"], imp["pausa_min"]
+    if imp["ogni_tanto_min"] > imp["ogni_tanto_max"]:
+        imp["ogni_tanto_min"], imp["ogni_tanto_max"] = imp["ogni_tanto_max"], imp["ogni_tanto_min"]
     return imp
 
 
@@ -348,13 +357,15 @@ def muovi_piano(x, y):
         time.sleep(0.008)
 
 
-def vai_al_punto(dx, dy):
+def vai_al_punto(dx, dy, tieni=None):
     c.rilascia_tutto()
+    if tieni is not None:
+        c.premi(tieni)          # questo tasto resta premuto anche mentre va sul punto
     vai_angolo()
     muovi_piano(max(0, imp["punto_destra"] + dx), max(0, imp["punto_giu"] + dy))
 
 
-def clicca_sul_punto():
+def clicca_sul_punto(tieni=None):
     """Due dadi decidono lo spostamento intorno al punto, poi clicca.
     Si ritira solo se uscirebbe identico al click precedente."""
     global ultimo_spostamento
@@ -367,7 +378,7 @@ def clicca_sul_punto():
             break
     ultimo_spostamento = (dx, dy)
     luce(True)
-    vai_al_punto(dx, dy)
+    vai_al_punto(dx, dy, tieni)
     time.sleep(0.1)
     c.pulsante_sinistro(True)
     time.sleep(0.08)
@@ -493,6 +504,40 @@ def gioca(con_azioni):
             prossimo_click = ora() + nuova_attesa()
 
 
+def attesa_ogni_tanto():
+    """Dado del tasto ogni tanto: da ogni_tanto_min a ogni_tanto_max secondi (in millisecondi)."""
+    minimo = int(imp["ogni_tanto_min"] * 1000)
+    massimo = int(imp["ogni_tanto_max"] * 1000)
+    return minimo + (tira_dado() - 1) * (massimo - minimo + 1) // FACCE
+
+
+def avanti_e_spazio():
+    """Tiene SEMPRE premuto W (anche mentre clicca); ogni 0-20 secondi (dado) preme
+    SPAZIO; in sottofondo clicca sul punto con i due dadi (se clicca_anche = 1).
+    La pausa lunga (1 volta su 10) ferma solo i click: W e SPAZIO continuano."""
+    global prossimo_click
+    tenuto = codice_tasto(imp["tasto_tenuto"])
+    ogni_tanto = codice_tasto(imp["tasto_ogni_tanto"])
+    soglia_pausa = int(imp["pausa_percentuale"] * FACCE // 100)
+    prossimo_click = ora() + nuova_attesa() if imp["clicca_anche"] else None
+    prossimo_tasto = ora() + attesa_ogni_tanto()
+    c.premi(tenuto)
+    while True:
+        try:
+            attendi(max(0, prossimo_tasto - ora()))
+            tocca(ogni_tanto)
+            prossimo_tasto = ora() + attesa_ogni_tanto()
+        except OraDiCliccare:
+            prossimo_click = None
+            clicca_sul_punto(tenuto)
+            prossimo_click = ora() + nuova_attesa()
+            if tira_dado() <= soglia_pausa:
+                # pausa lunga: per 2-4 minuti non clicca (W e SPAZIO continuano)
+                durata = imp["pausa_min"] * 1000 + tira_dado() * (imp["pausa_max"] - imp["pausa_min"]) * 1000 // FACCE
+                prossimo_click += durata
+            c.premi(tenuto)
+
+
 def prova():
     while True:
         vai_al_punto(0, 0)
@@ -566,6 +611,8 @@ def main():
         gioca(False)
     elif modalita == "gioca":
         gioca(True)
+    elif modalita == "avanti_e_spazio":
+        avanti_e_spazio()
     else:
         print("Modalita sconosciuta:", modalita)
         lampeggia_errore()
