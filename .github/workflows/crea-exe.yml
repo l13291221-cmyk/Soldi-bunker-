@@ -1,0 +1,95 @@
+# Crea AutoClicker.exe su un PC Windows di GitHub e la schedina Raspberry Pi Pico
+# per la Play, e li pubblica come download:
+# https://github.com/<proprietario>/<repository>/releases/download/auto-clicker/SchedinaPico.uf2
+#   (UN file: CircuitPython + code.py + impostazioni.txt gia' dentro)
+# https://github.com/<proprietario>/<repository>/releases/download/auto-clicker/SchedinaPico.zip
+# https://github.com/<proprietario>/<repository>/releases/download/auto-clicker/AutoClicker.exe
+name: Crea AutoClicker.exe e SchedinaPico
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - auto_clicker.py
+      - requirements.txt
+      - schedina_pico/**
+      - bot_sparatutto/pico/crea_uf2.py
+      - .github/workflows/crea-exe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crea-exe
+  cancel-in-progress: true
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa le librerie
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Crea AutoClicker.exe
+        run: pyinstaller --onefile --console --name AutoClicker auto_clicker.py
+
+      - name: Controlla che l'exe parta
+        shell: pwsh
+        run: |
+          New-Item vuoto.txt -ItemType File -Force | Out-Null
+          $p = Start-Process -FilePath dist\AutoClicker.exe -PassThru -NoNewWindow `
+                 -RedirectStandardInput vuoto.txt `
+                 -RedirectStandardOutput out.txt -RedirectStandardError err.txt
+          Start-Sleep -Seconds 3
+          if ($p.HasExited) {
+            Get-Content out.txt, err.txt
+            throw "AutoClicker.exe si e' chiuso subito (codice $($p.ExitCode))"
+          }
+          Stop-Process -Id $p.Id -Force
+          Get-Process AutoClicker -ErrorAction SilentlyContinue | Stop-Process -Force
+          Write-Host "OK: l'exe e' partito ed e' nel countdown."
+
+      - name: Prepara SchedinaPico.zip
+        shell: pwsh
+        run: |
+          python -m py_compile schedina_pico/code.py
+          $dir = "SchedinaPico"
+          $file = "$dir/2_file_da_copiare_sulla_schedina"
+          New-Item -ItemType Directory -Force $file | Out-Null
+          $uf2 = "$dir/1_CircuitPython_per_Raspberry_Pi_Pico.uf2"
+          Invoke-WebRequest -Uri "https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2" -OutFile $uf2
+          $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
+          Copy-Item schedina_pico/code.py, schedina_pico/impostazioni.txt $file
+          Copy-Item schedina_pico/GUIDA.txt "$dir/LEGGIMI_GUIDA.txt"
+          # UN solo file con dentro tutto: CircuitPython + code.py + impostazioni.txt + guida
+          python bot_sparatutto/pico/crea_uf2.py --circuitpython $uf2 --uscita SchedinaPico.uf2 `
+            --file "code.py=schedina_pico/code.py" `
+            --file "impostazioni.txt=schedina_pico/impostazioni.txt" `
+            --file "LEGGIMI_GUIDA.txt=schedina_pico/GUIDA.txt"
+          Copy-Item SchedinaPico.uf2 $dir
+          Compress-Archive -Path $dir -DestinationPath SchedinaPico.zip -Force
+          Get-Item SchedinaPico.zip | Select-Object Name, Length
+
+      - name: Pubblica il download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete auto-clicker --cleanup-tag --yes || true
+          gh release create auto-clicker SchedinaPico.uf2 SchedinaPico.zip dist/AutoClicker.exe \
+            --target "$GITHUB_SHA" \
+            --title "Auto-clicker e schedina" \
+            --latest=false \
+            --notes "SchedinaPico.uf2: UN file con dentro tutto per la schedina Raspberry Pi Pico da attaccare alla Play. Tieni premuto BOOTSEL, attaccala al PC e trascina il file sulla chiavetta RPI-RP2; poi premi subito BLOC MAIUSC. La guida e' sulla chiavetta (LEGGIMI_GUIDA.txt).
+          SchedinaPico.zip: gli stessi file separati (CircuitPython, code.py, impostazioni.txt) piu' la guida.
+          AutoClicker.exe: aprilo con doppio click, preme il tasto P con i tempi del dado. Per fermarlo chiudi la finestra nera."

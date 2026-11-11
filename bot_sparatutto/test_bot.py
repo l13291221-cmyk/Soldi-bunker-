@@ -691,6 +691,20 @@ class TestFileUnicoSchedina(unittest.TestCase):
         with self.assertRaises(ValueError):          # un firmware che invade la chiavetta viene rifiutato
             crea_uf2.uf2_con_chiavetta(crea_uf2.scrivi_uf2([(0x10100000, b"\x00" * 256)]), img)
 
+    def test_schedina_della_play(self):
+        """La vecchia schedina (gioca a caso + click col dado) in un solo file: file copiati tali e quali."""
+        sys.path.insert(0, os.path.join(QUI, "pico"))
+        import crea_uf2
+        radice = os.path.dirname(QUI)
+        voci = ["code.py=%s" % os.path.join(radice, "schedina_pico", "code.py"),
+                "impostazioni.txt=%s" % os.path.join(radice, "schedina_pico", "impostazioni.txt")]
+        letti = leggi_fat12(crea_uf2.crea_fat12(crea_uf2.file_da_argomenti(voci)))
+        for nome in ("code.py", "impostazioni.txt"):
+            with open(os.path.join(radice, "schedina_pico", nome), "rb") as f:
+                self.assertEqual(letti[nome], f.read())
+        with self.assertRaises(ValueError):
+            crea_uf2.file_da_argomenti(["senza_uguale"])
+
 
 # ====================================================================== autotest dell'exe
 class TestAutotest(unittest.TestCase):

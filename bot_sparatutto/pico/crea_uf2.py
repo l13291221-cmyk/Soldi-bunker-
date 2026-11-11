@@ -227,15 +227,35 @@ def file_del_bot(versione, url_zip):
     return risultato
 
 
+def file_da_argomenti(voci):
+    """['code.py=schedina_pico/code.py', ...] -> [(nome sulla chiavetta, contenuto)] (file copiati tali e quali)."""
+    risultato = []
+    for voce in voci:
+        nome, sep, percorso = voce.partition("=")
+        if not sep or not nome.strip() or not percorso.strip():
+            raise ValueError("scrivi --file NOME_SULLA_CHIAVETTA=PERCORSO, non '%s'" % voce)
+        with open(percorso.strip(), "rb") as f:
+            risultato.append((nome.strip(), f.read()))
+    return risultato
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--circuitpython", required=True, help="il file .uf2 di CircuitPython per la Raspberry Pi Pico")
     p.add_argument("--uscita", required=True)
     p.add_argument("--versione", default="1")
-    p.add_argument("--url-zip", required=True, help="da dove 'AVVIA IL BOT' scarica il programma per il PC")
+    p.add_argument("--url-zip", help="da dove 'AVVIA IL BOT' scarica il programma per il PC")
+    p.add_argument("--file", action="append", default=[],
+                   help="NOME=PERCORSO: mette sulla chiavetta questi file al posto di quelli del bot (si ripete)")
     p.add_argument("--immagine", help="salva anche l'immagine della chiavetta (per controllarla)")
     a = p.parse_args()
-    immagine = crea_fat12(file_del_bot(a.versione, a.url_zip))
+    if a.file:
+        file = file_da_argomenti(a.file)
+    elif a.url_zip:
+        file = file_del_bot(a.versione, a.url_zip)
+    else:
+        p.error("serve --url-zip (per il bot) oppure almeno un --file")
+    immagine = crea_fat12(file)
     if a.immagine:
         with open(a.immagine, "wb") as f:
             f.write(immagine)
