@@ -78,7 +78,7 @@ jobs:
           $dir = "BotSparatutto"
           New-Item -ItemType Directory -Force $dir, "$dir/immagini", "$dir/modelli", "$dir/Schedina" | Out-Null
           Copy-Item bot_sparatutto/dist/BotSparatutto.exe $dir
-          Copy-Item bot_sparatutto/impostazioni.yaml, bot_sparatutto/istruzioni.txt $dir
+          Copy-Item bot_sparatutto/impostazioni.yaml, bot_sparatutto/istruzioni.txt, bot_sparatutto/obiettivo.txt $dir
           Copy-Item bot_sparatutto/GUIDA.txt "$dir/LEGGIMI_GUIDA.txt"
           Copy-Item bot_sparatutto/immagini/LEGGIMI.txt "$dir/immagini"
           Copy-Item bot_sparatutto/modelli/LEGGIMI.txt, bot_sparatutto/modelli/*.onnx "$dir/modelli"

@@ -352,6 +352,140 @@ class Apprendimento:
             self.log("Ho imparato la forza della mira: %.2f" % self.forza)
 
 
+# ------------------------------------------------------------------ pulsanti dei menu
+def somiglianza(a, b):
+    """Quanto si somigliano due pezzetti di schermo (da -1 a 1)."""
+    if a is None or b is None:
+        return -1.0
+    if a.shape != b.shape:
+        b = cv2.resize(b, (a.shape[1], a.shape[0]), interpolation=cv2.INTER_AREA)
+    ga = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    gb = cv2.cvtColor(b, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    if ga.std() < 2 or gb.std() < 2:          # pezzi tutti di un colore: confronto i colori medi
+        return 1.0 - min(1.0, float(np.abs(a.astype(np.float32).mean((0, 1)) - b.astype(np.float32).mean((0, 1))).max()) / 40.0)
+    return float(cv2.matchTemplate(ga, gb, cv2.TM_CCOEFF_NORMED)[0][0])
+
+
+def somiglianza_spostata(a, b, margine=0.3):
+    """Come somiglianza, ma accetta che uno dei due pezzi sia un po' spostato
+    (hai cliccato lo stesso pulsante in un punto un po' diverso)."""
+    if a is None or b is None:
+        return -1.0
+    if a.shape != b.shape:
+        b = cv2.resize(b, (a.shape[1], a.shape[0]), interpolation=cv2.INTER_AREA)
+    h, w = a.shape[:2]
+    mh, mw = int(h * margine), int(w * margine)
+    ga = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    gb = cv2.cvtColor(b, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    ca, cb = ga[mh:h - mh, mw:w - mw], gb[mh:h - mh, mw:w - mw]
+    if mh < 1 or mw < 1 or ca.std() < 2 or cb.std() < 2:
+        return somiglianza(a, b)
+    return float(max(cv2.matchTemplate(ga, cb, cv2.TM_CCOEFF_NORMED).max(),
+                     cv2.matchTemplate(gb, ca, cv2.TM_CCOEFF_NORMED).max()))
+
+
+class ImparaPulsanti:
+    """Ogni click su un pulsante dei menu: salva il pulsante. Poi il bot lo clicca da solo quando lo vede."""
+
+    def __init__(self, cartella_immagini, larghezza=0.12, altezza=0.06):
+        self.cartella = cartella_immagini
+        self.larghezza = larghezza
+        self.altezza = altezza
+        self.visti = []           # [{"nome", "img", "volte"}]
+
+    def ritaglia(self, img, x, y):
+        if img is None:
+            return None
+        H, W = img.shape[:2]
+        w, h = max(16, int(W * self.larghezza)), max(12, int(H * self.altezza))
+        x1 = int(min(max(0, x - w / 2), W - w))
+        y1 = int(min(max(0, y - h / 2), H - h))
+        return img[y1:y1 + h, x1:x1 + w].copy()
+
+    def _nome_libero(self):
+        usati = {v["nome"] for v in self.visti}
+        for n in range(1, 1000):
+            nome = "pulsante_%d" % n
+            if nome not in usati and not os.path.isfile(os.path.join(self.cartella, nome + ".png")):
+                return nome
+        raise RuntimeError("troppi pulsanti")
+
+    def click(self, img_prima, img_ora, x, y):
+        """img_ora = schermo subito prima del click; img_prima = mezzo secondo/un secondo prima
+        (di solito senza il cursore sopra il pulsante: e' come lo vedra' il bot)."""
+        ora = self.ritaglia(img_ora, x, y)
+        prima = self.ritaglia(img_prima, x, y)
+        pezzo = prima if prima is not None and somiglianza(prima, ora) >= 0.5 else ora
+        if pezzo is None:
+            return None
+        for v in self.visti:
+            if somiglianza_spostata(v["img"], pezzo) >= 0.85:
+                v["volte"] += 1
+                return v
+        v = {"nome": self._nome_libero(), "img": pezzo, "volte": 1}
+        self.visti.append(v)
+        return v
+
+    def salva(self, scelti):
+        os.makedirs(self.cartella, exist_ok=True)
+        nomi = []
+        for v in scelti:
+            ok, dati = cv2.imencode(".png", v["img"])
+            if ok:
+                dati.tofile(os.path.join(self.cartella, v["nome"] + ".png"))
+                nomi.append(v["nome"])
+        return nomi
+
+
+def aggiungi_regole_pulsanti(base, nomi):
+    """Scrive in istruzioni.txt: QUANDO vedi pulsante_N FAI aspetta 1, clicca pulsante_N."""
+    if not nomi:
+        return
+    p = os.path.join(base, "istruzioni.txt")
+    vecchio = ""
+    if os.path.isfile(p):
+        with open(p, "r", encoding="utf-8-sig") as f:
+            vecchio = f.read()
+    righe = ["", "# Imparato guardandoti (%s): quando vede questi pulsanti li clicca da solo" % time.strftime("%d/%m/%Y")]
+    for nome in nomi:
+        regola = "QUANDO vedi %s FAI aspetta 1, clicca %s" % (nome, nome)
+        if regola not in vecchio:
+            righe.append(regola)
+    if len(righe) > 2:
+        with open(p, "a", encoding="utf-8") as f:
+            if vecchio and not vecchio.endswith("\n"):
+                f.write("\n")
+            f.write("\n".join(righe) + "\n")
+
+
+def _chiedi_pulsanti(pulsanti):
+    """Mostra ogni pulsante visto e chiede se cliccarlo da solo. -> lista dei pulsanti scelti."""
+    scelti = []
+    for v in sorted(pulsanti.visti, key=lambda v: -v["volte"]):
+        grande = cv2.resize(v["img"], None, fx=3, fy=3, interpolation=cv2.INTER_NEAREST)
+        tela = np.full((grande.shape[0] + 70, max(grande.shape[1], 640), 3), 30, np.uint8)
+        tela[70:70 + grande.shape[0], :grande.shape[1]] = grande
+        cv2.putText(tela, "Lo clicco da solo quando lo vedo?  S = si   N = no", (10, 28),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(tela, "(l'hai cliccato %d volte)" % v["volte"], (10, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    (200, 200, 200), 1)
+        nome = "Pulsante visto"
+        cv2.imshow(nome, tela)
+        try:
+            cv2.setWindowProperty(nome, cv2.WND_PROP_TOPMOST, 1)
+        except Exception:
+            pass
+        while True:
+            k = cv2.waitKey(100) & 0xFF
+            if k in (ord("s"), ord("S")):
+                scelti.append(v)
+                break
+            if k in (ord("n"), ord("N"), 27):
+                break
+        cv2.destroyWindow(nome)
+    return scelti
+
+
 # ------------------------------------------------------------------ IMPARA GUARDANDO TE
 def _nome_tasto_pynput(k):
     """Da un tasto di pynput al nome usato nelle impostazioni (es. 'e', 'f1', 'spazio')."""
@@ -393,15 +527,23 @@ def impara(base, log=print):
     print("Gioca normalmente. Il bot guarda e impara:")
     print("  - ogni volta che premi '%s' (apri/raccogli) guarda i colori davanti a te" % tasto_apri.upper())
     print("  - quando spari a un nemico guarda dove stai mirando")
+    print("  - quando clicchi un pulsante nei menu (es. 'Gioca ancora') se lo ricorda")
     print("  - salva foto con le etichette per addestrare l'IA del tuo gioco")
-    print("Apri piu' casse che puoi (almeno 8-10)!   F8 = pausa   F9 = ho finito")
+    print("Gioca una partita intera, apri piu' casse che puoi (almeno 8-10) e poi")
+    print("passa alla partita successiva cliccando i pulsanti.   F8 = pausa   F9 = ho finito")
     print("Sto caricando l'occhio universale...")
     occhi = Occhi(cfg, base, log)
     schermo = Schermo(int(sch.get("monitor", 1) or 1), sch.get("zona_cattura"))
     salva_foto = SalvaFoto(os.path.join(base, "foto_per_ia")) if ogni > 0 else None
+    from collections import deque
+
+    from istruzioni import cursore_visibile
     eventi = queue.Queue()
-    stato = {"pausa": False, "fine": False, "sparo": False}
+    stato = {"pausa": False, "fine": False, "sparo": False, "giu": None}
     conteggio = {}
+    pulsanti = ImparaPulsanti(os.path.join(base, "immagini"))
+    foto_recenti = deque()        # (tempo, foto): gli ultimi 2 secondi, una ogni 0.2 s
+    origine = schermo.origine
 
     def premuto(k):
         if k == keyboard.Key.f8:
@@ -417,8 +559,17 @@ def impara(base, log=print):
             eventi.put("apri")
 
     def click(x, y, pulsante, giu):
-        if pulsante == mouse.Button.left:
-            stato["sparo"] = bool(giu)
+        if pulsante != mouse.Button.left:
+            return
+        stato["sparo"] = bool(giu)
+        adesso = time.monotonic()
+        if giu:
+            stato["giu"] = (adesso, x, y, cursore_visibile())
+        elif stato["giu"] is not None:
+            t0, x0, y0, visibile = stato["giu"]
+            stato["giu"] = None
+            if adesso - t0 < 0.6:                      # un click breve, non una raffica
+                eventi.put(("click", t0, x0 - origine[0], y0 - origine[1], visibile))
 
     ascolta_t = keyboard.Listener(on_press=premuto)
     ascolta_m = mouse.Listener(on_click=click)
@@ -439,8 +590,24 @@ def impara(base, log=print):
             img = schermo.foto()
             H, W = img.shape[:2]
             mx, my = mirino_f[0] * W, mirino_f[1] * H
+            adesso = time.monotonic()
+            if not foto_recenti or adesso - foto_recenti[-1][0] >= 0.2:
+                foto_recenti.append((adesso, img))
+                while foto_recenti and adesso - foto_recenti[0][0] > 2.0:
+                    foto_recenti.popleft()
             while not eventi.empty():
-                eventi.get()
+                evento = eventi.get()
+                if evento != "apri":
+                    _, t0, cx, cy, visibile = evento
+                    lontano_dal_mirino = abs(cx - mx) > 0.08 * W or abs(cy - my) > 0.08 * H
+                    nei_menu = visibile if visibile is not None else lontano_dal_mirino
+                    if nei_menu and 0 <= cx < W and 0 <= cy < H:
+                        ora_ = [f for tf, f in foto_recenti if tf <= t0] or [img]
+                        prima_ = [f for tf, f in foto_recenti if tf <= t0 - 0.8]
+                        v = pulsanti.click(prima_[-1] if prima_ else None, ora_[-1], cx, cy)
+                        if v is not None and v["volte"] == 1:
+                            print("  pulsante visto! (%d finora)" % len(pulsanti.visti), flush=True)
+                    continue
                 x1, x2 = int(max(0, mx - 0.12 * W)), int(min(W, mx + 0.12 * W))
                 y1, y2 = int(max(0, my - 0.05 * H)), int(min(H, my + 0.25 * H))
                 hsv = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV).reshape(-1, 3)
@@ -480,11 +647,23 @@ def impara(base, log=print):
         print("Tasti che usi di piu': " + ", ".join("%s (%d)" % kv for kv in piu_usati))
     if len(altezze) >= 8:
         a = float(np.median(altezze))
-        impostazioni.salva_calibrazione(base, ["mira", "altezza_mira_universale"], round(min(0.9, max(0.0, a)), 3))
-        print("Dove miri sui nemici: %.0f%% dall'alto (0%% = testa). Salvato: il bot mirera' come te." % (a * 100))
+        a = min(0.45, max(0.08, a))       # sempre tra testa e petto, anche se tu miri piu' in basso
+        impostazioni.salva_calibrazione(base, ["mira", "altezza_mira_universale"], round(a, 3))
+        print("Dove mirare sui nemici: %.0f%% dall'alto (0%% = testa). Salvato." % (a * 100))
     else:
         print("Dove miri: troppi pochi spari su nemici per impararlo (%d)." % len(altezze))
     _impara_colori(base, campioni)
+    if pulsanti.visti:
+        print("\nHo visto %d pulsanti che hai cliccato: guarda la finestra e rispondi S o N." % len(pulsanti.visti))
+        nomi = pulsanti.salva(_chiedi_pulsanti(pulsanti))
+        aggiungi_regole_pulsanti(base, nomi)
+        if nomi:
+            print("Fatto: quando vedra' %s li clicchera' da solo (scritto in istruzioni.txt)." % ", ".join(nomi))
+    else:
+        print("\nPulsanti: non ne ho visti. Per passare da solo alla partita successiva clicca i pulsanti")
+        print("mentre sei in 'Impara guardando me', oppure salvali col menu 6.")
+    import obiettivo
+    obiettivo.chiedi(base)
 
 
 def trova_colori_ricorrenti(campioni, minimo_volte=3):

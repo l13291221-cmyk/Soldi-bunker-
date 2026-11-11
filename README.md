@@ -72,6 +72,10 @@ e aprire più casse possibili (casse delle armi e casse dei materiali).
   mentre spara impara la forza giusta della mira, e capisce da solo che il tuo personaggio
   non è un nemico. Con *Impara guardando me* impara i colori delle casse guardando te giocare.
 - **Comandi stile Fortnite** (tastiera e mouse) già impostati in `impostazioni.yaml`, modificabili.
+- **Impara guardando te** (menu 4): giochi tu una partita e lui impara i colori delle casse, dove mirare
+  e **i pulsanti da cliccare per passare alla partita successiva**. Non ti copia: poi gioca a modo suo.
+- **L'obiettivo lo scrivi tu** (menu 11 o `obiettivo.txt`), es. *aprire 50 casse a partita*,
+  *aprire più casse possibili*, *eliminare più nemici possibili*, *sopravvivere*.
 - **Le tue istruzioni** in `istruzioni.txt`, es.
   `QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora` (passa da solo alla partita successiva).
 

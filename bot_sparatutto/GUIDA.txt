@@ -80,34 +80,52 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   CONSIGLIATO.
 
 
-B) LE ISTRUZIONI (es. passa alla partita successiva da solo)
---------------------------------------------------------------------
-In istruzioni.txt c'e' gia':
+B) IMPARA GUARDANDO TE (10 minuti, il modo piu' facile)
+--------------------------------------------------------
+Menu 4 (Impara guardando me). Giochi TU una partita intera, normalmente:
+- apri piu' casse che puoi (almeno 8-10, sia delle armi sia dei materiali):
+  ogni volta che premi E il bot guarda cosa c'e' davanti a te;
+- spara ai nemici: guarda dove miri (testa, petto...);
+- alla fine passa alla partita successiva CLICCANDO I PULSANTI col mouse
+  (es. "Gioca ancora", "Pronto"): ogni pulsante che clicchi se lo ricorda.
+Premi F9 quando hai finito. Il bot:
+1. ti mostra i colori che tornano sempre e ti chiede cosa sono
+   (c = casse armi, m = casse materiali, a = armi);
+2. ti mostra uno per uno i pulsanti che hai cliccato: premi S se vuoi che
+   li clicchi da solo quando li vede, N se no (es. NON per "Esci");
+3. ti chiede l'OBIETTIVO (vedi sotto).
+NON ti copia: prende da te solo queste informazioni (colori, pulsanti, dove
+mirare: sempre tra testa e petto), poi gioca a modo suo. Anche se tu sei
+scarso, la sua mira e' la sua.
+
+
+L'OBIETTIVO
+-----------
+Lo scrivi con parole tue (menu 11, oppure nel file obiettivo.txt). Capisce:
+   vincere e aprire piu' casse possibili   -> combatte e apre casse (predefinito)
+   aprire 50 casse a partita               -> prima le casse (combatte solo se lo
+                                              attaccano o un nemico e' vicino),
+                                              arrivato a 50 gioca per vincere
+   aprire piu' casse possibili             -> sempre casse, si difende se serve
+   eliminare piu' nemici possibili         -> cerca i nemici e li insegue
+   sopravvivere                            -> evita i nemici lontani, si cura prima
+Le casse le conta per ogni partita: il conto riparte quando passa alla
+partita successiva.
+
+
+ISTRUZIONI A MANO (facoltativo)
+-------------------------------
+In istruzioni.txt puoi scrivere altre regole, le spiegazioni sono in cima al
+file. Esempio gia' scritto (serve salvare le immagini col menu 6):
    QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora, aspetta 5, conta partita
-Al bot servono le due immagini:
-1. Gioca finche' la squadra muore e compare la scritta (es. "Squadra eliminata").
-2. Menu 6 (Salva un'immagine), nome: squadra_eliminata. Hai 5 secondi per
-   tornare al gioco: fa la foto. Poi trascina un rettangolo intorno alla
-   scritta e premi INVIO.
-3. Di nuovo menu 6, nome: gioca_ancora, e seleziona il pulsante per la
-   partita successiva.
-Puoi scrivere tutte le istruzioni che vuoi: le spiegazioni sono in cima a
-istruzioni.txt.
 
 
-C) INSEGNAGLI LE CASSE (5 minuti)
-----------------------------------------
-Menu 4 (Impara guardando me): giochi TU normalmente e apri piu' casse che puoi
-(almeno 8-10, sia quelle delle armi sia quelle dei materiali). Ogni volta che
-premi E il bot guarda cosa c'e' davanti a te. Premi F9 quando hai finito: ti
-fa vedere i colori che tornano sempre e ti chiede cosa sono
-(c = casse armi, m = casse materiali, a = armi).
-Impara anche DOVE MIRI tu sui nemici, e salva foto per l'IA (parte F).
-
-(In alternativa: menu 5, clicchi tu sul colore delle casse in una foto.)
-Facoltativo: menu 7 per la barra della vita (cosi' sa quando curarsi e quando
-costruire un muro perche' lo colpiscono), menu 5 -> 5 per il colore dei
-compagni di squadra (cosi' non gli spara).
+C) ALTRE COSE FACOLTATIVE
+-------------------------
+- Menu 5: clicchi tu sul colore delle casse in una foto (se il menu 4 non le trova).
+- Menu 7: la barra della vita (cosi' sa quando curarsi e quando costruire un
+  muro perche' lo colpiscono).
+- Menu 5 -> 5: il colore dei compagni di squadra (cosi' non gli spara).
 
 
 D) PROVA E GIOCA

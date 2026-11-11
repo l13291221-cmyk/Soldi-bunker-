@@ -32,10 +32,10 @@ if (-not (Test-Path $Exe) -or $Installata -lt $Versione) {
     Get-Process BotSparatutto -ErrorAction SilentlyContinue | Stop-Process -Force
     New-Item -ItemType Directory -Force -Path $Cartella | Out-Null
     # programma, occhio universale e guida: sempre aggiornati
-    Get-ChildItem $Sorgente | Where-Object { $_.Name -notin @('impostazioni.yaml', 'istruzioni.txt') } |
+    Get-ChildItem $Sorgente | Where-Object { $_.Name -notin @('impostazioni.yaml', 'istruzioni.txt', 'obiettivo.txt') } |
         ForEach-Object { Copy-Item $_.FullName $Cartella -Recurse -Force }
     # le tue impostazioni: solo se non le hai gia'
-    foreach ($f in @('impostazioni.yaml', 'istruzioni.txt')) {
+    foreach ($f in @('impostazioni.yaml', 'istruzioni.txt', 'obiettivo.txt')) {
         if (-not (Test-Path (Join-Path $Cartella $f))) { Copy-Item (Join-Path $Sorgente $f) $Cartella }
     }
     Remove-Item $Zip -Force -ErrorAction SilentlyContinue

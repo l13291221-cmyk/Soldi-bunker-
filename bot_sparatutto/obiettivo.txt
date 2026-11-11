@@ -1,0 +1,3 @@
+# L'OBIETTIVO DEL BOT: scrivilo qui sotto con parole tue, su una riga.
+# Esempi: vincere e aprire piu' casse possibili | aprire 50 casse a partita | aprire piu' casse possibili | eliminare piu' nemici possibili | sopravvivere
+vincere e aprire piu' casse possibili

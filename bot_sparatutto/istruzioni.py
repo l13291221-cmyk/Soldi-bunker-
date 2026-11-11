@@ -336,6 +336,27 @@ def leggi_cursore():
         return None
 
 
+def cursore_visibile():
+    """True/False se il cursore del mouse si vede (solo Windows), None se non si sa.
+    Nei giochi il cursore sparisce mentre giochi e ricompare nei menu."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class CURSORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD),
+                        ("hCursor", wintypes.HANDLE), ("ptScreenPos", wintypes.POINT)]
+        info = CURSORINFO()
+        info.cbSize = ctypes.sizeof(CURSORINFO)
+        if ctypes.windll.user32.GetCursorInfo(ctypes.byref(info)):
+            return bool(info.flags & 1)
+    except Exception:
+        pass
+    return None
+
+
 def finestra_in_primo_piano():
     """Titolo della finestra in primo piano (solo Windows), oppure None."""
     if sys.platform != "win32":
@@ -445,6 +466,7 @@ class Esecutore:
         self.porta_cursore(ox + trovato[0], oy + trovato[1])
         self.dormi(0.08)
         self.mani.premi(pulsante, 0.08)
+        self.statistiche["casse_partita"] = 0      # un menu = la partita e' finita: si ricomincia a contare
         return True
 
     def aspetta_immagine(self, nome, massimo):
@@ -491,6 +513,8 @@ class Esecutore:
             elif tipo == "conta":
                 chiave = {"partita": "partite", "partite": "partite"}.get(v[0], v[0])
                 self.statistiche[chiave] = self.statistiche.get(chiave, 0) + 1
+                if chiave == "partite":
+                    self.statistiche["casse_partita"] = 0
             elif tipo == "rilascia":
                 self.mani.rilascia_tutto()
             elif tipo == "pausa":

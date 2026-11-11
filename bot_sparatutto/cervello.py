@@ -24,6 +24,8 @@ import time
 import cv2
 import numpy as np
 
+from obiettivo import Obiettivo
+
 OBIETTIVO = ("vincere la partita (restare vivo ed eliminare i nemici) e aprire piu' casse possibili "
              "(casse delle armi e casse dei materiali)")
 
@@ -36,8 +38,10 @@ def _cfg(cfg, sezione):
 
 
 class Cervello:
-    def __init__(self, cfg, mani, occhi, esecutore, istruzioni, log=print, apprendimento=None, schermo=None):
+    def __init__(self, cfg, mani, occhi, esecutore, istruzioni, log=print, apprendimento=None, schermo=None,
+                 obiettivo=None):
         self.cfg = cfg
+        self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
         self.mani = mani
         self.occhi = occhi
         self.esecutore = esecutore
@@ -57,7 +61,8 @@ class Cervello:
 
         adesso = time.monotonic()
         self.statistiche = esecutore.statistiche
-        for k in ("casse", "materiali", "armi", "casse_tentate", "partite", "combattimenti", "nemici_colpiti"):
+        for k in ("casse", "materiali", "armi", "casse_tentate", "partite", "combattimenti", "nemici_colpiti",
+                  "casse_partita"):
             self.statistiche.setdefault(k, 0)
         self.stato = {"ultimo_nemico": adesso, "fermo_da": 0.0, "casse": 0}
         self.t_prec = adesso
@@ -75,6 +80,8 @@ class Cervello:
         self.storia_vita = []
         self.prossimo_muro = 0.0
         self.prossima_cura = 0.0
+        self.ultimo_colpo = 0.0           # quando mi hanno colpito l'ultima volta
+        self.avvisato_casse = False
         # raccolta
         self.inseguo_da = None
         self.ignora_raccolta_fino = 0.0
@@ -198,6 +205,13 @@ class Cervello:
         if self.apprendimento is not None and img is not None:
             self.apprendimento.forse_salva_foto(img, vis, t)
 
+        # l'obiettivo decide quali nemici affrontare
+        if self._vita_persa() >= 5:
+            self.ultimo_colpo = t
+        if vis.nemici and self._solo_nemici_vicini() and t - self.ultimo_colpo > 3.0:
+            vicino = float(self.comb.get("nemico_vicino", 0.22)) * vis.altezza
+            vis.oggetti["nemico"] = [b for b in vis.nemici if b.h >= vicino]
+
         # 3. combattimento
         if self.comb.get("attivo", True):
             scritta = self._combatti(vis, t, dt)
@@ -225,6 +239,12 @@ class Cervello:
         scritta = self._esplora(vis, t, dt, img)
         self.mosso_px = (0.0, 0.0)
         return scritta
+
+    def _solo_nemici_vicini(self):
+        """Con l'obiettivo delle casse (o sopravvivere) i nemici lontani si ignorano."""
+        if self.obiettivo.tipo == "sopravvivere":
+            return True
+        return self.obiettivo.pensa_alle_casse(self.statistiche.get("casse_partita", 0))
 
     def _dopo_pausa(self):
         """Dopo un'azione lunga (istruzione, misura): riparto pulito."""
@@ -375,8 +395,11 @@ class Cervello:
             self.sparando_da = None
 
         # movimento: schiva a destra/sinistra, insegui se e' lontano
-        lontano = b.h < float(self.comb.get("distanza_insegui", 0.08)) * vis.altezza
-        avanti = bool(self.comb.get("insegui", True)) and lontano
+        distanza = float(self.comb.get("distanza_insegui", 0.08))
+        if self.obiettivo.tipo == "nemici":
+            distanza = max(distanza, 0.3)
+        lontano = b.h < distanza * vis.altezza
+        avanti = bool(self.comb.get("insegui", True)) and lontano and self.obiettivo.tipo != "sopravvivere"
         sinistra = destra = False
         if self.comb.get("schiva", True):
             if t >= self.prossima_schivata:
@@ -391,6 +414,8 @@ class Cervello:
         # se perdo tanta vita in fretta: muro!
         persa = self._vita_persa()
         soglia = float(self.comb.get("vita_persa_per_costruire", 15) or 0)
+        if self.obiettivo.tipo == "sopravvivere" and soglia > 0:
+            soglia = min(soglia, 10.0)
         if soglia > 0 and persa >= soglia and t >= self.prossimo_muro:
             self.prossimo_muro = t + float(self.comb.get("attesa_tra_muri", 3.0))
             self._cammina()
@@ -413,6 +438,8 @@ class Cervello:
         if vis.vita is None:
             return None
         sotto = float(self.vita_cfg.get("cura_sotto", 0) or 0)
+        if self.obiettivo.tipo == "sopravvivere" and sotto > 0:
+            sotto = max(sotto, 60.0)
         if vis.vita >= sotto or t < self.prossima_cura or t - self.ultimo_visto_nemico < 2.0:
             return None
         self.prossima_cura = t + 10.0
@@ -506,6 +533,13 @@ class Cervello:
         nome = {"cassa": "Cassa armi", "materiali": "Cassa materiali", "arma": "Arma"}[tipo]
         if riuscito:
             self.statistiche[chiave] = self.statistiche.get(chiave, 0) + 1
+            if tipo in ("cassa", "materiali"):
+                self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
+                if self.obiettivo.tipo == "casse_n":
+                    n = self.statistiche["casse_partita"]
+                    self.log("Casse in questa partita: %d/%d" % (n, self.obiettivo.casse))
+                    if n == self.obiettivo.casse:
+                        self.log("Obiettivo raggiunto: %d casse! Ora gioco per vincere." % n)
             self.log("%s presa! (casse armi %d, casse materiali %d, armi %d)" % (
                 nome, self.statistiche.get("casse", 0), self.statistiche.get("materiali", 0),
                 self.statistiche.get("armi", 0)))

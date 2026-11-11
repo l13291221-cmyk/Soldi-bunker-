@@ -478,6 +478,123 @@ class TestCervello(ConCartella):
         self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
 
 
+# ====================================================================== obiettivo e pulsanti imparati
+class TestObiettivo(ConCartella):
+    def test_capisce_le_frasi(self):
+        import obiettivo
+        casi = {
+            "aprire 50 casse a partita": ("casse_n", 50),
+            "Apri 30 casse per partita!": ("casse_n", 30),
+            "aprire più casse possibili": ("casse", 0),
+            "vincere e aprire piu' casse possibili": ("vincere", 0),
+            "eliminare più nemici possibili": ("nemici", 0),
+            "uccidere tutti": ("nemici", 0),
+            "sopravvivere": ("sopravvivere", 0),
+            "vincere": ("vincere", 0),
+            "": ("vincere", 0),
+        }
+        for frase, (tipo, n) in casi.items():
+            ob = obiettivo.capisci(frase)
+            self.assertIsNotNone(ob, frase)
+            self.assertEqual((ob.tipo, ob.casse), (tipo, n), frase)
+        self.assertIsNone(obiettivo.capisci("fai la spesa"))
+
+    def test_file_obiettivo(self):
+        import obiettivo
+        self.assertEqual(obiettivo.leggi(self.base, lambda *_: None).tipo, "vincere")      # manca: predefinito
+        obiettivo.scrivi(self.base, "aprire 7 casse a partita")
+        ob = obiettivo.leggi(self.base)
+        self.assertEqual((ob.tipo, ob.casse), ("casse_n", 7))
+        with open(os.path.join(QUI, "obiettivo.txt"), encoding="utf-8") as f:
+            self.assertIsNotNone(obiettivo.capisci(" ".join(r for r in f if not r.startswith("#"))))
+
+    def _cervello(self, frase, oggetti):
+        import obiettivo
+        impostazioni.salva_calibrazione(self.base, ["mira", "pixel_per_passo"], 0.5)
+        impostazioni.salva_calibrazione(self.base, ["mira", "passi_per_giro"], 4800)
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        cerv.obiettivo = obiettivo.capisci(frase)
+        mondo.oggetti += oggetti
+        return mani, mondo, occhi, cerv
+
+    def test_con_le_casse_ignora_i_nemici_lontani(self):
+        lontano = (100, 160, 10, 25, ROSSO)          # nemico piccolo (lontano) a sinistra
+        cassa = (500, 260, 50, 40, ORO)              # cassa a destra
+        mani, mondo, occhi, cerv = self._cervello("aprire 50 casse a partita", [lontano, cassa])
+        img = mondo.foto()
+        scritta = cerv.passo(occhi.analizza(img), img)
+        self.assertTrue(scritta.startswith("vado verso cassa"), scritta)
+        self.assertGreater(mani.mosso_x, 0)                     # gira verso la cassa, non verso il nemico
+        # arrivato a 50 casse in questa partita: ora combatte
+        cerv.statistiche["casse_partita"] = 50
+        img = mondo.foto()
+        self.assertTrue(cerv.passo(occhi.analizza(img), img).startswith("combatto"))
+
+    def test_nemico_vicino_si_combatte_anche_con_le_casse(self):
+        vicino = (300, 100, 60, 200, ROSSO)
+        mani, mondo, occhi, cerv = self._cervello("aprire piu' casse possibili", [vicino, (500, 260, 50, 40, ORO)])
+        img = mondo.foto()
+        self.assertTrue(cerv.passo(occhi.analizza(img), img).startswith("combatto"))
+
+    def test_obiettivo_nemici_insegue(self):
+        medio = (330, 120, 20, 60, ROSSO)            # nemico a media distanza (alto 1/6 dello schermo)
+        mani, mondo, occhi, cerv = self._cervello("eliminare piu' nemici possibili", [medio])
+        img = mondo.foto()
+        cerv.passo(occhi.analizza(img), img)
+        self.assertTrue(mani.e_premuto("avanti"))
+        mani2, mondo2, occhi2, cerv2 = self._cervello("vincere", [medio])
+        img = mondo2.foto()
+        cerv2.passo(occhi2.analizza(img), img)
+        self.assertFalse(mani2.e_premuto("avanti"))
+
+    def test_le_casse_si_contano_per_partita(self):
+        mani, mondo, occhi, cerv = self._cervello("aprire 50 casse a partita", [])
+        cerv.statistiche["casse_partita"] = 12
+        cerv.esecutore.esegui(leggi_azioni("conta partita", mani.esiste, {}))
+        self.assertEqual(cerv.statistiche["casse_partita"], 0)
+        self.assertEqual(cerv.statistiche["partite"], 1)
+
+
+class TestImparaPulsanti(ConCartella):
+    def test_impara_i_pulsanti_che_clicchi(self):
+        from apprendimento import ImparaPulsanti, aggiungi_regole_pulsanti
+        rng = np.random.default_rng(9)
+        menu = (rng.random((360, 640, 3)) * 60).astype(np.uint8)
+        cv2.rectangle(menu, (260, 280), (380, 310), (40, 160, 40), -1)
+        cv2.putText(menu, "GIOCA", (285, 303), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        con_cursore = menu.copy()
+        cv2.circle(con_cursore, (322, 296), 4, (255, 255, 255), -1)       # il cursore sopra al pulsante
+        p = ImparaPulsanti(os.path.join(self.base, "immagini"))
+        v = p.click(menu, con_cursore, 320, 295)
+        self.assertEqual(v["nome"], "pulsante_1")
+        self.assertIs(p.click(menu, con_cursore, 321, 294), v)               # stesso pulsante: non lo duplica
+        self.assertIs(p.click(menu, con_cursore, 334, 297), v)               # anche cliccato un po' piu' in la'
+        self.assertEqual(v["volte"], 3)
+        cv2.rectangle(menu, (40, 40), (160, 70), (40, 40, 160), -1)
+        cv2.putText(menu, "ESCI", (70, 63), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        altro = p.click(menu, menu, 100, 55)
+        self.assertEqual(altro["nome"], "pulsante_2")                        # un pulsante diverso: nuovo
+        p.visti.remove(altro)
+        nomi = p.salva([v])
+        aggiungi_regole_pulsanti(self.base, nomi)
+        aggiungi_regole_pulsanti(self.base, nomi)                            # la seconda volta non la riscrive
+        with open(os.path.join(self.base, "istruzioni.txt"), encoding="utf-8") as f:
+            testo = f.read()
+        self.assertEqual(testo.count("QUANDO vedi pulsante_1 FAI aspetta 1, clicca pulsante_1"), 1)
+        # e il bot lo trova davvero sullo schermo, e lo clicca
+        cfg = cfg_test()
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg)
+        esec.schermo = SchermoFinto([menu])
+        regole, err = leggi_istruzioni(testo, mani.esiste, esec.macro, occhi.immagini.esiste)
+        self.assertEqual(err, [])
+        cerv.istruzioni = Istruzioni(regole, occhi)
+        cerv.statistiche["casse_partita"] = 9
+        self.assertEqual(cerv.passo(occhi.analizza(menu), menu), "istruzione riga %d" % regole[0].riga)
+        self.assertIn("giu mouse 1", mani.storia)
+        self.assertEqual(cerv.statistiche["casse_partita"], 0)               # menu = nuova partita
+
+
 # ====================================================================== schedina (Pico)
 class FintoSeriale:
     def __init__(self, dati):

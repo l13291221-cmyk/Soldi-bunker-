@@ -11,7 +11,7 @@ Durante il gioco:  F8 = pausa / riprendi    F9 = chiudi il bot
 (i tasti si cambiano in impostazioni.yaml -> tasti_bot)
 
 Per usarlo da riga di comando:  python bot.py avvia | prova | test | impara | colori |
-                                 immagine | vita | zone | mira | giro | --autotest
+                                 immagine | vita | zone | mira | giro | obiettivo | --autotest
 """
 
 import os
@@ -188,8 +188,9 @@ def scrivi_statistiche(statistiche, inizio):
 
 # ------------------------------------------------------------------ il bot
 def avvia(modo=None):
+    import obiettivo as modulo_obiettivo
     from apprendimento import Apprendimento
-    from cervello import OBIETTIVO, Cervello
+    from cervello import Cervello
     from mani import crea_mani
     from occhi import Occhi, Schermo, disegna
 
@@ -208,7 +209,8 @@ def avvia(modo=None):
     if modo == "prova":
         apprendimento.calibra_da_solo = False      # in prova non preme niente: non puo' misurare
     esecutore.passi_per_giro = apprendimento.passi_per_giro
-    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo)
+    obiettivo = modulo_obiettivo.leggi(BASE, log)
+    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo)
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
         log("ATTENZIONE: non ho niente per riconoscere i nemici (occhio universale spento e nessun colore).")
     mostra = bool(sch.get("mostra_finestra", False)) or modo == "prova"
@@ -218,7 +220,8 @@ def avvia(modo=None):
 
     print()
     print("=" * 70)
-    print("  OBIETTIVO: " + OBIETTIVO)
+    print("  OBIETTIVO: " + obiettivo.descrizione())
+    print("  (si cambia dal menu 11 o nel file obiettivo.txt)")
     print("  BOT ATTIVO  -  %s = pausa/riprendi   %s = chiudi" % (str(tb.get("pausa", "f8")).upper(),
                                                                   str(tb.get("esci", "f9")).upper()))
     if apprendimento.calibra_da_solo and not (apprendimento.ppp_noto and apprendimento.giro_noto):
@@ -384,6 +387,7 @@ MENU = [
     ("8", "Zone da ignorare (minimappa, icone...)", "zone"),
     ("9", "Calibra la mira a mano (di solito la impara da solo)", "mira"),
     ("10", "Calibra il giro completo a mano (di solito lo impara da solo)", "giro"),
+    ("11", "Scrivi l'obiettivo (es. aprire 50 casse a partita)", "obiettivo"),
     ("0", "Esci", "esci"),
 ]
 
@@ -396,6 +400,9 @@ def esegui_comando(cmd):
         avvia("prova")
     elif cmd == "test":
         prova_schedina()
+    elif cmd == "obiettivo":
+        import obiettivo
+        obiettivo.chiedi(BASE)
     elif cmd in ("colori", "immagine", "vita", "zone", "mira", "giro", "impara"):
         getattr(calibra, cmd)(BASE, log)
     else:
