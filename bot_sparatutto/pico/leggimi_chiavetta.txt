@@ -1,0 +1,15 @@
+BOT SPARATUTTO - schedina pronta
+================================
+
+Fai doppio click su "AVVIA IL BOT".
+
+- La prima volta scarica il programma per il PC (serve internet, circa 100 MB)
+  e lo mette in Documenti\BotSparatutto, con un collegamento sul desktop.
+- Il programma guarda lo schermo e decide; questa schedina preme i tasti
+  come una tastiera e un mouse veri.
+- Durante il gioco:  F8 = pausa / riprendi    F9 = chiudi
+- Le impostazioni (tasti, istruzioni) sono in Documenti\BotSparatutto.
+  La guida completa: Documenti\BotSparatutto\LEGGIMI_GUIDA.txt
+
+Non cancellare boot.py e code.py: sono il programma della schedina.
+Versione: __VERSIONE__

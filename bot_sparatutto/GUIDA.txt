@@ -32,47 +32,44 @@ COME SI ADATTA AD OGNI GIOCO (da solo)
   gia'. QUANDO CAMBI GIOCO cancella calibrazione.yaml (o usa una copia della
   cartella per ogni gioco).
 
-Cosa c'e' nella cartella:
-- BotSparatutto.exe     -> il programma (doppio click)
+IN 3 PASSI (la prima volta)
+---------------------------
+1. Scarica il file unico per la schedina:
+   https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto_Schedina.uf2
+2. Tieni premuto il pulsantino bianco BOOTSEL sulla schedina, attaccala al PC
+   con il cavo (un cavo che passa i DATI, non solo carica) e lascia il
+   pulsante. Compare una chiavetta RPI-RP2: trascinaci dentro il file.
+   Dopo qualche secondo la chiavetta cambia nome in CIRCUITPY: dentro c'e'
+   gia' tutto (CircuitPython + il programma della schedina).
+3. Nella chiavetta CIRCUITPY fai doppio click su "AVVIA IL BOT".
+   La prima volta scarica da solo il programma per il PC (circa 100 MB)
+   in Documenti\BotSparatutto e mette un collegamento sul desktop
+   ("Bot Sparatutto"). Poi si apre il menu: scegli 1 (Avvia il bot) e hai
+   5 secondi per cliccare sulla finestra del gioco.
+
+Le volte dopo: attacca la schedina e apri "Bot Sparatutto" dal desktop
+(oppure "AVVIA IL BOT" dalla chiavetta).
+
+Se Windows dice "Windows ha protetto il PC": Ulteriori informazioni ->
+Esegui comunque (succede ai programmi senza firma a pagamento).
+
+La lucina verde sulla schedina:  spenta = aspetta il programma sul PC
+                                 accesa = collegata al programma
+Sicurezza: se chiudi il programma o stacchi il cavo, la schedina rilascia da
+sola tutti i tasti entro 1 secondo.
+
+Cosa c'e' in Documenti\BotSparatutto:
+- BotSparatutto.exe     -> il programma (si apre anche dal desktop)
 - impostazioni.yaml     -> tasti e regolazioni (si apre con Blocco note)
 - istruzioni.txt        -> le TUE istruzioni (es. "quando muore la squadra
                            passa alla partita successiva")
 - immagini/             -> pulsanti e scritte da riconoscere
 - modelli/              -> l'occhio universale (e la tua IA, se la crei)
-- Schedina/             -> tutto per preparare la Raspberry Pi Pico
+- Schedina/             -> il file unico per la schedina (per rimetterlo)
+- LEGGIMI_GUIDA.txt     -> questa guida
 
 
-PASSO 1 - PREPARARE LA SCHEDINA (una volta sola)
-------------------------------------------------
-1. Tieni premuto il pulsantino bianco BOOTSEL sulla schedina.
-2. Tenendolo premuto, collega la schedina al PC con un cavo micro-USB che
-   passa i DATI (alcuni cavi caricano soltanto). Poi lascia il pulsante.
-3. Sul PC compare una chiavetta chiamata RPI-RP2.
-4. Trascina dentro RPI-RP2 il file
-      Schedina/1_CircuitPython_per_Raspberry_Pi_Pico.uf2
-5. Dopo qualche secondo compare una nuova chiavetta: CIRCUITPY.
-6. Copia dentro CIRCUITPY i due file della cartella
-      Schedina/2_file_da_copiare_sulla_schedina   (boot.py e code.py)
-   Se chiede di sostituire: SI'. (Se c'era la vecchia schedina "gioca a caso",
-   viene sostituita da questa.)
-7. STACCA e RIATTACCA la schedina (boot.py vale solo dopo averla riattaccata).
-
-La lucina verde:  spenta = aspetta il programma   accesa = collegata al programma
-                  lampeggia veloce = manca boot.py o non l'hai riattaccata
-
-Sicurezza: se chiudi il programma o stacchi il cavo, la schedina rilascia da
-sola tutti i tasti entro 1 secondo.
-
-
-PASSO 2 - PROVA LA SCHEDINA
----------------------------
-1. Doppio click su BotSparatutto.exe.
-   (Se Windows dice "Windows ha protetto il PC": Ulteriori informazioni ->
-   Esegui comunque. Succede con tutti i programmi senza firma a pagamento.)
-2. Scegli 3 (Prova la schedina): il mouse deve fare un quadrato.
-
-
-PASSO 3 - LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
+A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
 ---------------------------------------------------------------
 - Sezione "COMANDI DEL GIOCO - STILE FORTNITE": ci sono gia' i tasti di
   Fortnite per tastiera e mouse (muro F1, pavimento F2, scale F3, tetto F4,
@@ -83,7 +80,7 @@ PASSO 3 - LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   CONSIGLIATO.
 
 
-PASSO 4 - LE ISTRUZIONI (es. passa alla partita successiva da solo)
+B) LE ISTRUZIONI (es. passa alla partita successiva da solo)
 --------------------------------------------------------------------
 In istruzioni.txt c'e' gia':
    QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora, aspetta 5, conta partita
@@ -98,14 +95,14 @@ Puoi scrivere tutte le istruzioni che vuoi: le spiegazioni sono in cima a
 istruzioni.txt.
 
 
-PASSO 5 - INSEGNAGLI LE CASSE (5 minuti)
+C) INSEGNAGLI LE CASSE (5 minuti)
 ----------------------------------------
 Menu 4 (Impara guardando me): giochi TU normalmente e apri piu' casse che puoi
 (almeno 8-10, sia quelle delle armi sia quelle dei materiali). Ogni volta che
 premi E il bot guarda cosa c'e' davanti a te. Premi F9 quando hai finito: ti
 fa vedere i colori che tornano sempre e ti chiede cosa sono
 (c = casse armi, m = casse materiali, a = armi).
-Impara anche DOVE MIRI tu sui nemici, e salva foto per l'IA (passo 8).
+Impara anche DOVE MIRI tu sui nemici, e salva foto per l'IA (parte F).
 
 (In alternativa: menu 5, clicchi tu sul colore delle casse in una foto.)
 Facoltativo: menu 7 per la barra della vita (cosi' sa quando curarsi e quando
@@ -113,7 +110,7 @@ costruire un muro perche' lo colpiscono), menu 5 -> 5 per il colore dei
 compagni di squadra (cosi' non gli spara).
 
 
-PASSO 6 - PROVA E GIOCA
+D) PROVA E GIOCA
 -----------------------
 1. Menu 2 (Prova): non preme niente, ma ti apre una finestra con quello che
    vede (rosso = nemici, giallo = casse armi, verde = casse materiali,
@@ -126,13 +123,14 @@ PASSO 6 - PROVA E GIOCA
    statistiche.txt.
 
 
-PASSO 7 - SE QUALCOSA NON VA
+E) SE QUALCOSA NON VA
 ----------------------------
-- "Schedina non trovata": controlla boot.py e code.py su CIRCUITPY, stacca e
-  riattacca. Oppure in impostazioni.yaml scrivi la porta (es. porta: COM5).
+- "Schedina non trovata": stacca e riattacca la schedina. Se non basta,
+  rimetti il file unico (passo 2 dei "3 PASSI"). Oppure in impostazioni.yaml
+  scrivi la porta (es. porta: COM5).
 - Non vede i nemici: abbassa rilevatore_universale -> confidenza (es. 0.35).
   Se il gioco ha personaggi strani (robot, mostri) serve l'IA del tuo gioco
-  (passo 8) oppure il colore dei nemici (menu 5 -> 4).
+  (parte F) oppure il colore dei nemici (menu 5 -> 4).
 - Mira il tuo personaggio: di solito lo capisce da solo in pochi secondi.
   Se no, menu 8 (zone da ignorare) e selezionalo.
 - Mira troppo forte/piano: e' raro perche' la impara da solo; puoi cambiare
@@ -145,7 +143,7 @@ PASSO 7 - SE QUALCOSA NON VA
   leggere l'errore, e mandamelo.
 
 
-PASSO 8 - DIVENTARE FORTISSIMO: L'IA DEL TUO GIOCO (facoltativo)
+F) DIVENTARE FORTISSIMO: L'IA DEL TUO GIOCO (facoltativo)
 -----------------------------------------------------------------
 L'occhio universale riconosce i personaggi, ma un'IA addestrata sulle foto
 del TUO gioco riconosce molto meglio nemici, casse, casse dei materiali e armi.

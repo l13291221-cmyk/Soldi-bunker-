@@ -9,5 +9,5 @@ yolox_tiny.onnx / yolox_nano.onnx = l'OCCHIO UNIVERSALE.
 
 best.onnx (se lo crei tu) = l'IA del TUO gioco: riconosce nemici, casse,
   casse dei materiali e armi di quel gioco preciso. E' la cosa che lo rende
-  piu' forte di tutto. Come si fa: GUIDA.txt, parte "DIVENTARE FORTISSIMO".
+  piu' forte di tutto. Come si fa: LEGGIMI_GUIDA.txt, parte F "DIVENTARE FORTISSIMO".
   Poi in impostazioni.yaml:  modello_ia -> file: modelli/best.onnx

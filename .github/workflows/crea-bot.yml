@@ -1,6 +1,7 @@
-# Crea BotSparatutto.exe su un PC Windows di GitHub, lo prova, e pubblica
-# BotSparatutto.zip (programma + impostazioni + occhio universale + file per la schedina):
-# https://github.com/<proprietario>/<repository>/releases/download/bot-sparatutto/BotSparatutto.zip
+# Crea su un PC Windows di GitHub, prova e pubblica:
+#  - BotSparatutto_Schedina.uf2 : UN file per la Raspberry Pi Pico (CircuitPython + bot gia' dentro)
+#  - BotSparatutto.zip          : il programma per il PC (lo scarica da solo "AVVIA IL BOT")
+# https://github.com/<proprietario>/<repository>/releases/download/bot-sparatutto/BotSparatutto_Schedina.uf2
 name: Crea BotSparatutto.zip
 
 on:
@@ -59,38 +60,45 @@ jobs:
           --hidden-import pynput._util.win32
           bot.py
 
-      - name: Prepara la cartella e controlla che l'exe funzioni
+      - name: Crea il file unico per la schedina (CircuitPython + bot gia' dentro)
+        shell: pwsh
+        run: |
+          $uf2 = "circuitpython.uf2"
+          Invoke-WebRequest -Uri "https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2" -OutFile $uf2
+          $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
+          python bot_sparatutto/pico/crea_uf2.py --circuitpython $uf2 --uscita BotSparatutto_Schedina.uf2 `
+            --versione "${{ github.run_number }}" `
+            --url-zip "https://github.com/${{ github.repository }}/releases/download/bot-sparatutto/BotSparatutto.zip"
+
+      - name: Prepara BotSparatutto.zip e controlla che l'exe funzioni
         shell: pwsh
         run: |
           python -m py_compile bot_sparatutto/pico/code.py bot_sparatutto/pico/boot.py
           $dir = "BotSparatutto"
-          $schedina = "$dir/Schedina/2_file_da_copiare_sulla_schedina"
-          New-Item -ItemType Directory -Force $dir, "$dir/immagini", "$dir/modelli", $schedina | Out-Null
+          New-Item -ItemType Directory -Force $dir, "$dir/immagini", "$dir/modelli", "$dir/Schedina" | Out-Null
           Copy-Item bot_sparatutto/dist/BotSparatutto.exe $dir
           Copy-Item bot_sparatutto/impostazioni.yaml, bot_sparatutto/istruzioni.txt $dir
           Copy-Item bot_sparatutto/GUIDA.txt "$dir/LEGGIMI_GUIDA.txt"
           Copy-Item bot_sparatutto/immagini/LEGGIMI.txt "$dir/immagini"
           Copy-Item bot_sparatutto/modelli/LEGGIMI.txt, bot_sparatutto/modelli/*.onnx "$dir/modelli"
-          Copy-Item bot_sparatutto/pico/boot.py, bot_sparatutto/pico/code.py $schedina
-          $uf2 = "$dir/Schedina/1_CircuitPython_per_Raspberry_Pi_Pico.uf2"
-          Invoke-WebRequest -Uri "https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2" -OutFile $uf2
-          $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
+          Copy-Item BotSparatutto_Schedina.uf2 "$dir/Schedina"
+          Set-Content -Path "$dir/versione.txt" -Value "${{ github.run_number }}" -NoNewline
           & "$dir/BotSparatutto.exe" --autotest
           if ($LASTEXITCODE -ne 0) { throw "BotSparatutto.exe --autotest e' fallito" }
           Remove-Item "$dir/statistiche.txt", "$dir/calibrazione.yaml" -ErrorAction SilentlyContinue
           Compress-Archive -Path $dir -DestinationPath BotSparatutto.zip -Force
-          Get-Item BotSparatutto.zip | Select-Object Name, Length
+          Get-Item BotSparatutto.zip, BotSparatutto_Schedina.uf2 | Select-Object Name, Length
 
-      - name: Pubblica il download
+      - name: Pubblica i download
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete bot-sparatutto --cleanup-tag --yes || true
-          gh release create bot-sparatutto BotSparatutto.zip \
+          gh release create bot-sparatutto BotSparatutto_Schedina.uf2 BotSparatutto.zip \
             --target "$GITHUB_SHA" \
             --title "Bot sparatutto" \
-            --latest=false \
-            --notes "BotSparatutto.zip: estrai la cartella, apri LEGGIMI_GUIDA.txt e poi BotSparatutto.exe con doppio click.
-          Dentro ci sono anche i file per la schedina Raspberry Pi Pico (cartella Schedina)."
+            --latest \
+            --notes "BotSparatutto_Schedina.uf2: tieni premuto BOOTSEL, attacca la Raspberry Pi Pico al PC e trascina questo file sulla chiavetta RPI-RP2. Poi sulla chiavetta CIRCUITPY fai doppio click su AVVIA IL BOT.
+          BotSparatutto.zip: il programma per il PC (lo scarica da solo AVVIA IL BOT, non serve scaricarlo a mano)."

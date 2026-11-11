@@ -613,6 +613,85 @@ class TestSchedinaSeriale(unittest.TestCase):
         self.assertEqual(comandi, ["KD 58", "KU 58", "M 10 -3", "R"])
 
 
+# ====================================================================== file unico per la schedina
+def leggi_fat12(img):
+    """Lettore FAT12 indipendente (per controllare la chiavetta creata): -> {nome lungo: contenuto}."""
+    import struct
+    bps, spc, ris, nfat, nroot, tot, _, fatsz = struct.unpack_from("<HBHBHHBH", img, 11)
+    assert img[510:512] == b"\x55\xAA" and bps == 512 and spc == 1
+    fat = img[ris * bps:(ris + fatsz) * bps]
+    root_inizio = (ris + nfat * fatsz) * bps
+    dati_inizio = root_inizio + nroot * 32
+
+    def prossimo(c):
+        o = c + c // 2
+        v = fat[o] | (fat[o + 1] << 8)
+        return (v >> 4) if c % 2 else (v & 0xFFF)
+    file, lfn = {}, []
+    for i in range(nroot):
+        e = img[root_inizio + i * 32:root_inizio + (i + 1) * 32]
+        if e[0] == 0:
+            break
+        if e[11] == 0x0F:
+            pezzo = e[1:11] + e[14:26] + e[28:32]
+            lfn.insert(0, pezzo.decode("utf-16-le").split("\x00")[0].replace("￿", ""))
+            continue
+        if e[11] & 0x08:
+            lfn = []
+            continue
+        base, est = e[0:8].decode().rstrip(), e[8:11].decode().rstrip()
+        if e[12] & 0x08:
+            base = base.lower()
+        if e[12] & 0x10:
+            est = est.lower()
+        nome = "".join(lfn) or (base + ("." + est if est else ""))
+        lfn = []
+        primo, dim = struct.unpack_from("<HI", e, 26)
+        dati, c = b"", primo
+        while dim and 2 <= c < 0xFF8:
+            dati += img[dati_inizio + (c - 2) * bps:dati_inizio + (c - 1) * bps]
+            c = prossimo(c)
+        file[nome] = dati[:dim]
+    return file
+
+
+class TestFileUnicoSchedina(unittest.TestCase):
+    def test_chiavetta_e_uf2(self):
+        sys.path.insert(0, os.path.join(QUI, "pico"))
+        import crea_uf2
+        file = crea_uf2.file_del_bot(42, "https://esempio/BotSparatutto.zip")
+        nomi = [n for n, _ in file]
+        self.assertEqual(nomi, ["AVVIA IL BOT.cmd", "LEGGIMI.txt", "boot.py", "code.py", "installa.ps1"])
+        img = crea_uf2.crea_fat12(file + [("un nome lungo esattamente13.x", b"y" * 1500)])
+        self.assertEqual(len(img), 2048 * 512)
+        letti = leggi_fat12(img)
+        for nome, contenuto in file:
+            self.assertEqual(letti[nome], contenuto)
+        self.assertEqual(letti["un nome lungo esattamente13.x"], b"y" * 1500)
+        with open(os.path.join(QUI, "pico", "code.py"), "rb") as f:
+            self.assertEqual(letti["code.py"], f.read())
+        self.assertIn(b"$Versione = 42", letti["installa.ps1"])
+        self.assertIn(b"https://esempio/BotSparatutto.zip", letti["installa.ps1"])
+        self.assertIn(b"\r\n", letti["AVVIA IL BOT.cmd"])
+
+        # UF2: CircuitPython finto (2 blocchi) + chiavetta a 0x10100000
+        finto = crea_uf2.scrivi_uf2([(0x10000000, b"\x01" * 256), (0x10000100, b"\x02" * 256)])
+        uf2 = crea_uf2.uf2_con_chiavetta(finto, img)
+        blocchi = crea_uf2.leggi_uf2(uf2)
+        self.assertEqual(len(blocchi), 2 + 4096)
+        self.assertEqual(len(uf2), 512 * len(blocchi))
+        self.assertEqual(blocchi[2][0], 0x10100000)
+        self.assertEqual(blocchi[-1][0], 0x10100000 + 1024 * 1024 - 256)
+        ricostruita = b"".join(c for a, c in blocchi[2:])
+        self.assertEqual(ricostruita, img)
+        import struct
+        numeri = [struct.unpack_from("<II", uf2, i * 512 + 20) for i in range(len(blocchi))]
+        self.assertEqual(numeri[0], (0, len(blocchi)))
+        self.assertEqual(numeri[-1], (len(blocchi) - 1, len(blocchi)))
+        with self.assertRaises(ValueError):          # un firmware che invade la chiavetta viene rifiutato
+            crea_uf2.uf2_con_chiavetta(crea_uf2.scrivi_uf2([(0x10100000, b"\x00" * 256)]), img)
+
+
 # ====================================================================== autotest dell'exe
 class TestAutotest(unittest.TestCase):
     def test_autotest(self):

@@ -99,7 +99,7 @@ class SalvaFoto:
         dataset = os.path.join(cartella, "dataset.yaml")
         if not os.path.isfile(dataset):
             with open(dataset, "w", encoding="utf-8") as f:
-                f.write("# Dataset per addestrare l'IA del tuo gioco (vedi GUIDA.txt, parte IA)\n")
+                f.write("# Dataset per addestrare l'IA del tuo gioco (vedi LEGGIMI_GUIDA.txt, parte F)\n")
                 f.write("train: images\nval: images\nnames:\n")
                 for i, n in enumerate(CLASSI_DATASET):
                     f.write("  %d: %s\n" % (i, n))
