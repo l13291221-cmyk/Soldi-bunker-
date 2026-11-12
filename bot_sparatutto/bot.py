@@ -189,6 +189,7 @@ def scrivi_statistiche(statistiche, inizio):
 # ------------------------------------------------------------------ il bot
 def avvia(modo=None):
     import obiettivo as modulo_obiettivo
+    from allenamento import Allenamento
     from apprendimento import Apprendimento
     from cervello import Cervello
     from mani import crea_mani
@@ -207,9 +208,16 @@ def avvia(modo=None):
     esecutore, istruzioni = prepara(cfg, mani, occhi, schermo, controllo, statistiche)
     apprendimento = Apprendimento(cfg, BASE, occhi, log)
     if modo == "prova":
-        apprendimento.calibra_da_solo = False      # in prova non preme niente: non puo' misurare
+        # in prova non preme niente: la visuale non si muove, quindi non deve imparare niente
+        apprendimento.calibra_da_solo = False
+        apprendimento.mira_adattiva = False
+        apprendimento.impara_attaccati = False
     esecutore.passi_per_giro = apprendimento.passi_per_giro
     obiettivo = modulo_obiettivo.leggi(BASE, log)
+    allenamento = Allenamento(cfg, BASE, statistiche, log)
+    if modo == "prova":
+        allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni
+    esecutore.su_fine_partita = allenamento.fine_partita
     cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo)
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
         log("ATTENZIONE: non ho niente per riconoscere i nemici (occhio universale spento e nessun colore).")
@@ -222,6 +230,8 @@ def avvia(modo=None):
     print("=" * 70)
     print("  OBIETTIVO: " + obiettivo.descrizione())
     print("  (si cambia dal menu 11 o nel file obiettivo.txt)")
+    if allenamento.attivo:
+        print("  ALLENAMENTO: dopo ogni partita scrive il riepilogo in allenamento.txt e migliora")
     print("  BOT ATTIVO  -  %s = pausa/riprendi   %s = chiudi" % (str(tb.get("pausa", "f8")).upper(),
                                                                   str(tb.get("esci", "f9")).upper()))
     if apprendimento.calibra_da_solo and not (apprendimento.ppp_noto and apprendimento.giro_noto):
@@ -235,6 +245,7 @@ def avvia(modo=None):
     prossime_stat = inizio + 60
     fermo_prima = False
     scritta_prec = ""
+    t_fotogramma = time.monotonic()
     try:
         while not controllo.uscita:
             t0 = time.monotonic()
@@ -257,6 +268,9 @@ def avvia(modo=None):
             if scritta != scritta_prec and scritta and not scritta.startswith(("combatto", "vado verso", "esploro")):
                 log(scritta)
             scritta_prec = scritta
+            adesso = time.monotonic()
+            allenamento.conta_tempo(scritta, adesso - t_fotogramma)
+            t_fotogramma = adesso
             if mostra:
                 try:
                     import cv2
@@ -286,6 +300,10 @@ def avvia(modo=None):
             pass
         try:
             apprendimento.salva(forzato=True)
+        except Exception:
+            pass
+        try:
+            allenamento.fine_partita("interrotta")
         except Exception:
             pass
         controllo.ferma_tasti()

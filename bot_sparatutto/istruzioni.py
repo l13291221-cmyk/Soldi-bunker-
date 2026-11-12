@@ -388,6 +388,15 @@ class Esecutore:
         self.passi_per_giro = float(mira.get("passi_per_giro", 3600) or 3600)
         menu = cfg.get("menu", {}) or {}
         self.passi_per_pixel_menu = float(menu.get("passi_per_pixel", 1.0) or 1.0)
+        self.su_fine_partita = None       # chiamata quando la partita finisce (allenamento.py)
+
+    def _fine_partita(self):
+        self.statistiche["casse_partita"] = 0
+        if self.su_fine_partita is not None:
+            try:
+                self.su_fine_partita()
+            except Exception as e:
+                self.log("   (riepilogo partita non riuscito: %s)" % e)
 
     # ---- attese che si possono interrompere ----
     def dormi(self, secondi):
@@ -466,7 +475,7 @@ class Esecutore:
         self.porta_cursore(ox + trovato[0], oy + trovato[1])
         self.dormi(0.08)
         self.mani.premi(pulsante, 0.08)
-        self.statistiche["casse_partita"] = 0      # un menu = la partita e' finita: si ricomincia a contare
+        self._fine_partita()      # un pulsante nei menu = la partita e' finita: si ricomincia a contare
         return True
 
     def aspetta_immagine(self, nome, massimo):
@@ -514,7 +523,7 @@ class Esecutore:
                 chiave = {"partita": "partite", "partite": "partite"}.get(v[0], v[0])
                 self.statistiche[chiave] = self.statistiche.get(chiave, 0) + 1
                 if chiave == "partite":
-                    self.statistiche["casse_partita"] = 0
+                    self._fine_partita()
             elif tipo == "rilascia":
                 self.mani.rilascia_tutto()
             elif tipo == "pausa":

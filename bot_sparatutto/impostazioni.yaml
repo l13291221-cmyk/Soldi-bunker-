@@ -114,9 +114,13 @@ apprendimento:
   calibra_da_solo: true          # a inizio partita impara sensibilita' del mouse e giro completo
   mira_adattiva: true            # impara la forza giusta della mira mentre spara
   impara_cose_attaccate: true    # capisce da solo che il TUO personaggio non e' un nemico
-  # Ogni quanti secondi salva una foto etichettata mentre gioca (0 = mai).
-  # Servono per addestrare l'IA del tuo gioco (vedi GUIDA.txt): con 5 si raccolgono in fretta.
-  salva_foto_ogni: 0
+  # ALLENAMENTO: dopo ogni partita scrive il riepilogo in allenamento.txt e aggiusta
+  # da solo le sue regolazioni per la partita dopo (false = non cambia niente).
+  allenamento: true
+  # Ogni quanti secondi salva una foto etichettata mentre gioca (0 = mai), nella
+  # cartella foto_per_ia. Servono per addestrare l'IA del tuo gioco (guida, parte F).
+  salva_foto_ogni: 5
+  foto_massime: 3000             # arrivato qui smette (circa 400 MB). 0 = senza limite
   foto_in_impara_ogni: 2         # lo stesso, nel menu "Impara guardando me"
 
 

@@ -113,6 +113,23 @@ Le casse le conta per ogni partita: il conto riparte quando passa alla
 partita successiva.
 
 
+L'ALLENAMENTO (ogni partita lo rende piu' bravo)
+-----------------------------------------------
+Alla fine di ogni partita (quando passa alla successiva) scrive un riepilogo
+in allenamento.txt: casse aperte, casse che non si aprivano, armi,
+combattimenti, quante volte e' rimasto bloccato, quanto tempo ha esplorato.
+Poi aggiusta DA SOLO le sue regolazioni per la partita dopo, ad esempio:
+- tante casse non si aprivano  -> si avvicina di piu' e tiene premuto di piu'
+- si aprivano tutte            -> prova ad aprirle da un po' piu' lontano
+- casse irraggiungibili        -> perde meno tempo prima di lasciar perdere
+- spesso bloccato              -> se ne accorge prima
+- tanto tempo senza casse      -> si guarda intorno piu' spesso
+Non esagera mai (ogni regolazione ha dei limiti). Mentre gioca regola anche la
+forza della mira e salva una foto ogni 5 secondi in foto_per_ia (fino a 3000):
+con quelle puoi addestrare l'IA del tuo gioco (parte F), il salto piu' grande.
+Per farlo ricominciare da zero: cancella calibrazione.yaml.
+
+
 ISTRUZIONI A MANO (facoltativo)
 -------------------------------
 In istruzioni.txt puoi scrivere altre regole, le spiegazioni sono in cima al
@@ -165,9 +182,8 @@ F) DIVENTARE FORTISSIMO: L'IA DEL TUO GIOCO (facoltativo)
 -----------------------------------------------------------------
 L'occhio universale riconosce i personaggi, ma un'IA addestrata sulle foto
 del TUO gioco riconosce molto meglio nemici, casse, casse dei materiali e armi.
-1. Raccogli le foto: il menu 4 le salva da solo (una ogni 2 secondi), oppure
-   in impostazioni.yaml metti apprendimento -> salva_foto_ogni: 5 e lascia
-   giocare il bot. Finiscono nella cartella foto_per_ia, GIA' CON LE
+1. Raccogli le foto: le salva gia' da solo mentre gioca (una ogni 5 secondi)
+   e anche nel menu 4 (una ogni 2 secondi). Finiscono nella cartella foto_per_ia, GIA' CON LE
    ETICHETTE (scritte dal bot: non sono perfette).
    Ne servono almeno 300-500.
 2. Correggi le etichette (consigliato): carica la cartella su roboflow.com

@@ -112,7 +112,8 @@ PREDEFINITE = {
     "rilevatore_universale": {"attivo": True, "file": "auto", "confidenza": 0.45, "tempo_massimo": 0.035,
                               "usa_gpu": False, "scarica_se_manca": True},
     "apprendimento": {"attivo": True, "calibra_da_solo": True, "mira_adattiva": True,
-                      "impara_cose_attaccate": True, "salva_foto_ogni": 0, "foto_in_impara_ogni": 2.0},
+                      "impara_cose_attaccate": True, "allenamento": True,
+                      "salva_foto_ogni": 5, "foto_massime": 3000, "foto_in_impara_ogni": 2.0},
     "regole": {"attesa_tra_ripetizioni": 3.0, "controlla_ogni": 0.2},
     "menu": {"passi_per_pixel": 1.0},
     "macro": {

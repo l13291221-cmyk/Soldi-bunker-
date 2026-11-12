@@ -595,6 +595,104 @@ class TestImparaPulsanti(ConCartella):
         self.assertEqual(cerv.statistiche["casse_partita"], 0)               # menu = nuova partita
 
 
+# ====================================================================== allenamento
+class TestAllenamento(ConCartella):
+    def _allenamento(self):
+        from allenamento import Allenamento
+        cfg = cfg_test()
+        stat = {}
+        return cfg, stat, Allenamento(cfg, self.base, stat, lambda *_: None)
+
+    def test_partita_troppo_corta_non_conta(self):
+        cfg, stat, al = self._allenamento()
+        self.assertIsNone(al.fine_partita(adesso=al.inizio + 10))
+        self.assertFalse(os.path.isfile(os.path.join(self.base, "allenamento.txt")))
+
+    def test_casse_che_non_si_aprono(self):
+        cfg, stat, al = self._allenamento()
+        prima = cfg["raccolta"]["vicino_altezza"]
+        stat.update(casse=3, casse_tentate=6, casse_fallite=3, bloccato=5, lasciate_perdere=4)
+        al.conta_tempo("esploro", 2.0)
+        riga = al.fine_partita(adesso=al.inizio + 300)
+        self.assertIn("casse armi 3", riga)
+        self.assertIn("non aperte 3", riga)
+        self.assertIn("si avvicina di piu'", riga)
+        self.assertIn("perde meno tempo con le casse irraggiungibili", riga)
+        self.assertIn("si accorge prima quando e' bloccato", riga)
+        self.assertGreater(cfg["raccolta"]["vicino_altezza"], prima)
+        self.assertLess(cfg["raccolta"]["tempo_massimo_avvicinamento"], 10.0)
+        self.assertGreater(cfg["esplorazione"]["sensibilita_blocco"], 2.5)
+        cal = impostazioni.leggi_calibrazione(self.base)              # salvato per la volta dopo
+        self.assertEqual(cal["raccolta"]["vicino_altezza"], cfg["raccolta"]["vicino_altezza"])
+        with open(os.path.join(self.base, "allenamento.txt"), encoding="utf-8") as f:
+            self.assertIn("partita 1", f.read())
+        # la partita dopo conta solo le sue casse
+        stat.update(casse=5, casse_tentate=8, casse_fallite=3)
+        riga = al.fine_partita(adesso=al.inizio + 200)
+        self.assertIn("partita 2", riga)
+        self.assertIn("casse armi 2", riga)
+
+    def test_non_esagera_mai(self):
+        cfg, stat, al = self._allenamento()
+        t = al.inizio
+        for i in range(60):
+            stat["casse_tentate"] = stat.get("casse_tentate", 0) + 10
+            stat["casse_fallite"] = stat.get("casse_fallite", 0) + 10
+            t += 120
+            al.fine_partita(adesso=t)
+        self.assertLessEqual(cfg["raccolta"]["vicino_altezza"], 0.35)
+        self.assertLessEqual(cfg["raccolta"]["tempo_apertura_cassa"], 3.0)
+        for i in range(200):
+            stat["casse_tentate"] += 10
+            stat["casse"] = stat.get("casse", 0) + 10
+            t += 120
+            al.fine_partita(adesso=t)
+        self.assertGreaterEqual(cfg["raccolta"]["vicino_altezza"], 0.06)
+
+    def test_esplora_tanto_senza_casse(self):
+        cfg, stat, al = self._allenamento()
+        al.conta_tempo("esploro", 4.0)
+        al.conta_tempo("mi guardo intorno", 4.0)
+        al.conta_tempo("combatto (miro)", 1.0)
+        riga = al.fine_partita(adesso=al.inizio + 120)
+        self.assertIn("si guarda intorno piu' spesso", riga)
+        self.assertEqual(cfg["esplorazione"]["guarda_intorno_ogni"], 10.0)
+
+    def test_fine_partita_quando_passa_alla_successiva(self):
+        cfg, stat, al = self._allenamento()
+        al.inizio -= 100
+        mani = ManiFinte(cfg["tasti"])
+        esec = Esecutore(mani, None, None, cfg, None, lambda *_: None, stat, {})
+        esec.su_fine_partita = al.fine_partita
+        esec.esegui(leggi_azioni("conta partita", mani.esiste, {}))
+        self.assertEqual(al.numero, 1)
+        self.assertEqual(stat["partite"], 1)
+
+    def test_conta_le_casse_che_non_si_aprono(self):
+        impostazioni.salva_calibrazione(self.base, ["mira", "pixel_per_passo"], 0.5)
+        impostazioni.salva_calibrazione(self.base, ["mira", "passi_per_giro"], 4800)
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        mondo.oggetti.append((300, 300, 60, 50, ORO))          # cassa che non si apre mai
+        img = mondo.foto()
+        cerv.passo(occhi.analizza(img), img)
+        self.assertEqual(cerv.statistiche["casse_fallite"], 1)
+        self.assertEqual(cerv.statistiche["casse"], 0)
+
+    def test_foto_piu_piccole_e_con_limite(self):
+        sf = SalvaFoto(os.path.join(self.base, "foto"), massimo=2, larghezza_massima=1280)
+        vis = Visione(1920, 1080)
+        vis.oggetti["nemico"].append(Box(960, 540, 40, 100, 1.0, "nemico"))
+        grande = np.zeros((1080, 1920, 3), np.uint8)
+        self.assertTrue(sf.salva(grande, vis))
+        self.assertTrue(sf.salva(grande, vis))
+        self.assertFalse(sf.salva(grande, vis))                 # arrivato al limite
+        cartella = os.path.join(self.base, "foto", "images")
+        foto = cv2.imread(os.path.join(cartella, sorted(os.listdir(cartella))[0]))
+        self.assertEqual(foto.shape[:2], (720, 1280))
+        self.assertTrue(SalvaFoto(os.path.join(self.base, "foto"), massimo=2).pieno)   # si ricorda quante ne ha
+
+
 # ====================================================================== schedina (Pico)
 class FintoSeriale:
     def __init__(self, dati):

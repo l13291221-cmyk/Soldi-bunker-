@@ -90,8 +90,10 @@ def _iou(a, b):
 class SalvaFoto:
     """Salva foto + etichette in formato YOLO (cartella foto_per_ia), pronte per l'addestramento."""
 
-    def __init__(self, cartella):
+    def __init__(self, cartella, massimo=0, larghezza_massima=1280):
         self.cartella = cartella
+        self.massimo = int(massimo or 0)                  # 0 = senza limite
+        self.larghezza_massima = int(larghezza_massima or 0)
         self.immagini = os.path.join(cartella, "images")
         self.etichette = os.path.join(cartella, "labels")
         os.makedirs(self.immagini, exist_ok=True)
@@ -104,8 +106,15 @@ class SalvaFoto:
                 for i, n in enumerate(CLASSI_DATASET):
                     f.write("  %d: %s\n" % (i, n))
         self.n = 0
+        self.gia_salvate = sum(1 for f in os.listdir(self.immagini) if f.lower().endswith(".jpg"))
+
+    @property
+    def pieno(self):
+        return self.massimo > 0 and self.gia_salvate >= self.massimo
 
     def salva(self, img, vis, anche_vuote=False):
+        if self.pieno:
+            return False
         H, W = img.shape[:2]
         righe = []
         for i, cat in enumerate(CLASSI_DATASET):
@@ -120,6 +129,10 @@ class SalvaFoto:
             return False
         nome = time.strftime("foto_%Y%m%d_%H%M%S_") + "%05d" % self.n
         self.n += 1
+        self.gia_salvate += 1
+        if self.larghezza_massima and W > self.larghezza_massima:     # piu' piccola: basta per addestrare
+            scala = self.larghezza_massima / float(W)
+            img = cv2.resize(img, (self.larghezza_massima, int(round(H * scala))), interpolation=cv2.INTER_AREA)
         ok, dati = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if not ok:
             return False
@@ -154,7 +167,9 @@ class Apprendimento:
         self.fallimenti_giro = 0
         self._att = None                  # bersaglio che sto controllando (attaccato alla visuale?)
         self.salva_foto_ogni = float(ap.get("salva_foto_ogni", 0) or 0)
-        self.foto = SalvaFoto(os.path.join(base, "foto_per_ia")) if self.salva_foto_ogni > 0 else None
+        self.foto = (SalvaFoto(os.path.join(base, "foto_per_ia"), ap.get("foto_massime", 3000))
+                     if self.salva_foto_ogni > 0 else None)
+        self._avvisato_pieno = False
         self.prossima_foto = 0.0
         self.prossimo_salvataggio = time.monotonic() + 300
 
@@ -336,6 +351,12 @@ class Apprendimento:
     # ---- 5: foto per l'IA ----
     def forse_salva_foto(self, img, vis, t):
         if self.foto is None or t < self.prossima_foto:
+            return
+        if self.foto.pieno:
+            if not self._avvisato_pieno:
+                self._avvisato_pieno = True
+                self.log("Foto per l'IA: ne ho %d, bastano! Ora puoi addestrare l'IA (guida, parte F)."
+                         % self.foto.gia_salvate)
             return
         if self.foto.salva(img, vis):
             self.prossima_foto = t + self.salva_foto_ogni

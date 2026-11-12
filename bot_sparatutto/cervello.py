@@ -62,7 +62,7 @@ class Cervello:
         adesso = time.monotonic()
         self.statistiche = esecutore.statistiche
         for k in ("casse", "materiali", "armi", "casse_tentate", "partite", "combattimenti", "nemici_colpiti",
-                  "casse_partita"):
+                  "casse_partita", "casse_fallite", "bloccato", "lasciate_perdere"):
             self.statistiche.setdefault(k, 0)
         self.stato = {"ultimo_nemico": adesso, "fermo_da": 0.0, "casse": 0}
         self.t_prec = adesso
@@ -479,6 +479,7 @@ class Cervello:
         elif t - self.inseguo_da > float(self.racc.get("tempo_massimo_avvicinamento", 10.0)):
             # non ci arrivo: lascio perdere per un po' e giro da un'altra parte
             self.log("Non riesco a raggiungere %s: lascio perdere" % tipo)
+            self.statistiche["lasciate_perdere"] = self.statistiche.get("lasciate_perdere", 0) + 1
             self.inseguo_da = None
             self.ignora_raccolta_fino = t + 6.0
             self._cammina()
@@ -545,6 +546,7 @@ class Cervello:
                 self.statistiche.get("armi", 0)))
             self.ignora_raccolta_fino = t + 0.8
         else:
+            self.statistiche["casse_fallite"] = self.statistiche.get("casse_fallite", 0) + 1
             self.log("%s: non si e' aperta, mi avvicino di piu'" % nome)
             self._cammina(avanti=True)
             self.esecutore.dormi(0.25)
@@ -578,6 +580,7 @@ class Cervello:
             return False
         # bloccato: salto, faccio un passo indietro e giro
         self.log("Sono bloccato: salto e giro")
+        self.statistiche["bloccato"] = self.statistiche.get("bloccato", 0) + 1
         self.fermo_conta = 0
         if self.mani.esiste("salta"):
             self.mani.premi("salta")
