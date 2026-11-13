@@ -385,6 +385,22 @@ class TestApprendimento(ConCartella):
         self.assertAlmostEqual(float(riga[1]), 132 / 640, places=4)
         self.assertTrue(os.path.isfile(os.path.join(self.base, "foto", "dataset.yaml")))
 
+    def test_foto_senza_il_tuo_personaggio_e_le_icone(self):
+        """Nelle foto vere il bot salvava il TUO personaggio come nemico e le icone in alto come casse."""
+        sf = SalvaFoto(os.path.join(self.base, "foto"))
+        vis = Visione(1280, 720)
+        vis.oggetti["nemico"].append(Box(560, 380, 110, 330, 0.9, "nemico"))   # tu: piedi in fondo, al centro
+        vis.oggetti["cassa"].append(Box(480, 45, 20, 18, 1.0, "cassa"))        # icona gialla nella bussola
+        self.assertFalse(sf.salva(np.zeros((720, 1280, 3), np.uint8), vis))   # niente di buono: non la salva
+        vis.oggetti["nemico"].append(Box(900, 250, 40, 110, 0.9, "nemico"))    # un nemico vero, lontano
+        vis.oggetti["cassa"].append(Box(300, 420, 60, 45, 1.0, "cassa"))       # una cassa vera
+        self.assertTrue(sf.salva(np.zeros((720, 1280, 3), np.uint8), vis))
+        cartella = os.path.join(self.base, "foto", "labels")
+        with open(os.path.join(cartella, os.listdir(cartella)[0])) as f:
+            righe = [r.split() for r in f.read().splitlines()]
+        self.assertEqual(sorted(r[0] for r in righe), ["0", "1"])
+        self.assertAlmostEqual(float(righe[0][1]), 920 / 1280, places=4)
+
 
 # ====================================================================== cervello
 class TestCervello(ConCartella):
@@ -823,6 +839,113 @@ class TestIA(ConCartella):
             self.assertIsNone(ia.ollama_pronto())                            # Ollama spenta
         finally:
             ia.ollama_modelli = vecchio
+
+
+class TestGeminiEConoscenza(ConCartella):
+    """Gemini con l'account Google, fortnite.txt alle IA, l'IA che studia le foto."""
+
+    def test_fortnite_txt_e_alle_ia_online(self):
+        import json as js
+
+        import ia
+        self.assertEqual(ia.leggi_conoscenza(self.base), "")                  # senza file: niente
+        conoscenza = ia.leggi_conoscenza(QUI)                                  # il file vero del bot
+        for parola in ("CTRL", "ACCOVACCIATI", "FURGONE DEL RIAVVIO", "TEMPESTA", "CASSA"):
+            self.assertIn(parola, conoscenza)
+        f = dict(ia.FORNITORI["gemini"], nome="gemini", chiave="k")
+        d = js.loads(ia.richiesta(f, "QUJD", conoscenza="sa tutto")[2])
+        self.assertEqual(d["messages"][0]["role"], "system")
+        self.assertIn("sa tutto", d["messages"][0]["content"])
+        self.assertEqual(d["messages"][1]["content"][1]["image_url"]["url"], "data:image/jpeg;base64,QUJD")
+        d = js.loads(ia.richiesta(dict(ia.FORNITORI["ollama"], nome="ollama"), "QUJD", conoscenza="x")[2])
+        self.assertEqual(len(d["messages"]), 1)                                # Ollama sul PC: no (lenta)
+        mandati = []
+
+        def invia(url, intest, corpo, attesa):
+            mandati.append(js.loads(corpo))
+            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "left"}'}}]}
+        cfg = {"ia": {"attiva": True, "fornitori": ["gemini"], "chiavi": {"gemini": "k"}}}
+        ia.IA(cfg, lambda *_: None, invia, conoscenza=conoscenza).chiedi(np.zeros((360, 640, 3), np.uint8))
+        self.assertIn("FURGONE DEL RIAVVIO", mandati[0]["messages"][0]["content"])
+
+    def test_collega_gemini_con_l_account_google(self):
+        import ia
+        aperte = []
+        foto = np.zeros((360, 640, 3), np.uint8)
+
+        def invia(url, intest, corpo, attesa):
+            self.assertEqual(intest["Authorization"], "Bearer AIza-chiave")
+            return {"choices": [{"message": {"content": '{"phase": "menu", "chest": "none"}'}}]}
+        cfg = impostazioni.carica(self.base)
+        self.assertTrue(ia.serve_chiedere_gemini(cfg))
+        # email o password al posto della chiave: non le salva
+        self.assertFalse(ia.collega_gemini(self.base, cfg, print, foto, aperte.append,
+                                           lambda _="": "io@gmail.com", invia))
+        self.assertFalse(os.path.isfile(os.path.join(self.base, "ia.yaml")))
+        # INVIO: non adesso (lo richiede la prossima volta)
+        self.assertFalse(ia.collega_gemini(self.base, cfg, print, foto, aperte.append, lambda _="": "", invia))
+        self.assertTrue(ia.serve_chiedere_gemini(impostazioni.carica(self.base)))
+        # la chiave giusta: la prova, la salva e accende l'IA con Gemini per prima
+        self.assertTrue(ia.collega_gemini(self.base, cfg, print, foto, aperte.append,
+                                          lambda _="": "  AIza-chiave ", invia))
+        self.assertEqual(aperte[0], ia.PAGINA_CHIAVE_GEMINI)                   # ha aperto la pagina di Google
+        cfg = impostazioni.carica(self.base)
+        self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "AIza-chiave")
+        self.assertEqual(cfg["ia"]["fornitori"][0], "gemini")
+        self.assertTrue(cfg["ia"]["attiva"])
+        self.assertFalse(ia.serve_chiedere_gemini(cfg))
+        # "mai": non lo chiede piu'
+        altra = tempfile.mkdtemp()
+        try:
+            self.assertFalse(ia.collega_gemini(altra, cfg, print, foto, aperte.append, lambda _="": "mai", invia))
+            self.assertFalse(ia.serve_chiedere_gemini(impostazioni.carica(altra)))
+        finally:
+            shutil.rmtree(altra, ignore_errors=True)
+
+    def test_capisce_i_rettangoli_dell_ia(self):
+        import studia_foto
+        o = studia_foto.leggi_oggetti('```json\n{"objects": [{"label": "enemy", "box_2d": [100, 500, 400, 560]},'
+                                      ' {"label": "chest", "box_2d": [600, 200, 680, 280]},'
+                                      ' {"label": "cloud", "box_2d": [0, 0, 100, 100]},'
+                                      ' {"label": "weapon", "box_2d": [10, 10]}]}\n```')
+        self.assertEqual([x[0] for x in o], ["nemico", "cassa"])                  # nuvola e box rotto: via
+        self.assertEqual(o[0][1:], (0.5, 0.1, 0.56, 0.4))
+        righe = studia_foto.righe_yolo(o)
+        self.assertEqual(righe[0], "0 0.530000 0.250000 0.060000 0.300000")
+        self.assertTrue(righe[1].startswith("1 0.240000 0.640000"))
+        self.assertEqual(studia_foto.leggi_oggetti('{"objects": []}'), [])        # niente: etichetta vuota
+        self.assertEqual(studia_foto.leggi_oggetti('[{"label": "ammo_box", "box_2d": [0.1, 0.1, 0.2, 0.2]}]')[0][0],
+                         "materiali")                                             # lista e coordinate 0-1
+        self.assertIsNone(studia_foto.leggi_oggetti("non lo so"))                 # da riprovare
+
+    def test_l_ia_studia_le_foto(self):
+        import json as js
+
+        import studia_foto
+        cartella = os.path.join(self.base, "foto_per_ia")
+        os.makedirs(os.path.join(cartella, "images"))
+        for n in ("a.jpg", "b.jpg", "c.jpg"):
+            cv2.imwrite(os.path.join(cartella, "images", n), np.zeros((720, 1280, 3), np.uint8))
+        with open(os.path.join(cartella, "studiate.txt"), "w") as f:
+            f.write("# gia' fatte\nc.jpg\n")                                   # c: gia' controllata
+        shutil.copy(os.path.join(QUI, "fortnite.txt"), self.base)
+        risposte = ['{"objects": [{"label": "enemy", "box_2d": [200, 700, 450, 740]}]}', "boh", "boh", "boh"]
+        mandati = []
+
+        def invia(url, intest, corpo, attesa):
+            mandati.append(js.loads(corpo))
+            return {"choices": [{"message": {"content": risposte.pop(0)}}]}
+        cfg = impostazioni.carica(self.base)
+        self.assertEqual(studia_foto.studia(self.base, cfg, print, invia), 0)    # nessuna IA collegata
+        cfg["ia"]["chiavi"] = {"gemini": "k"}
+        fatte = studia_foto.studia(self.base, cfg, print, invia, pausa=0, dormi=lambda s: None)
+        self.assertEqual(fatte, 1)                                               # a si', b non capita
+        with open(os.path.join(cartella, "labels", "a.txt")) as f:
+            self.assertTrue(f.read().startswith("0 0.720000 0.325000"))
+        self.assertFalse(os.path.isfile(os.path.join(cartella, "labels", "b.txt")))
+        self.assertEqual(studia_foto.leggi_studiate(cartella), {"a.jpg", "c.jpg"})
+        self.assertIn("FURGONE DEL RIAVVIO", mandati[0]["messages"][0]["content"])  # sa come funziona il gioco
+        self.assertIn("box_2d", mandati[0]["messages"][1]["content"][0]["text"])
 
 
 class FintaIA:

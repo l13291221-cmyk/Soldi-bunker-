@@ -1,0 +1,285 @@
+=====================================================================
+                 COME FUNZIONA FORTNITE  (per il bot e per le IA)
+=====================================================================
+Questo file lo legge il bot e lo manda, insieme alle foto dello schermo, all'IA
+che guarda (Gemini e le altre IA online): cosi' capisce cosa sta vedendo.
+Lo usa anche il menu 16 ("L'IA studia le foto") per trovare nemici e casse.
+Puoi aggiungere quello che vuoi: scrivi frasi semplici e salva.
+I comandi sono quelli PREDEFINITI di Fortnite per tastiera e mouse (sul PC e anche
+sulla PS5 con tastiera e mouse). Se nel gioco li hai cambiati, cambiali anche in
+impostazioni.yaml -> tasti. Le cose della stagione cambiano spesso: sono segnate
+con (STAGIONE).
+
+
+---------------------------------------------------------------------
+1. LO SCOPO
+---------------------------------------------------------------------
+- Fortnite Battaglia Reale: circa 100 giocatori su un'isola. Vince l'ultimo
+  giocatore (o l'ultima squadra) che resta vivo: "Vittoria Reale" (#1).
+- Modalita': Singolo, Coppie (2), Trio (3), Squadre (4). Con la squadra i
+  compagni si aiutano: si rianimano e si riportano in partita col furgone del riavvio.
+- "Costruzione" = si possono costruire muri, pavimenti, scale e tetti.
+  "Zero Costruzioni" (Zero Build) = non si costruisce: c'e' piu' scudo che si
+  ricarica da solo e ci si ripara dietro le cose della mappa.
+- "Ricarica" (Reload): mappa piccola, se muori torni in partita da solo finche'
+  un compagno e' vivo.
+- Ogni partita da' PE (punti esperienza) per salire di livello: piu' resti vivo,
+  apri casse, elimini e fai incarichi, piu' PE prendi.
+
+
+---------------------------------------------------------------------
+2. COME VA UNA PARTITA (in ordine)
+---------------------------------------------------------------------
+1. LOBBY / MENU: si preme "Gioca" (o "Pronto"). Dopo una partita compaiono
+   "Gioca di nuovo" (pulsante grande GIALLO), "Ritorna alla lobby", "Salta".
+2. IL BUS DELLA BATTAGLIA: tutti partono su un mezzo che vola sopra l'isola.
+   (STAGIONE) Adesso e' una nave pirata appesa a un pallone con un teschio col
+   cappello di paglia; in alto c'e' "Il capitano e' ..." e "Lascia una mancia".
+   Sullo schermo c'e' scritto "Spazio PER SALTARE".
+3. SALTO: SPAZIO per buttarsi giu'. Si scende in CADUTA LIBERA (si guida col
+   mouse e W/A/S/D; guardando in basso si scende piu' veloce).
+4. DELTAPLANO / OMBRELLO: si apre da solo vicino a terra, oppure con SPAZIO
+   ("Spazio PER SCHIERARE ..."). (STAGIONE) Puo' essere un pallone rosa con gli
+   occhi ("Spazio ENTRA IN CADUTA LIBERA" per richiuderlo).
+5. ATTERRAGGIO: si corre a prendere armi, cure, scudi e munizioni (bottino):
+   casse, armi per terra, casse delle munizioni.
+6. LA TEMPESTA: dopo un po' parte la tempesta e la zona sicura si restringe.
+   Bisogna stare dentro il cerchio (vedi parte 9).
+7. SCONTRI: si eliminano gli altri giocatori. Quando un giocatore viene
+   eliminato lascia per terra tutto il suo bottino.
+8. FINE: "VITTORIA REALE" se vinci, altrimenti "POSIZIONE FINALE N. X" (il
+   tuo piazzamento). Poi schermata dei PE e "Gioca di nuovo".
+
+
+---------------------------------------------------------------------
+3. TUTTI I COMANDI (tastiera e mouse, predefiniti)
+---------------------------------------------------------------------
+MOVIMENTO
+  W / A / S / D ..... avanti / sinistra / indietro / destra
+  Mouse ............. gira la visuale e mira
+  SPAZIO ............ salta (vicino a un bordo ti aggrappi e ti tiri su:
+                      ARRAMPICATA). In aria: apre il deltaplano
+  SHIFT sinistro .... corri (scatto)
+  CTRL sinistro ..... ACCOVACCIATI (abbassati: fai meno rumore, ti vedono meno
+                      e sei piu' preciso). Ripremi CTRL per alzarti
+  CTRL mentre corri . SCIVOLATA (scivoli per terra, veloce in discesa)
+  W tenuto in acqua . nuoti (sott'acqua/in superficie ti sposti piu' lento)
+
+COMBATTIMENTO
+  Tasto SINISTRO .... spara / usa l'oggetto in mano (cure: tieni premuto)
+  Tasto DESTRO ...... mira con il mirino (zoom, piu' preciso)
+  R ................. ricarica l'arma
+  1 ................. PICCONE (raccoglie i materiali, sfonda muri e casse)
+  2 3 4 5 6 ......... i 5 posti dell'inventario (armi, cure, oggetti)
+  Rotella mouse ..... cambia arma (su/giu')
+
+RACCOGLIERE E USARE
+  E ................. INTERAGISCI: apri casse (tieni premuto), raccogli armi e
+                      oggetti, apri porte, sali/scendi dai veicoli, rianima un
+                      compagno (tieni premuto), prendi la carta del riavvio e usa
+                      il furgone del riavvio (tieni premuto)
+  I (o TAB) ......... inventario (sposti gli oggetti, butti quello che non serve)
+  M ................. mappa (zona sicura, tempesta, segnalini)
+
+COSTRUZIONE (solo nelle modalita' con Costruzione)
+  Q ................. modalita' costruzione accesa/spenta
+  F1 ................ MURO
+  F2 ................ PAVIMENTO
+  F3 ................ SCALE (rampa)
+  F4 ................ TETTO (cono)
+  F5 ................ TRAPPOLA
+  Tasto SINISTRO .... piazza il pezzo
+  R ................. ruota il pezzo
+  G ................. MODIFICA un pezzo (clicchi i quadrati da togliere: fai
+                      porte e finestre), poi di nuovo G per confermare
+
+SQUADRA E ALTRO
+  Tasto CENTRALE .... (clic della rotella) SEGNALINO: segna un posto o un
+                      oggetto ai compagni; due clic veloci = "nemico qui"
+  INVIO ............. chat
+  B ................. emote (balletti)
+  ESC ............... menu del gioco (impostazioni, esci)
+
+VEICOLI (macchine, barche...)
+  E ................. sali / scendi
+  W / S ............. accelera / frena e retromarcia
+  A / D ............. sterza
+  Mouse ............. guardi intorno
+
+
+---------------------------------------------------------------------
+4. LO SCHERMO (cosa c'e' e dove)  -  IMPORTANTE PER NON SBAGLIARE
+---------------------------------------------------------------------
+- IL TUO PERSONAGGIO: in terza persona, in basso al centro (un po' a
+  sinistra), di solito visto DI SPALLE. NON e' un nemico.
+- MIRINO: al centro dello schermo.
+- IN ALTO AL CENTRO: la BUSSOLA (gradi e N, NE, E, SE, S, SO, O, NO). Le icone
+  con i metri (es. "850 m") sono SEGNALINI e OBIETTIVI, NON casse.
+- IN ALTO A SINISTRA: l'incarico (es. "0/1 Raccogli frammento di mappa...").
+- IN ALTO A DESTRA: la MINIMAPPA con il nome del posto (es. "BAIA BACCANO"),
+  sotto: eliminazioni (teschio), giocatori rimasti (omino), timer della tempesta.
+- A SINISTRA: i COMPAGNI (nome, vita, scudo) e i messaggi "X ha eliminato Y con
+  un fucile" (il registro delle eliminazioni).
+- IN BASSO A SINISTRA: barra VERDE = VITA (max 100), barra BLU = SCUDO
+  (max 100), con i numeri.
+- IN BASSO A DESTRA: INVENTARIO (piccone + 5 posti; quello evidenziato e'
+  quello in mano), munizioni, materiali.
+- Scritte in mezzo: "LA TEMPESTA SI STA RIDUCENDO", "FORMAZIONE TEMPESTA",
+  "SUPERSTITE" (sei sopravvissuto a molti giocatori), "+ PE", nomi dei posti
+  ("INGRESSO EFFETTUATO BAIA BACCANO").
+
+COSA NON E' UN NEMICO
+- il tuo personaggio; i compagni (hanno il nome colorato sopra la testa e sono
+  nella lista a sinistra); gli animali (lupi, cinghiali, galline, pesci...) e
+  l'animale che ti segue (STAGIONE: un cane/volpe compagno); i personaggi nelle
+  schermate di menu, lobby, ricompense e fine partita; gli NPC (personaggi del
+  gioco con un nome sopra: alcuni vendono cose, alcuni attaccano).
+COSA NON E' UNA CASSA
+- la punta luminosa e dorata del TUO piccone; le icone gialle o viola
+  dell'interfaccia (con i metri); lampadine e luci gialle; foglie gialle degli
+  alberi d'autunno; i segnalini.
+
+
+---------------------------------------------------------------------
+5. IL BOTTINO (dove si trovano le cose)
+---------------------------------------------------------------------
+- CASSA (forziere): di legno con i bordi DORATI. Quando e' chiusa LUCCICA (luce
+  dorata) e fa un suono di campanelli. Si apre tenendo premuto E vicino: escono
+  armi, munizioni, materiali e cure. Aperta non luccica piu'. Dentro le case,
+  nelle soffitte, nei garage, sotto le scale.
+- CASSA DELLE MUNIZIONI: piccola, grigio/verde, per terra o sugli scaffali: E
+  per aprirla, da' munizioni (e a volte trappole/granate).
+- BOTTINO PER TERRA: armi e oggetti sparsi, con un alone colorato (il colore
+  dice la rarita'). Si prendono con E.
+- RIFORNIMENTO AEREO: una cassa che scende dal cielo con un pallone/paracadute:
+  ha roba molto buona, ma attira i nemici.
+- LAMA DEI RIFORNIMENTI (lama colorato): tanti materiali e munizioni.
+- DISTRIBUTORI e NPC: in alcune stagioni si comprano armi con le monete d'oro.
+- Pesci (con la canna da pesca), frutti, funghi: curano o danno scudo.
+- (STAGIONE) FRUTTI DEL DIAVOLO: "Frutti del diavolo generati! Trovali sulla
+  mappa per riscattare un'abilita' speciale" (es. Frutto Gom Gom, Frutto Foco
+  Foco). Si trovano seguendo la loro icona; se lo prende un nemico compare
+  "Un nemico ha ottenuto il potere del frutto...".
+- (STAGIONE) SPIRITELLI: piccoli aiutanti da trovare ("Hai trovato Spiritello
+  ...") ed equipaggiare.
+
+RARITA' (il colore dell'alone e della cornice)
+  grigio = comune, verde = non comune, blu = raro, viola = epico,
+  oro/giallo = leggendario, (oro speciale/arcobaleno = mitico/esotico).
+  Piu' raro = piu' forte. Si scambia un'arma vecchia con una migliore.
+
+
+---------------------------------------------------------------------
+6. ARMI E MUNIZIONI
+---------------------------------------------------------------------
+- FUCILE D'ASSALTO: va bene a media distanza.
+- FUCILE A POMPA (pompa): fortissimo da vicino, debole da lontano.
+- MITRAGLIETTA (SMG): spara velocissimo, da vicino.
+- PISTOLA: debole ma veloce da usare.
+- FUCILE DI PRECISIONE (cecchino): da lontano, col mirino (tasto destro).
+- ESPLOSIVI: granate, lanciarazzi: rompono costruzioni e fanno danno ad area.
+- MUNIZIONI: leggere, medie, pesanti, cartucce (pompa), razzi. Ogni arma usa le sue.
+- Colpire la TESTA fa molto piu' danno. Mirando (tasto destro) sei piu' preciso.
+- Dopo uno scontro: RICARICA (R) e cura/scudo prima di muoverti.
+- Il piccone fa poco danno ai giocatori ma rompe muri, porte, casse e veicoli.
+
+
+---------------------------------------------------------------------
+7. VITA, SCUDO E CURE
+---------------------------------------------------------------------
+- VITA (verde) max 100, SCUDO (blu) max 100. I danni tolgono prima lo scudo.
+  A vita 0 sei eliminato (o, in squadra, ABBATTUTO: vedi parte 8).
+- Cure: si mettono in un posto dell'inventario, si selezionano e si tiene
+  premuto il tasto sinistro qualche secondo (se ti colpiscono si interrompe):
+  - BENDE: + vita, fino a 75.
+  - KIT MEDICO: tutta la vita (100), lento.
+  - POZIONE DI SCUDO PICCOLA: + 25 scudo (fino a 50).
+  - POZIONE DI SCUDO (grande): + 50 scudo.
+  - Altre bevande e cibi: un po' di vita e scudo insieme.
+- Cadere da molto in alto toglie vita (danno da caduta).
+- Fuori dalla zona sicura la TEMPESTA toglie vita di continuo.
+
+
+---------------------------------------------------------------------
+8. SQUADRA: ABBATTUTO, RIANIMARE, FURGONE DEL RIAVVIO
+---------------------------------------------------------------------
+- ABBATTUTO: in squadra, a vita 0 non muori subito: cadi a terra e strisci
+  piano, perdendo vita. Un compagno ti RIANIMA stando vicino e tenendo premuto
+  E per qualche secondo (se lo colpiscono si interrompe). Se nessuno ti rianima,
+  o un nemico ti finisce, vieni ELIMINATO.
+- CARTA DEL RIAVVIO: quando un compagno viene eliminato, dove e' morto resta la
+  sua carta del riavvio (una cartina con la sua faccia/colore). Bisogna andarla a
+  prendere (E) entro circa 90 secondi, poi sparisce.
+- FURGONE DEL RIAVVIO (Reboot Van): furgoni sparsi per la mappa (hanno
+  un'icona sulla mappa). Con la carta in tasca vai al furgone e TIENI PREMUTO E
+  per circa 10 secondi: il compagno ritorna in partita (scende dal cielo, senza
+  armi: va aiutato). Mentre lo fai sei fermo e vulnerabile, quindi controlla
+  che non ci siano nemici. Dopo l'uso il furgone resta spento per un po'. Verso
+  la fine della partita (ultime fasi della tempesta) i furgoni si spengono.
+- SEGNALINI: tasto centrale del mouse per indicare ai compagni dove andare,
+  una cassa o un nemico.
+- I compagni si riconoscono dal NOME COLORATO sopra la testa: NON SPARARE a loro.
+
+
+---------------------------------------------------------------------
+9. LA TEMPESTA
+---------------------------------------------------------------------
+- E' un muro/cielo VIOLA che si stringe a cerchi. Dentro il cerchio = ZONA
+  SICURA (nella mappa e' il cerchio bianco); fuori = tempesta che toglie vita,
+  sempre di piu' nelle ultime fasi.
+- In alto a destra c'e' il TIMER: "FORMAZIONE TEMPESTA" (tra poco parte) e
+  "LA TEMPESTA SI STA RIDUCENDO" (si sta stringendo adesso).
+- Se lo schermo diventa viola sei DENTRO la tempesta: corri verso la zona
+  sicura (guarda la minimappa: la freccia/linea indica dove andare).
+- Verso la fine il cerchio e' piccolo e si sposta: bisogna muoversi presto.
+
+
+---------------------------------------------------------------------
+10. MATERIALI E COSTRUZIONE
+---------------------------------------------------------------------
+- Materiali: LEGNO (alberi, case di legno), PIETRA (rocce, muri), METALLO
+  (macchine, cose di ferro). Si prendono colpendo le cose col PICCONE (1).
+  Mentre colpisci compare un cerchio luminoso (PUNTO DEBOLE): colpire li' e' piu'
+  veloce. Si trovano anche nelle casse e nei lama.
+- Costruire costa materiali. Il legno si costruisce in fretta ma e' debole, il
+  metallo e' lento ma resistente.
+- Un MURO davanti quando ti sparano ti protegge. 4 muri intorno = una "scatola".
+- Le SCALE servono per salire in alto (chi e' piu' in alto ha vantaggio).
+- Se sei bloccato contro un muro o una roccia: saltaci sopra (arrampicata) o
+  sfondalo col piccone.
+
+
+---------------------------------------------------------------------
+11. MUOVERSI SULLA MAPPA
+---------------------------------------------------------------------
+- Correre e scivolare in discesa e' veloce. In acqua si nuota piu' lenti e si e'
+  facili da colpire.
+- VEICOLI: macchine e barche sono veloci ma rumorose (si sentono e si vedono).
+  E per salire e scendere.
+- Altre cose che spostano: rampe di lancio, fenditure (ti teletrasportano in
+  aria e apri il deltaplano), funi/zipline, oggetti di movimento della stagione.
+- Posti con nome (citta', baie...): piu' bottino ma piu' nemici. Posti piccoli
+  lontani dal percorso del bus: meno nemici.
+- (STAGIONE) Posti visti nelle foto: Baia Baccano, Rogue Town, Mulini, Porto,
+  S.S. Rocky, Baratie, Bun Voyage.
+
+
+---------------------------------------------------------------------
+12. CONSIGLI PER GIOCARE BENE (cosa fa un buon giocatore)
+---------------------------------------------------------------------
+1. Dal bus salta un po' lontano dal percorso: meno nemici all'inizio.
+2. Atterra vicino a case: dentro ci sono CASSE. Prima un'arma, poi cure e scudo.
+3. Apri tutte le casse che trovi lungo la strada (luce dorata + suono).
+4. Tieni in inventario: un'arma da vicino (pompa/SMG), una da media distanza
+   (fucile d'assalto), cure e scudo.
+5. Controlla SEMPRE il timer e la minimappa: muoviti verso la zona sicura in
+   anticipo, non all'ultimo.
+6. Se vedi un nemico lontano e non ti ha visto: accovacciati (CTRL), mira con
+   il tasto destro, spara alla testa.
+7. Se ti sparano e non sai da dove: muoviti, salta, mettiti dietro qualcosa
+   (o costruisci un muro), poi cura lo scudo.
+8. Dopo ogni scontro: ricarica (R), cura, prendi il bottino del nemico.
+9. Non restare fermo all'aperto, e non stare in acqua se ci sono nemici.
+10. In squadra: rianima i compagni abbattuti e porta le loro carte al furgone
+    del riavvio.
+11. Nelle ultime fasi: stai in alto, dietro ripari, e non farti vedere.

@@ -1,0 +1,35 @@
+FOTO PER L'IA (foto_per_ia)
+===========================
+Qui ci sono le foto delle partite di Fortnite che servono a insegnare al bot a
+riconoscere NEMICI, CASSE, CASSE DELLE MUNIZIONI e ARMI (la parte F della guida).
+
+  images/        le foto (1280x720)
+  labels/        per ogni foto un file .txt con i rettangoli (formato YOLO):
+                 classe  centro_x  centro_y  larghezza  altezza   (da 0 a 1)
+                 classi: 0 nemico, 1 cassa, 2 materiali (casse munizioni), 3 arma
+                 FILE VUOTO = nella foto non c'e' niente di tutto questo
+  dataset.yaml   la descrizione per l'addestramento
+  studiate.txt   le foto gia' controllate (il menu 16 non le rimanda all'IA)
+
+CONTROLLO DEL 13 NOVEMBRE 2026 (126 foto, guardate una per una)
+- Tenute solo le foto del gioco a schermo pieno: tolte quelle del desktop, di
+  PS Remote Play e quelle con il menu della PS5 sopra al gioco.
+- In NESSUNA di queste foto c'e' un nemico o una cassa: si vedono il tuo
+  personaggio, il cane che ti segue, il mare, le rocce, Baia Baccano, Rogue Town,
+  il bus/nave col pallone e le schermate di fine partita.
+- I 181 rettangoli che aveva scritto il bot erano TUTTI sbagliati:
+    44 "nemici"  = il tuo personaggio (in basso al centro), il cane, i personaggi
+                   delle schermate di ricompensa
+    137 "casse"  = la punta dorata del tuo piccone, le icone gialle con i metri,
+                   lampadine, foglie gialle, scritte dorate
+  Per questo adesso le etichette sono VUOTE: insegnano al bot cosa NON e' un
+  nemico e cosa NON e' una cassa (servono anche queste).
+- Il bot adesso non salva piu' come "nemico" il tuo personaggio e non prende le
+  icone in alto per casse (apprendimento.py).
+
+PER AVERE FOTO CON NEMICI E CASSE
+1. Gioca (o lascia giocare il bot): salva una foto ogni 5 secondi qui dentro.
+2. Menu 15: collega Gemini con il tuo account Google (una volta sola).
+3. Menu 16 "L'IA studia le foto": Gemini guarda ogni foto nuova e scrive dove
+   sono davvero nemici e casse.
+4. Quando sono almeno 300-500 foto: addestra l'occhio del tuo gioco (guida, parte F).

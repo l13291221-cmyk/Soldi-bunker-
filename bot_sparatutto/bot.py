@@ -195,6 +195,7 @@ def avvia(modo=None):
     from allenamento import Allenamento
     from apprendimento import Apprendimento
     from cervello import Cervello
+    import ia as modulo_ia
     from ia import IA
     from mani import crea_mani
     from occhi import Occhi, Schermo, disegna
@@ -204,6 +205,10 @@ def avvia(modo=None):
         cfg["comandi"]["scrivi_comandi_in_prova"] = True
     # come deve giocare: Normale / Pro player / Tranquillo (in prova usa l'ultima scelta)
     stile = modulo_stile.leggi(BASE) if modo == "prova" else modulo_stile.chiedi(BASE)
+    if modo != "prova" and modulo_ia.serve_chiedere_gemini(cfg):
+        # Gemini non c'e' ancora: si collega adesso con il tuo account Google (una volta sola)
+        if modulo_ia.collega_gemini(BASE, cfg, log):
+            cfg = impostazioni.carica(BASE)
     sch = cfg.get("schermo", {}) or {}
     mani = crea_mani(cfg, log, modo)
     log("Comandi: %s" % mani.nome_modo)
@@ -225,7 +230,7 @@ def avvia(modo=None):
     if modo == "prova":
         allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni
     esecutore.su_fine_partita = allenamento.fine_partita
-    ia = IA(cfg, log)
+    ia = IA(cfg, log, conoscenza=modulo_ia.leggi_conoscenza(BASE))
     cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
                         ia if ia.attiva else None)
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
@@ -495,6 +500,8 @@ MENU = [
     ("12", "Telecomando: tastiera e mouse del portatile sulla Play (es. INVIO per l'account)", "telecomando"),
     ("13", "Aggiorna il programma (scarica l'ultima versione)", "aggiorna"),
     ("14", "Collega le IA (il cervello che guarda: bus, casse vere, muri, tempesta)", "ia"),
+    ("15", "Collega Gemini con il tuo account Google (la piu' brava a capire il gioco)", "gemini"),
+    ("16", "L'IA studia le foto: trova nemici e casse nelle foto di foto_per_ia", "studia"),
     ("0", "Esci", "esci"),
 ]
 
@@ -520,6 +527,12 @@ def esegui_comando(cmd):
     elif cmd == "ia":
         import ia
         ia.collega(BASE, impostazioni.carica(BASE), log)
+    elif cmd == "gemini":
+        import ia
+        ia.collega_gemini(BASE, impostazioni.carica(BASE), log)
+    elif cmd == "studia":
+        import studia_foto
+        studia_foto.studia(BASE, impostazioni.carica(BASE), log)
     elif cmd in ("colori", "immagine", "vita", "zone", "mira", "giro", "impara"):
         getattr(calibra, cmd)(BASE, log)
     else:

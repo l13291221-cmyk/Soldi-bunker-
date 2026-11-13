@@ -101,10 +101,14 @@ tasti:
   trappola: f5
   modifica: g
   costruisci: muro            # "costruisci" = metti un muro
+  modalita_costruzione: q     # accende/spegne la costruzione
   # --- altro ---
   mappa: m
   inventario: i
   emote: b
+  segna: mouse_centrale       # segnalino per i compagni (clic della rotella)
+  # Tutti i comandi e come funziona il gioco (casse, tempesta, furgone del riavvio...)
+  # sono spiegati in fortnite.txt
 
 
 # ---------------------------------------------------------------------

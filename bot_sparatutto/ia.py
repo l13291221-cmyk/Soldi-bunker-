@@ -24,6 +24,16 @@ richieste gratis, si passa alla prossima.
   personale    qualsiasi IA "compatibile OpenAI": indirizzo, modello e chiave in ia.yaml
 Le chiavi stanno nel file ia.yaml (accanto al programma): lo scrive il menu
 "Collega le IA". Attenzione: le foto del gioco vengono mandate al servizio scelto.
+
+GEMINI CON L'ACCOUNT GOOGLE: quando avvii il bot e non c'e' ancora Gemini, il bot apre da
+solo la pagina di Google (aistudio.google.com/apikey): ENTRI TU con il tuo account Google
+nel browser, premi "Create API key", copi la chiave e la incolli nel bot. Email e password
+le scrivi solo a Google: il bot non le chiede e non le salva (Google non lascia entrare i
+programmi con la password: la chiave e' il modo che Google da' ai programmi).
+
+COSA SA DEL GIOCO: il file fortnite.txt (come funziona Fortnite: comandi, casse, tempesta,
+furgone del riavvio...) viene mandato insieme alla foto alle IA online, cosi' capiscono
+meglio cosa vedono. Puoi aggiungerci quello che vuoi.
 """
 
 import base64
@@ -64,6 +74,9 @@ OLLAMA_MODELLO = "qwen2.5vl:3b"          # piccolo, vede le immagini, risponde b
 OLLAMA_CHE_VEDONO = ("qwen2.5vl", "qwen3-vl", "gemma3", "llava", "minicpm-v", "llama3.2-vision",
                      "granite3.2-vision", "moondream", "bakllava")
 OLLAMA_INSTALLATORE = "https://ollama.com/download/OllamaSetup.exe"
+PAGINA_CHIAVE_GEMINI = "https://aistudio.google.com/apikey"   # si entra col proprio account Google
+FILE_CONOSCENZA = "fortnite.txt"                              # come funziona il gioco (per le IA)
+CONOSCENZA_MASSIMA = 24000                                    # caratteri: oltre si taglia
 
 DOMANDA = (
     "You help a bot play a Fortnite-like third-person shooter. Look at this game screenshot and "
@@ -211,20 +224,26 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA
-def richiesta(fornitore, jpeg_base64, domanda=DOMANDA):
-    """-> (url, intestazioni, corpo in bytes) per chiedere all'IA di guardare la foto."""
+def richiesta(fornitore, jpeg_base64, domanda=DOMANDA, conoscenza="", lunghezza=260):
+    """-> (url, intestazioni, corpo in bytes) per chiedere all'IA di guardare la foto.
+    conoscenza = come funziona il gioco (fortnite.txt): va alle IA online come messaggio di
+    sistema. A Ollama sul PC no: senza scheda video un testo lungo la rallenta troppo."""
     intestazioni = {"Content-Type": "application/json", "User-Agent": "BotSparatutto"}
     if fornitore["chiave"]:
         intestazioni["Authorization"] = "Bearer " + fornitore["chiave"]
     if fornitore["tipo"] == "ollama":
         corpo = {"model": fornitore["modello"], "stream": False, "format": "json",
-                 "options": {"temperature": 0.1, "num_predict": 260},
+                 "options": {"temperature": 0.1, "num_predict": lunghezza},
                  "messages": [{"role": "user", "content": domanda, "images": [jpeg_base64]}]}
     else:
-        corpo = {"model": fornitore["modello"], "temperature": 0.1, "max_tokens": 260,
-                 "messages": [{"role": "user", "content": [
-                     {"type": "text", "text": domanda},
-                     {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + jpeg_base64}}]}]}
+        messaggi = []
+        if conoscenza:
+            messaggi.append({"role": "system", "content": "What you know about the game (from the player, "
+                             "in Italian):\n" + conoscenza})
+        messaggi.append({"role": "user", "content": [
+            {"type": "text", "text": domanda},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + jpeg_base64}}]})
+        corpo = {"model": fornitore["modello"], "temperature": 0.1, "max_tokens": lunghezza, "messages": messaggi}
     return fornitore["url"], intestazioni, json.dumps(corpo).encode("utf-8")
 
 
@@ -281,6 +300,17 @@ def jpeg_base64(img, larghezza=512, qualita=70):
     return base64.b64encode(buf.tobytes()).decode("ascii")
 
 
+def leggi_conoscenza(base):
+    """Il testo di fortnite.txt (come funziona il gioco), senza le righe vuote doppie. "" se manca."""
+    try:
+        with open(os.path.join(base, FILE_CONOSCENZA), "r", encoding="utf-8-sig") as f:
+            testo = f.read()
+    except OSError:
+        return ""
+    testo = re.sub(r"\n{3,}", "\n\n", testo.replace("\r\n", "\n")).strip()
+    return testo[:CONOSCENZA_MASSIMA]
+
+
 # ------------------------------------------------------------------ impostazioni (ia.yaml)
 def percorso_file(base):
     return os.path.join(base, "ia.yaml")
@@ -335,9 +365,10 @@ def fornitori_da_cfg(cfg_ia):
 
 # ------------------------------------------------------------------ il cervello lento
 class IA:
-    def __init__(self, cfg, log=print, invia=None):
+    def __init__(self, cfg, log=print, invia=None, conoscenza=""):
         c = cfg.get("ia", {}) or {}
         self.log = log
+        self.conoscenza = conoscenza if c.get("usa_conoscenza", True) else ""
         self.attiva = bool(c.get("attiva", False))
         self.ogni = max(0.5, float(c.get("ogni_secondi", 3) or 3))
         self.validita = float(c.get("validita_secondi", 8) or 8)
@@ -403,7 +434,8 @@ class IA:
             try:
                 if f["tipo"] == "ollama" and foto_piccola is None:
                     foto_piccola = jpeg_base64(img, 448)
-                url, intest, corpo = richiesta(f, foto_piccola if f["tipo"] == "ollama" else foto)
+                url, intest, corpo = richiesta(f, foto_piccola if f["tipo"] == "ollama" else foto,
+                                               conoscenza=self.conoscenza)
                 testo = testo_della_risposta(f, self.invia(url, intest, corpo, f["attesa"]))
                 c = leggi_risposta(testo, scattata, f["nome"])
                 if c is None:
@@ -534,6 +566,83 @@ def scegli_modello_openrouter(chiave, invia_get=None):
         if gratis and "image" in ingressi:
             return str(m["id"])
     return ""
+
+
+def serve_chiedere_gemini(cfg):
+    """All'avvio: chiedo di collegare Gemini se non c'e' la sua chiave e non hai detto 'mai'."""
+    c = cfg.get("ia", {}) or {}
+    return not str((c.get("chiavi") or {}).get("gemini") or "").strip() and not c.get("non_chiedere_gemini")
+
+
+def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None):
+    """Collega Gemini con il tuo account Google: apre la pagina di Google, tu entri e crei la
+    chiave, la incolli qui. La prova e la salva in ia.yaml. -> True se funziona."""
+    import numpy as np
+    chiedi = chiedi or input
+    if apri is None:
+        import webbrowser
+        apri = webbrowser.open
+    print("\n" + "=" * 70)
+    print("  COLLEGA GEMINI (l'IA di Google che guarda il gioco e aiuta il bot)")
+    print("=" * 70)
+    print("Ti apro la pagina di Google. Li':")
+    print("  1. entra con il tuo account Google (email e password le scrivi a Google, non al bot)")
+    print("  2. premi 'Create API key' (Crea chiave API) e poi copia la chiave (inizia con AIza...)")
+    print("  3. torna qui, incollala (tasto destro o Ctrl+V) e premi INVIO")
+    print("Se la pagina non si apre, scrivi tu nel browser:  %s" % PAGINA_CHIAVE_GEMINI)
+    print("Google la da' gratis (con un limite di richieste al giorno) a chi ha almeno 18 anni.")
+    print("ATTENZIONE: le foto del gioco vengono mandate a Google.")
+    try:
+        apri(PAGINA_CHIAVE_GEMINI)
+    except Exception:
+        pass
+    try:
+        chiave = chiedi("\nIncolla la chiave e premi INVIO (solo INVIO = non adesso, mai = non chiederlo piu'): ")
+    except (EOFError, KeyboardInterrupt):
+        chiave = ""
+    chiave = str(chiave or "").strip().strip('"').strip("'")
+    dati = leggi_file(base)
+    if chiave.lower() == "mai":
+        dati["non_chiedere_gemini"] = True
+        scrivi_file(base, dati)
+        print("Va bene, non te lo chiedo piu' (si collega sempre dal menu 14).")
+        return False
+    if not chiave:
+        print("Va bene, il bot gioca senza Gemini. Te lo richiedo la prossima volta.")
+        return False
+    if "@" in chiave or " " in chiave:
+        print("Questa non e' una chiave (sembra un'email o una password): non la salvo.")
+        print("La chiave la trovi sulla pagina di Google dopo 'Create API key' e inizia con AIza.")
+        return False
+    if foto is None:
+        try:
+            from occhi import Schermo
+            sch = cfg.get("schermo", {}) or {}
+            s = Schermo(int(sch.get("monitor", 1) or 1), sch.get("zona_cattura"))
+            foto = s.foto()
+            s.chiudi()
+        except Exception:
+            foto = np.full((360, 640, 3), 90, np.uint8)
+    f = dict(FORNITORI["gemini"], nome="gemini", chiave=chiave)
+    modello = ((dati.get("modelli") or {}).get("gemini") or "").strip()
+    if modello:
+        f["modello"] = modello
+    print("Provo Gemini...", flush=True)
+    ok, messaggio = prova_fornitore(f, foto, invia)
+    print("   %s %s" % ("OK" if ok else "NO", messaggio))
+    if not ok:
+        print("Gemini non risponde con questa chiave: controlla di averla copiata tutta e riprova.")
+        return False
+    chiavi = dict(dati.get("chiavi") or {})
+    chiavi["gemini"] = chiave
+    dati["chiavi"] = chiavi
+    fornitori = [x for x in (dati.get("fornitori") or []) if x != "gemini"]
+    dati["fornitori"] = ["gemini"] + fornitori              # Gemini per prima: e' la piu' brava
+    dati["attiva"] = True
+    dati.pop("non_chiedere_gemini", None)
+    scrivi_file(base, dati)
+    print("Gemini e' collegata: l'IA che guarda e' ACCESA.")
+    return True
 
 
 def prova_fornitore(f, img, invia=None):

@@ -39,6 +39,8 @@ PREDEFINITE = {
         "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte
         "fornitori": ["ollama", "gemini", "github", "openrouter", "groq", "mistral", "zai", "personale"],
         "auto_ollama": True,             # se Ollama e' sul computer con un modello che vede, la collega da sola
+        "usa_conoscenza": True,          # manda alle IA online anche fortnite.txt (come funziona il gioco)
+        "non_chiedere_gemini": False,    # True = all'avvio non chiede piu' di collegare Gemini
         "chiavi": {},
         "modelli": {},
         "personale": {"url": "", "modello": "", "chiave": ""},

@@ -67,6 +67,9 @@ Cosa c'e' in Documenti\BotSparatutto:
 - impostazioni.yaml     -> tasti e regolazioni (si apre con Blocco note)
 - istruzioni.txt        -> le TUE istruzioni (es. "quando muore la squadra
                            passa alla partita successiva")
+- fortnite.txt          -> COME FUNZIONA FORTNITE: tutti i comandi (es. CTRL =
+                           accovacciati), casse, tempesta, furgone del riavvio...
+                           Lo leggono le IA che guardano: puoi aggiungere cose
 - immagini/             -> pulsanti e scritte da riconoscere
 - modelli/              -> l'occhio universale (e la tua IA, se la crei)
 - Schedina/             -> il file unico per la schedina (per rimetterlo)
@@ -211,11 +214,14 @@ F) DIVENTARE FORTISSIMO: L'IA DEL TUO GIOCO (facoltativo)
 L'occhio universale riconosce i personaggi, ma un'IA addestrata sulle foto
 del TUO gioco riconosce molto meglio nemici, casse, casse dei materiali e armi.
 1. Raccogli le foto: le salva gia' da solo mentre gioca (una ogni 5 secondi)
-   e anche nel menu 4 (una ogni 2 secondi). Finiscono nella cartella foto_per_ia, GIA' CON LE
-   ETICHETTE (scritte dal bot: non sono perfette).
+   e anche nel menu 4 (una ogni 2 secondi). Finiscono nella cartella foto_per_ia, con
+   delle etichette scritte dal bot che sono spesso SBAGLIATE (nelle prime 126 foto
+   controllate a mano erano sbagliate tutte: vedi foto_per_ia/LEGGIMI.txt).
    Ne servono almeno 300-500.
-2. Correggi le etichette (consigliato): carica la cartella su roboflow.com
-   (gratis) o usa il programma "labelImg", e sistema i rettangoli.
+2. Fai correggere le etichette all'IA: menu 16 "L'IA studia le foto". Ogni foto
+   nuova va a Gemini (menu 15), che sa come funziona Fortnite (fortnite.txt) e
+   riscrive dove sono davvero nemici, casse, casse delle munizioni e armi.
+   Se vuoi controllarle tu: roboflow.com (gratis) o il programma "labelImg".
    Classi, in quest'ordine: 0 nemico, 1 cassa, 2 materiali, 3 arma.
 3. Addestra gratis su Google Colab (colab.research.google.com):
    comprimi foto_per_ia in foto_per_ia.zip, caricalo su Colab e scrivi:
@@ -354,6 +360,16 @@ computer (le IA online senza chiave provate a novembre 2026 non accettano immagi
     una volta sola: Ollama + il modello qwen2.5vl:3b).
   - Senza scheda video e' lenta (anche 30-60 secondi a foto): va bene soprattutto
     per bus, menu e partita successiva; per casse e muri arriva tardi.
+GEMINI CON IL TUO ACCOUNT GOOGLE (la piu' brava a capire il gioco):
+  Quando avvii il bot e scegli la modalita', se Gemini non c'e' ancora il bot apre
+  da solo la pagina di Google (aistudio.google.com/apikey). Li':
+    1. entri con il tuo account Google (email e password le scrivi a GOOGLE, mai al bot);
+    2. premi "Create API key" e copi la chiave (inizia con AIza...);
+    3. torni nella finestra nera, la incolli e premi INVIO: il bot la prova e la salva.
+  Si fa una volta sola. INVIO senza niente = non adesso; "mai" = non chiederlo piu'.
+  Si puo' fare anche dal menu 15. Google non lascia entrare i programmi con email
+  e password: la chiave e' proprio il modo che Google da' ai programmi.
+  Gemini riceve anche fortnite.txt, cosi' capisce meglio cosa vede.
 Menu 14 poi chiede anche le chiavi delle IA online (facoltative, piu' veloci;
 INVIO = salta). Tiene quelle che funzionano; se una non risponde o finisce le
 richieste gratis, passa alla prossima.

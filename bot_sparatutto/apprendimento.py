@@ -87,6 +87,16 @@ def _iou(a, b):
 
 
 # ------------------------------------------------------------------ foto etichettate per l'IA
+def etichetta_sbagliata(categoria, x1, y1, x2, y2, larghezza, altezza):
+    """Rettangoli che il bot sbagliava sempre nelle foto di Fortnite (controllate a mano, novembre 2026):
+    - un "nemico" con i piedi in fondo allo schermo, al centro, e' il TUO personaggio (terza persona);
+    - qualunque cosa nella striscia in alto e' la bussola o un'icona dell'interfaccia, non una cassa."""
+    cx = (x1 + x2) / 2.0 / larghezza
+    if categoria == "nemico" and y2 >= 0.85 * altezza and 0.25 <= cx <= 0.65:
+        return True
+    return (y1 + y2) / 2.0 < 0.09 * altezza
+
+
 class SalvaFoto:
     """Salva foto + etichette in formato YOLO (cartella foto_per_ia), pronte per l'addestramento."""
 
@@ -122,6 +132,8 @@ class SalvaFoto:
                 x1, y1 = max(0.0, b.x), max(0.0, b.y)
                 x2, y2 = min(float(W), b.x + b.w), min(float(H), b.y + b.h)
                 if x2 - x1 < 2 or y2 - y1 < 2:
+                    continue
+                if etichetta_sbagliata(cat, x1, y1, x2, y2, W, H):
                     continue
                 righe.append("%d %.6f %.6f %.6f %.6f" % (i, (x1 + x2) / 2 / W, (y1 + y2) / 2 / H,
                                                          (x2 - x1) / W, (y2 - y1) / H))
