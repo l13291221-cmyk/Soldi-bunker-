@@ -346,7 +346,7 @@ ogni tanto il bot le manda una foto piccola dello schermo e lei dice cosa succed
     ("Torna alla lobby", "Gioca", "Pronto") e clicca, finche' non riparte. Conta
     le partite e a ogni partita l'allenamento scrive il riepilogo.
     Impara da solo di quanto si muove il cursore nei menu della Play.
-PARTITE ALL'INFINITO SULLA PLAY (con l'IA che guarda, meglio Gemini):
+PARTITE ALL'INFINITO SULLA PLAY (con l'IA che guarda: le IA gratis del menu 15):
   - se la PS5 mostra "Chi sta usando questo controller/questa tastiera?" preme INVIO
     (il tuo utente e' gia' selezionato) e riprende;
   - se PS Remote Play si scollega ("Hai perso la connessione alla PS5") clicca col
@@ -371,16 +371,21 @@ computer (le IA online senza chiave provate a novembre 2026 non accettano immagi
     una volta sola: Ollama + il modello qwen2.5vl:3b).
   - Senza scheda video e' lenta (anche 30-60 secondi a foto): va bene soprattutto
     per bus, menu e partita successiva; per casse e muri arriva tardi.
-GEMINI CON IL TUO ACCOUNT GOOGLE (la piu' brava a capire il gioco):
-  Quando avvii il bot e scegli la modalita', se Gemini non c'e' ancora il bot apre
-  da solo la pagina di Google (aistudio.google.com/apikey). Li':
-    1. entri con il tuo account Google (email e password le scrivi a GOOGLE, mai al bot);
-    2. premi "Create API key" e copi la chiave (inizia con AIza...);
-    3. torni nella finestra nera, la incolli e premi INVIO: il bot la prova e la salva.
-  Si fa una volta sola. INVIO senza niente = non adesso; "mai" = non chiederlo piu'.
-  Si puo' fare anche dal menu 15. Google non lascia entrare i programmi con email
-  e password: la chiave e' proprio il modo che Google da' ai programmi.
-  Gemini riceve anche fortnite.txt, cosi' capisce meglio cosa vede.
+LE IA GRATIS PER GIOCARE GIORNI INTERI (menu 15, e all'avvio se mancano):
+  Sono COMPLETAMENTE GRATUITE: non si paga niente e non serve la carta di credito.
+  Hanno solo un limite di velocita'; insieme bastano per giocare giorno e notte.
+  1. GOOGLE (Gemma 4 + Gemini): pagina aistudio.google.com/apikey. Entri col tuo
+     account Google (email e password le scrivi a GOOGLE, mai al bot), premi
+     "Create API key" e copi la chiave (inizia con AIza). Con la stessa chiave il
+     bot usa Gemma 4: circa 14.400 domande al giorno (Google chiede 18 anni).
+  2. NVIDIA BUILD: pagina build.nvidia.com/settings/api-keys. Crei un account
+     NVIDIA gratis (basta l'email), premi "Generate API Key" e copi la chiave (inizia
+     con nvapi-). Circa 40 domande al minuto, senza limite al giorno (novembre 2026).
+     Il bot sceglie da solo un modello NVIDIA che guarda le immagini.
+  Il bot apre da solo le pagine: tu incolli la chiave nella finestra nera e premi
+  INVIO, lui la prova e la salva. Si fa una volta sola. INVIO senza niente = non
+  adesso; "mai" = non chiederlo piu'. Se un'IA finisce le domande, passa all'altra.
+  Le IA ricevono anche fortnite.txt, cosi' capiscono meglio cosa vedono.
 Menu 14 poi chiede anche le chiavi delle IA online (facoltative, piu' veloci;
 INVIO = salta). Tiene quelle che funzionano; se una non risponde o finisce le
 richieste gratis, passa alla prossima.

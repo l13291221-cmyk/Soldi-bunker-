@@ -124,6 +124,8 @@ def scegli_fornitori(cfg):
     """Le IA collegate, prima quelle online (Gemini...). Ollama solo se c'e' davvero sul PC, e per
     ultima: e' lenta e trova male i rettangoli."""
     fornitori = modulo_ia.fornitori_da_cfg(cfg.get("ia", {}) or {})
+    # per i rettangoli Gemini e' la piu' brava (e' allenata a trovarli): la metto per prima
+    fornitori.sort(key=lambda f: 0 if f["nome"] == "gemini" else 1)
     online = [f for f in fornitori if f["tipo"] != "ollama"]
     ollama = [f for f in fornitori if f["tipo"] == "ollama"]
     modello = modulo_ia.ollama_pronto() if ollama else None

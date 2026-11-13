@@ -205,9 +205,9 @@ def avvia(modo=None):
         cfg["comandi"]["scrivi_comandi_in_prova"] = True
     # come deve giocare: Normale / Pro player / Tranquillo (in prova usa l'ultima scelta)
     stile = modulo_stile.leggi(BASE) if modo == "prova" else modulo_stile.chiedi(BASE)
-    if modo != "prova" and modulo_ia.serve_chiedere_gemini(cfg):
-        # Gemini non c'e' ancora: si collega adesso con il tuo account Google (una volta sola)
-        if modulo_ia.collega_gemini(BASE, cfg, log):
+    if modo != "prova" and any(modulo_ia.serve_chiedere(n, cfg) for n in modulo_ia.GRATIS):
+        # le IA gratis (Google e NVIDIA) non ci sono ancora: si collegano adesso (una volta sola)
+        if modulo_ia.collega_gratis(BASE, cfg, log, solo_se_mancano=True):
             cfg = impostazioni.carica(BASE)
     sch = cfg.get("schermo", {}) or {}
     mani = crea_mani(cfg, log, modo)
@@ -507,7 +507,7 @@ MENU = [
     ("12", "Telecomando: tastiera e mouse del portatile sulla Play (es. INVIO per l'account)", "telecomando"),
     ("13", "Aggiorna il programma (scarica l'ultima versione)", "aggiorna"),
     ("14", "Collega le IA (il cervello che guarda: bus, casse vere, muri, tempesta)", "ia"),
-    ("15", "Collega Gemini con il tuo account Google (la piu' brava a capire il gioco)", "gemini"),
+    ("15", "Collega le IA GRATIS: Google (Gemma 4) e NVIDIA - insieme bastano per giorni", "gemini"),
     ("16", "L'IA studia le foto: trova nemici e casse nelle foto di foto_per_ia", "studia"),
     ("0", "Esci", "esci"),
 ]
@@ -536,7 +536,7 @@ def esegui_comando(cmd):
         ia.collega(BASE, impostazioni.carica(BASE), log)
     elif cmd == "gemini":
         import ia
-        ia.collega_gemini(BASE, impostazioni.carica(BASE), log)
+        ia.collega_gratis(BASE, impostazioni.carica(BASE), log)
     elif cmd == "studia":
         import studia_foto
         studia_foto.studia(BASE, impostazioni.carica(BASE), log)

@@ -84,8 +84,9 @@ e aprire più casse possibili (casse delle armi e casse dei materiali).
   nei menu, se le casse sono vere, se c'è un muro o la tempesta. Senza chiave funziona con Ollama sul tuo PC
   (se c'è la collega da sola, se no il menu 14 la installa); con chiave gratuita anche con Gemini, GitHub Models,
   OpenRouter, Groq, Mistral, Z.ai. Il bot veloce non la aspetta mai.
-- **Gemini con l'account Google** (menu 15, e all'avvio se manca): il bot apre la pagina di Google, entri
-  tu col tuo account e crei la chiave, la incolli nel bot. Gemini riceve anche `fortnite.txt`.
+- **IA gratis per giorni interi** (menu 15, e all'avvio se mancano): Google (Gemma 4, con la chiave di Google
+  creata col proprio account) e NVIDIA Build (chiave gratis, senza carta). Il bot apre le pagine, tu incolli la
+  chiave; se un'IA finisce le domande passa all'altra. Le IA ricevono anche `fortnite.txt`.
 - **Come funziona Fortnite** (`fortnite.txt`): tutti i comandi da tastiera (es. CTRL = accovacciati), casse,
   tempesta, armi, cure, furgone del riavvio, cosa NON è un nemico. Lo leggono le IA che guardano.
 - **L'IA studia le foto** (menu 16): manda le foto di `foto_per_ia` a Gemini, che scrive dove sono davvero

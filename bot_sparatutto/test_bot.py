@@ -805,11 +805,14 @@ class TestIA(ConCartella):
                                     np.zeros((360, 640, 3), np.uint8))
         finally:
             builtins.input, ia.invia_http, ia.ollama_pronto = vecchio_input, vecchio_invia, vecchio_pronto
-        self.assertEqual(funzionano, ["ollama", "gemini"])                 # groq no: chiave sbagliata
+        # groq no (chiave sbagliata); Gemma c'e' con la chiave di Gemini; Ollama (lenta) per ultima
+        self.assertEqual(funzionano, ["gemma", "gemini", "ollama"])
         cfg = impostazioni.carica(self.base)                       # ia.yaml entra nelle impostazioni
         self.assertTrue(cfg["ia"]["attiva"])
-        self.assertEqual(cfg["ia"]["fornitori"], ["ollama", "gemini"])
+        self.assertEqual(cfg["ia"]["fornitori"], ["gemma", "gemini", "ollama"])
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "chiave-gemini")
+        self.assertNotIn("gemma", cfg["ia"]["chiavi"])
+        self.assertEqual(cfg["ia"]["modelli"]["gemma"], "gemma-4-26b-a4b-it")
         self.assertEqual(cfg["ia"]["modelli"]["ollama"], "qwen2.5vl:3b")
         cfg["ia"]["auto_ollama"] = False
         self.assertTrue(ia.IA(cfg).attiva)
@@ -839,6 +842,11 @@ class TestIA(ConCartella):
             self.assertIsNone(ia.ollama_pronto())                            # Ollama spenta
         finally:
             ia.ollama_modelli = vecchio
+
+
+def ia_modulo():
+    import ia
+    return ia
 
 
 class TestGeminiEConoscenza(ConCartella):
@@ -891,7 +899,10 @@ class TestGeminiEConoscenza(ConCartella):
         self.assertEqual(aperte[0], ia.PAGINA_CHIAVE_GEMINI)                   # ha aperto la pagina di Google
         cfg = impostazioni.carica(self.base)
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "AIza-chiave")
-        self.assertEqual(cfg["ia"]["fornitori"][0], "gemini")
+        self.assertEqual(cfg["ia"]["fornitori"], ["gemma", "gemini"])          # Gemma prima: dura di piu'
+        pronte = ia.fornitori_da_cfg(cfg["ia"])
+        self.assertEqual([(f["nome"], f["chiave"]) for f in pronte][:2],
+                         [("gemma", "AIza-chiave"), ("gemini", "AIza-chiave")])   # stessa chiave
         self.assertTrue(cfg["ia"]["attiva"])
         self.assertFalse(ia.serve_chiedere_gemini(cfg))
         # "mai": non lo chiede piu'
@@ -901,6 +912,46 @@ class TestGeminiEConoscenza(ConCartella):
             self.assertFalse(ia.serve_chiedere_gemini(impostazioni.carica(altra)))
         finally:
             shutil.rmtree(altra, ignore_errors=True)
+
+    def test_collega_nvidia_gratis(self):
+        """NVIDIA Build: sceglie da solo un modello che guarda le immagini, provandoli."""
+        import json as js
+
+        import ia
+        lista = {"data": [{"id": "meta/llama-3.1-8b-instruct"}, {"id": "google/gemma-4-31b-it"},
+                          {"id": "nvidia/llama-nemotron-embed-vl-1b-v2"},
+                          {"id": "meta/llama-3.2-90b-vision-instruct"}]}
+        self.assertEqual(ia.modelli_nvidia(lambda: lista),
+                         ["google/gemma-4-31b-it", "meta/llama-3.2-90b-vision-instruct"])   # niente testo/embed
+        provati = []
+
+        def invia(url, intest, corpo, attesa):
+            self.assertIn("integrate.api.nvidia.com", url)
+            self.assertEqual(intest["Authorization"], "Bearer nvapi-k")
+            modello = js.loads(corpo)["model"]
+            provati.append(modello)
+            if modello == "google/gemma-4-31b-it":
+                raise RuntimeError("modello o indirizzo non trovato (404)")
+            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "none"}'}}]}
+        foto = np.zeros((360, 640, 3), np.uint8)
+        self.assertTrue(ia.collega_nvidia(self.base, impostazioni.carica(self.base), print, foto,
+                                          lambda u: None, lambda _="": "nvapi-k", invia, lambda: lista))
+        self.assertEqual(provati, ["google/gemma-4-31b-it", "meta/llama-3.2-90b-vision-instruct"])
+        cfg = impostazioni.carica(self.base)
+        self.assertEqual(cfg["ia"]["modelli"]["nvidia"], "meta/llama-3.2-90b-vision-instruct")
+        self.assertEqual(cfg["ia"]["fornitori"], ["nvidia"])
+        self.assertFalse(ia.serve_chiedere("nvidia", cfg))
+        self.assertTrue(ia.serve_chiedere("gemini", cfg))                 # Google: ancora da collegare
+
+    def test_gemma_senza_messaggio_di_sistema(self):
+        import json as js
+
+        import ia
+        f = dict(ia.FORNITORI["gemma"], nome="gemma", chiave="k")
+        d = js.loads(ia.richiesta(f, "QUJD", conoscenza="CTRL = accovacciati")[2])
+        self.assertEqual(len(d["messages"]), 1)                              # Gemma: tutto nella domanda
+        self.assertIn("CTRL = accovacciati", d["messages"][0]["content"][0]["text"])
+        self.assertIn('"phase"', d["messages"][0]["content"][0]["text"])
 
     def test_capisce_i_rettangoli_dell_ia(self):
         import studia_foto
@@ -944,8 +995,9 @@ class TestGeminiEConoscenza(ConCartella):
             self.assertTrue(f.read().startswith("0 0.720000 0.325000"))
         self.assertFalse(os.path.isfile(os.path.join(cartella, "labels", "b.txt")))
         self.assertEqual(studia_foto.leggi_studiate(cartella), {"a.jpg", "c.jpg"})
-        self.assertIn("FURGONE DEL RIAVVIO", mandati[0]["messages"][0]["content"])  # sa come funziona il gioco
-        self.assertIn("box_2d", mandati[0]["messages"][1]["content"][0]["text"])
+        self.assertEqual(mandati[0]["model"], ia_modulo().FORNITORI["gemini"]["modello"])  # i rettangoli: Gemini
+        self.assertIn("FURGONE DEL RIAVVIO", js.dumps(mandati[0]))           # sa come funziona il gioco
+        self.assertIn("box_2d", js.dumps(mandati[0]))
 
 
 class FintaIA:

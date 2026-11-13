@@ -39,10 +39,12 @@ PREDEFINITE = {
         "validita_secondi": 8,           # casse, muri, tempesta: dopo questo tempo il consiglio e' vecchio
         "validita_fase_secondi": 45,     # bus, caduta, menu: cambiano piu' piano
         "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte
-        "fornitori": ["ollama", "gemini", "github", "openrouter", "groq", "mistral", "zai", "personale"],
+        "fornitori": ["gemma", "nvidia", "gemini", "zai", "github", "openrouter", "groq", "mistral", "ollama",
+                      "personale"],
         "auto_ollama": True,             # se Ollama e' sul computer con un modello che vede, la collega da sola
         "usa_conoscenza": True,          # manda alle IA online anche fortnite.txt (come funziona il gioco)
-        "non_chiedere_gemini": False,    # True = all'avvio non chiede piu' di collegare Gemini
+        "non_chiedere_gemini": False,    # True = all'avvio non chiede piu' la chiave di Google
+        "non_chiedere_nvidia": False,    # True = all'avvio non chiede piu' la chiave di NVIDIA
         "chiavi": {},
         "modelli": {},
         "personale": {"url": "", "modello": "", "chiave": ""},

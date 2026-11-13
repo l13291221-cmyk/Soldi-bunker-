@@ -25,11 +25,13 @@ richieste gratis, si passa alla prossima.
 Le chiavi stanno nel file ia.yaml (accanto al programma): lo scrive il menu
 "Collega le IA". Attenzione: le foto del gioco vengono mandate al servizio scelto.
 
-GEMINI CON L'ACCOUNT GOOGLE: quando avvii il bot e non c'e' ancora Gemini, il bot apre da
-solo la pagina di Google (aistudio.google.com/apikey): ENTRI TU con il tuo account Google
-nel browser, premi "Create API key", copi la chiave e la incolli nel bot. Email e password
-le scrivi solo a Google: il bot non le chiede e non le salva (Google non lascia entrare i
-programmi con la password: la chiave e' il modo che Google da' ai programmi).
+IA GRATIS PER GIOCARE GIORNI (menu 15, e all'avvio se mancano), completamente gratuite:
+  gemma/gemini  Google: la chiave la crei TU col tuo account Google su aistudio.google.com/apikey
+                (email e password le scrivi solo a Google: il bot non le chiede e non le salva).
+                Con la stessa chiave: Gemma 4 (circa 14.400 domande al giorno) e Gemini.
+  nvidia        NVIDIA Build: chiave gratis su build.nvidia.com (senza carta), circa 40 domande
+                al minuto senza limite al giorno; il modello che vede lo sceglie il bot provandoli.
+  Se una finisce le domande gratis il bot passa all'altra.
 
 COSA SA DEL GIOCO: il file fortnite.txt (come funziona Fortnite: comandi, casse, tempesta,
 furgone del riavvio...) viene mandato insieme alla foto alle IA online, cosi' capiscono
@@ -66,8 +68,24 @@ FORNITORI = {
                 "tipo": "openai", "chiave": True, "attesa": 30, "dove": "console.mistral.ai"},
     "zai": {"url": "https://api.z.ai/api/paas/v4/chat/completions", "modello": "glm-4.6v-flash",
             "tipo": "openai", "chiave": True, "attesa": 40, "dove": "z.ai (GLM-4.6V-Flash gratis)"},
+    # Gemma 4 di Google: GRATIS con la stessa chiave di Gemini, circa 14.400 richieste al giorno
+    # (Gemini ne da' molte meno). Gemma non accetta il messaggio di sistema: la conoscenza va nella domanda.
+    "gemma": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+              "modello": "gemma-4-26b-a4b-it", "tipo": "openai", "chiave": True, "attesa": 40,
+              "dove": "la stessa chiave di Gemini (aistudio.google.com)", "stessa_chiave": "gemini",
+              "sistema": False, "candidati": ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemma-3-27b-it"]},
+    # NVIDIA Build: GRATIS, senza carta di credito, circa 40 richieste al minuto (novembre 2026)
+    "nvidia": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "modello": "",
+               "tipo": "openai", "chiave": True, "attesa": 45,
+               "dove": "build.nvidia.com (gratis, senza carta di credito)"},
 }
-ORDINE = ["ollama", "gemini", "github", "openrouter", "groq", "mistral", "zai", "personale"]
+# l'ordine in cui le prova: prima quelle gratis che durano di piu', Ollama sul PC (lenta) dopo
+ORDINE = ["gemma", "nvidia", "gemini", "zai", "github", "openrouter", "groq", "mistral", "ollama", "personale"]
+# NVIDIA: i modelli che guardano le immagini, dal piu' adatto (si prova finche' uno funziona)
+NVIDIA_PREFERITI = ("google/gemma-4-31b-it", "meta/llama-3.2-90b-vision-instruct", "google/gemma-3-12b-it",
+                    "nvidia/nemotron-3.5-super-vl-120b-a12b", "meta/muse-glimmer-30b",
+                    "microsoft/phi-3-vision-128k-instruct", "google/gemma-3-4b-it")
+NVIDIA_PAROLE_VISTA = ("vision", "-vl", "omni", "glimmer", "gemma-3-", "gemma-4-", "vila", "multimodal")
 OLLAMA_BASE = "http://localhost:11434"
 OLLAMA_MODELLO = "qwen2.5vl:3b"          # piccolo, vede le immagini, risponde bene in JSON e trova i pulsanti
 # nomi dei modelli di Ollama che sanno guardare le immagini (il primo trovato si usa)
@@ -75,6 +93,7 @@ OLLAMA_CHE_VEDONO = ("qwen2.5vl", "qwen3-vl", "gemma3", "llava", "minicpm-v", "l
                      "granite3.2-vision", "moondream", "bakllava")
 OLLAMA_INSTALLATORE = "https://ollama.com/download/OllamaSetup.exe"
 PAGINA_CHIAVE_GEMINI = "https://aistudio.google.com/apikey"   # si entra col proprio account Google
+PAGINA_CHIAVE_NVIDIA = "https://build.nvidia.com/settings/api-keys"
 FILE_CONOSCENZA = "fortnite.txt"                              # come funziona il gioco (per le IA)
 CONOSCENZA_MASSIMA = 24000                                    # caratteri: oltre si taglia
 
@@ -266,8 +285,11 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA, conoscenza="", lunghezza=
     else:
         messaggi = []
         if conoscenza:
-            messaggi.append({"role": "system", "content": "What you know about the game (from the player, "
-                             "in Italian):\n" + conoscenza})
+            sapere = "What you know about the game (from the player, in Italian):\n" + conoscenza
+            if fornitore.get("sistema", True):
+                messaggi.append({"role": "system", "content": sapere})
+            else:
+                domanda = sapere + "\n\n" + domanda      # es. Gemma: niente messaggio di sistema
         messaggi.append({"role": "user", "content": [
             {"type": "text", "text": domanda},
             {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + jpeg_base64}}]})
@@ -376,7 +398,7 @@ def fornitori_da_cfg(cfg_ia):
         elif nome in FORNITORI:
             f = dict(FORNITORI[nome])
             if f["chiave"]:
-                chiave = str(chiavi.get(nome) or "").strip()
+                chiave = str(chiavi.get(nome) or chiavi.get(f.get("stessa_chiave") or "") or "").strip()
                 if not chiave:
                     continue                    # serve la chiave e non c'e': lo salto
                 f["chiave"] = chiave
@@ -596,32 +618,82 @@ def scegli_modello_openrouter(chiave, invia_get=None):
     return ""
 
 
-def serve_chiedere_gemini(cfg):
-    """All'avvio: chiedo di collegare Gemini se non c'e' la sua chiave e non hai detto 'mai'."""
+# le IA GRATUITE da collegare con una chiave: la pagina dove la crei e come si riconosce la chiave
+GRATIS = {
+    "gemini": {"pagina": PAGINA_CHIAVE_GEMINI, "nome": "GOOGLE (Gemma 4 e Gemini)", "inizio": "AIza",
+               "passi": ["entra con il tuo account Google (email e password le scrivi a Google, non al bot)",
+                         "premi 'Create API key' (Crea chiave API) e copia la chiave (inizia con AIza...)"],
+               "fornitori": ["gemma", "gemini"],
+               "nota": "Gratis: Gemma 4 circa 14.400 domande al giorno (Google chiede di avere 18 anni)."},
+    "nvidia": {"pagina": PAGINA_CHIAVE_NVIDIA, "nome": "NVIDIA BUILD", "inizio": "nvapi-",
+               "passi": ["entra o crea un account NVIDIA gratis (basta l'email, niente carta di credito)",
+                         "premi 'Generate API Key' e copia la chiave (inizia con nvapi-...)"],
+               "fornitori": ["nvidia"],
+               "nota": "Gratis: circa 40 domande al minuto, senza limite al giorno (novembre 2026)."},
+}
+
+
+def serve_chiedere(nome, cfg):
+    """All'avvio: chiedo di collegare questa IA gratis se manca la chiave e non hai detto 'mai'."""
     c = cfg.get("ia", {}) or {}
-    return not str((c.get("chiavi") or {}).get("gemini") or "").strip() and not c.get("non_chiedere_gemini")
+    return not str((c.get("chiavi") or {}).get(nome) or "").strip() and not c.get("non_chiedere_" + nome)
 
 
-def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None):
-    """Collega Gemini con il tuo account Google: apre la pagina di Google, tu entri e crei la
-    chiave, la incolli qui. La prova e la salva in ia.yaml. -> True se funziona."""
+def serve_chiedere_gemini(cfg):
+    return serve_chiedere("gemini", cfg)
+
+
+def modelli_nvidia(invia_get=None):
+    """I modelli di NVIDIA Build che guardano le immagini, dal piu' adatto (la lista e' pubblica)."""
+    try:
+        if invia_get is None:
+            req = urllib.request.Request("https://integrate.api.nvidia.com/v1/models",
+                                         headers={"User-Agent": "BotSparatutto"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                dati = json.loads(r.read().decode("utf-8", "replace"))
+        else:
+            dati = invia_get()
+        tutti = [str(m.get("id", "")) for m in (dati or {}).get("data") or []]
+    except Exception:
+        tutti = []
+    if not tutti:
+        return list(NVIDIA_PREFERITI)
+    vista = [m for m in tutti if any(p in m.lower() for p in NVIDIA_PAROLE_VISTA) and "embed" not in m.lower()]
+    return [m for m in NVIDIA_PREFERITI if m in vista] + [m for m in vista if m not in NVIDIA_PREFERITI]
+
+
+def prova_modelli(f, candidati, foto, invia=None, massimo=5):
+    """Prova i modelli in ordine finche' uno guarda la foto e risponde bene. -> (modello, messaggio)."""
+    ultimo = "nessun modello da provare"
+    for modello in list(candidati)[:massimo]:
+        ok, ultimo = prova_fornitore(dict(f, modello=modello), foto, invia)
+        print("   %s %s: %s" % ("OK" if ok else "NO", modello, ultimo), flush=True)
+        if ok:
+            return modello, ultimo
+    return None, ultimo
+
+
+def collega_chiave(nome, base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None, modelli_get=None):
+    """Collega un'IA GRATUITA con la sua chiave: apre la pagina dove la crei, tu la incolli qui.
+    La prova con una foto e la salva in ia.yaml. -> True se funziona."""
     import numpy as np
+    info = GRATIS[nome]
     chiedi = chiedi or input
     if apri is None:
         import webbrowser
         apri = webbrowser.open
     print("\n" + "=" * 70)
-    print("  COLLEGA GEMINI (l'IA di Google che guarda il gioco e aiuta il bot)")
+    print("  COLLEGA %s (IA gratis che guarda il gioco e aiuta il bot)" % info["nome"])
     print("=" * 70)
-    print("Ti apro la pagina di Google. Li':")
-    print("  1. entra con il tuo account Google (email e password le scrivi a Google, non al bot)")
-    print("  2. premi 'Create API key' (Crea chiave API) e poi copia la chiave (inizia con AIza...)")
-    print("  3. torna qui, incollala (tasto destro o Ctrl+V) e premi INVIO")
-    print("Se la pagina non si apre, scrivi tu nel browser:  %s" % PAGINA_CHIAVE_GEMINI)
-    print("Google la da' gratis (con un limite di richieste al giorno) a chi ha almeno 18 anni.")
-    print("ATTENZIONE: le foto del gioco vengono mandate a Google.")
+    print(info["nota"])
+    print("Ti apro la pagina. Li':")
+    for i, passo in enumerate(info["passi"], 1):
+        print("  %d. %s" % (i, passo))
+    print("  %d. torna qui, incollala (tasto destro o Ctrl+V) e premi INVIO" % (len(info["passi"]) + 1))
+    print("Se la pagina non si apre, scrivi tu nel browser:  %s" % info["pagina"])
+    print("ATTENZIONE: le foto del gioco vengono mandate a questo servizio.")
     try:
-        apri(PAGINA_CHIAVE_GEMINI)
+        apri(info["pagina"])
     except Exception:
         pass
     try:
@@ -631,16 +703,16 @@ def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invi
     chiave = str(chiave or "").strip().strip('"').strip("'")
     dati = leggi_file(base)
     if chiave.lower() == "mai":
-        dati["non_chiedere_gemini"] = True
+        dati["non_chiedere_" + nome] = True
         scrivi_file(base, dati)
-        print("Va bene, non te lo chiedo piu' (si collega sempre dal menu 14).")
+        print("Va bene, non te lo chiedo piu' (si collega sempre dal menu 15).")
         return False
     if not chiave:
-        print("Va bene, il bot gioca senza Gemini. Te lo richiedo la prossima volta.")
+        print("Va bene, per ora niente. Te lo richiedo la prossima volta.")
         return False
     if "@" in chiave or " " in chiave:
         print("Questa non e' una chiave (sembra un'email o una password): non la salvo.")
-        print("La chiave la trovi sulla pagina di Google dopo 'Create API key' e inizia con AIza.")
+        print("La chiave la trovi sulla pagina dopo averla creata e inizia con %s" % info["inizio"])
         return False
     if foto is None:
         try:
@@ -651,26 +723,56 @@ def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invi
             s.chiudi()
         except Exception:
             foto = np.full((360, 640, 3), 90, np.uint8)
-    f = dict(FORNITORI["gemini"], nome="gemini", chiave=chiave)
-    modello = ((dati.get("modelli") or {}).get("gemini") or "").strip()
-    if modello:
-        f["modello"] = modello
-    print("Provo Gemini...", flush=True)
-    ok, messaggio = prova_fornitore(f, foto, invia)
-    print("   %s %s" % ("OK" if ok else "NO", messaggio))
-    if not ok:
-        print("Gemini non risponde con questa chiave: controlla di averla copiata tutta e riprova.")
+    modelli = dict(dati.get("modelli") or {})
+    funzionano = []
+    for fornitore in info["fornitori"]:
+        f = dict(FORNITORI[fornitore], nome=fornitore, chiave=chiave)
+        if fornitore == "nvidia":
+            candidati = [modelli["nvidia"]] if modelli.get("nvidia") else modelli_nvidia(modelli_get)
+        else:
+            candidati = [modelli.get(fornitore) or f["modello"]] + [
+                m for m in f.get("candidati", []) if m != (modelli.get(fornitore) or f["modello"])]
+        print("Provo %s..." % fornitore.upper(), flush=True)
+        modello, _ = prova_modelli(f, candidati, foto, invia)
+        if modello:
+            modelli[fornitore] = modello
+            funzionano.append(fornitore)
+    if not funzionano:
+        print("Con questa chiave non risponde nessuna IA: controlla di averla copiata tutta e riprova.")
         return False
     chiavi = dict(dati.get("chiavi") or {})
-    chiavi["gemini"] = chiave
+    chiavi[nome] = chiave
     dati["chiavi"] = chiavi
-    fornitori = [x for x in (dati.get("fornitori") or []) if x != "gemini"]
-    dati["fornitori"] = ["gemini"] + fornitori              # Gemini per prima: e' la piu' brava
+    dati["modelli"] = modelli
+    insieme = set(dati.get("fornitori") or []) | set(funzionano)
+    dati["fornitori"] = [n for n in ORDINE if n in insieme] + sorted(insieme - set(ORDINE))
     dati["attiva"] = True
-    dati.pop("non_chiedere_gemini", None)
+    dati.pop("non_chiedere_" + nome, None)
     scrivi_file(base, dati)
-    print("Gemini e' collegata: l'IA che guarda e' ACCESA.")
+    print("Collegate: %s. L'IA che guarda e' ACCESA (ordine: %s)." % (", ".join(funzionano),
+                                                                     ", ".join(dati["fornitori"])))
     return True
+
+
+def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None):
+    """Google (Gemma 4 + Gemini) con il tuo account Google."""
+    return collega_chiave("gemini", base, cfg, log, foto, apri, chiedi, invia)
+
+
+def collega_nvidia(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None, modelli_get=None):
+    """NVIDIA Build: gratis, senza carta di credito."""
+    return collega_chiave("nvidia", base, cfg, log, foto, apri, chiedi, invia, modelli_get)
+
+
+def collega_gratis(base, cfg, log=print, solo_se_mancano=False):
+    """Menu 15 (e all'avvio): collega le IA gratuite, Google e NVIDIA. Insieme bastano per giorni."""
+    collegate = False
+    for nome in GRATIS:
+        if solo_se_mancano and not serve_chiedere(nome, cfg):
+            continue
+        if collega_chiave(nome, base, cfg, log):
+            collegate = True
+    return collegate
 
 
 def prova_fornitore(f, img, invia=None):
@@ -726,14 +828,20 @@ def collega(base, cfg, log=print, foto=None):
     print("\nProvo Ollama (se c'e'), poi le IA online: sono piu' veloci ma vogliono una chiave GRATUITA"
           " (INVIO = salta).")
     funzionano = []
-    for nome in ORDINE:
-        if nome == "personale":
-            continue
+    # prima Gemini e poi Gemma (usa la stessa chiave), poi le altre
+    for nome in ["ollama", "gemini", "gemma", "nvidia"] + [n for n in ORDINE if n not in (
+            "ollama", "gemini", "gemma", "nvidia", "personale")]:
         info = FORNITORI[nome]
         if nome == "ollama":
             if not modello_ollama:
                 continue
             print("OLLAMA (%s): provo... (la prima volta puo' metterci un minuto)" % modello_ollama, flush=True)
+        elif info.get("stessa_chiave"):
+            if not chiavi.get(info["stessa_chiave"]):
+                continue
+            chiavi[nome] = chiavi[info["stessa_chiave"]]
+            print("%s - con la stessa chiave di %s: provo..." % (nome.upper(), info["stessa_chiave"].upper()),
+                  flush=True)
         elif info["chiave"]:
             vecchia = chiavi.get(nome, "")
             try:
@@ -752,6 +860,15 @@ def collega(base, cfg, log=print, foto=None):
             f["chiave"] = chiavi[nome]
         if nome == "openrouter" and not modelli.get(nome):
             modelli[nome] = scegli_modello_openrouter(chiavi[nome])
+        if nome in ("nvidia", "gemma"):
+            candidati = ([modelli[nome]] if modelli.get(nome) else []) + [
+                m for m in (modelli_nvidia() if nome == "nvidia" else info.get("candidati", []))
+                if m != modelli.get(nome)]
+            modello, _ = prova_modelli(f, candidati, foto)
+            if modello:
+                modelli[nome] = modello
+                funzionano.append(nome)
+            continue
         if modelli.get(nome):
             f["modello"] = modelli[nome]
         if not f["modello"]:
@@ -761,6 +878,8 @@ def collega(base, cfg, log=print, foto=None):
         print("   %s %s" % ("OK" if ok else "NO", messaggio))
         if ok:
             funzionano.append(nome)
+    funzionano = [n for n in ORDINE if n in funzionano]
+    chiavi.pop("gemma", None)                     # Gemma usa la chiave di Gemini: non la copio
     dati["chiavi"] = chiavi
     dati["modelli"] = modelli
     if funzionano:
