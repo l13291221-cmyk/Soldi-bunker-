@@ -25,6 +25,7 @@ import cv2
 import numpy as np
 
 from obiettivo import Obiettivo
+from stile import STILI
 
 OBIETTIVO = ("vincere la partita (restare vivo ed eliminare i nemici) e aprire piu' casse possibili "
              "(casse delle armi e casse dei materiali)")
@@ -39,9 +40,10 @@ def _cfg(cfg, sezione):
 
 class Cervello:
     def __init__(self, cfg, mani, occhi, esecutore, istruzioni, log=print, apprendimento=None, schermo=None,
-                 obiettivo=None):
+                 obiettivo=None, stile=None):
         self.cfg = cfg
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
+        self.stile = stile if stile is not None else STILI["pro"]     # come gioca (stile.py)
         self.mani = mani
         self.occhi = occhi
         self.esecutore = esecutore
@@ -81,6 +83,9 @@ class Cervello:
         self.prossimo_muro = 0.0
         self.prossima_cura = 0.0
         self.ultimo_colpo = 0.0           # quando mi hanno colpito l'ultima volta
+        self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
+        self.errore_mira = (0.0, 0.0)     # stile: di quanto sbaglia la mira adesso
+        self.prossimo_errore = 0.0
         self.avvisato_casse = False
         # raccolta
         self.inseguo_da = None
@@ -241,8 +246,8 @@ class Cervello:
         return scritta
 
     def _solo_nemici_vicini(self):
-        """Con l'obiettivo delle casse (o sopravvivere) i nemici lontani si ignorano."""
-        if self.obiettivo.tipo == "sopravvivere":
+        """Con l'obiettivo delle casse (o sopravvivere, o lo stile Tranquillo) i nemici lontani si ignorano."""
+        if self.stile.solo_vicini or self.obiettivo.tipo == "sopravvivere":
             return True
         return self.obiettivo.pensa_alle_casse(self.statistiche.get("casse_partita", 0))
 
@@ -344,20 +349,31 @@ class Cervello:
         else:
             self.velocita = (0.0, 0.0)
             self.errore_prec = None
+        if self.bersaglio is None:
+            # nemico appena visto: con lo stile Normale/Tranquillo ci mette un attimo a reagire
+            self.reazione_fino = t + self.stile.reazione
         self.bersaglio = (ax, ay)
         self.mosso_px = (0.0, 0.0)
         anticipo = float(self.mira.get("anticipo", 0.05) or 0.0)
         tx = ax + self.velocita[0] * anticipo
         ty = ay + self.velocita[1] * anticipo
+        if self.stile.errore > 0:
+            # stile Normale/Tranquillo: la mira non e' perfetta e ogni tanto il colpo va fuori
+            if t >= self.prossimo_errore:
+                self.prossimo_errore = t + random.uniform(0.3, 0.8)
+                e = self.stile.errore
+                self.errore_mira = (random.uniform(-e, e), random.uniform(-e, e) * 0.5)
+            tx += self.errore_mira[0] * b.w
+            ty += self.errore_mira[1] * b.h
 
-        # impara la forza giusta della mira (se va oltre o e' lenta)
+        # impara la forza giusta della mira (se va oltre o e' lenta): solo con la mira "vera"
         ex, ey = tx - mx, ty - my
-        if self.apprendimento is not None and self.errore_prec is not None:
+        if self.apprendimento is not None and self.errore_prec is not None and self.stile.mira_perfetta:
             self.apprendimento.osserva_mira(self.errore_prec, (ex, ey))
         self.errore_prec = (ex, ey)
 
-        # muovi la visuale verso il bersaglio
-        forza = self.forza
+        # muovi la visuale verso il bersaglio (lo stile Normale e' piu' lento)
+        forza = self.forza * self.stile.forza
         self._muovi(ex / self.ppp * forza, ey / self.ppp * forza)
 
         # spara se il mirino e' sopra il nemico
@@ -368,7 +384,7 @@ class Cervello:
         if self.sparando_da is not None:      # gia' sparo: un po' piu' di margine
             tol_x *= 1.5
             tol_y *= 1.5
-        allineato = abs(ex) <= tol_x and abs(ey) <= tol_y
+        allineato = abs(ex) <= tol_x and abs(ey) <= tol_y and t >= self.reazione_fino
         if self.mira.get("mira_col_tasto_destro") and self.mani.esiste("mira"):
             self.mani.giu("mira")
         if allineato:
@@ -399,7 +415,8 @@ class Cervello:
         if self.obiettivo.tipo == "nemici":
             distanza = max(distanza, 0.3)
         lontano = b.h < distanza * vis.altezza
-        avanti = bool(self.comb.get("insegui", True)) and lontano and self.obiettivo.tipo != "sopravvivere"
+        avanti = (bool(self.comb.get("insegui", True)) and lontano and self.obiettivo.tipo != "sopravvivere"
+                  and self.stile.insegui)
         sinistra = destra = False
         if self.comb.get("schiva", True):
             if t >= self.prossima_schivata:

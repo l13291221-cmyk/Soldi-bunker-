@@ -19,6 +19,7 @@ import argparse
 import os
 import struct
 import time
+import zipfile
 
 # ------------------------------------------------------------------ UF2
 UF2_MAGIC0 = 0x0A324655
@@ -227,6 +228,13 @@ def file_del_bot(versione, url_zip):
     return risultato
 
 
+def scrivi_zip(file, percorso):
+    """Gli stessi file della chiavetta in uno .zip: se CIRCUITPY resta vuota si copiano a mano."""
+    with zipfile.ZipFile(percorso, "w", zipfile.ZIP_DEFLATED) as z:
+        for nome, contenuto in file:
+            z.writestr(nome, contenuto)
+
+
 def file_da_argomenti(voci):
     """['code.py=schedina_pico/code.py', ...] -> [(nome sulla chiavetta, contenuto)] (file copiati tali e quali)."""
     risultato = []
@@ -248,6 +256,7 @@ def main():
     p.add_argument("--file", action="append", default=[],
                    help="NOME=PERCORSO: mette sulla chiavetta questi file al posto di quelli del bot (si ripete)")
     p.add_argument("--immagine", help="salva anche l'immagine della chiavetta (per controllarla)")
+    p.add_argument("--zip", help="salva anche i file della chiavetta in uno .zip (da copiare a mano)")
     a = p.parse_args()
     if a.file:
         file = file_da_argomenti(a.file)
@@ -256,6 +265,8 @@ def main():
     else:
         p.error("serve --url-zip (per il bot) oppure almeno un --file")
     immagine = crea_fat12(file)
+    if a.zip:
+        scrivi_zip(file, a.zip)
     if a.immagine:
         with open(a.immagine, "wb") as f:
             f.write(immagine)

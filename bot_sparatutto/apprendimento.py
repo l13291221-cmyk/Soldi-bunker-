@@ -527,15 +527,37 @@ def _risolvi_nome(tasti, nome):
     return n
 
 
-def impara(base, log=print):
-    """Giochi tu: il bot guarda e impara i colori di casse/armi e dove miri."""
+def _chiedi_dove_giochi():
+    print("\nDOVE GIOCHI?")
+    print("  1) sul computer (il gioco e' aperto qui)")
+    print("  2) sulla Play: la guardi con PS Remote Play e giochi con tastiera e mouse del portatile")
+    while True:
+        try:
+            r = input("Scrivi 1 o 2 e premi INVIO: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if r in ("1", "2"):
+            return r == "2"
+
+
+def impara(base, log=print, sulla_play=None):
+    """Giochi tu: il bot guarda e impara i colori di casse/armi e dove miri.
+    sulla_play=True: il gioco e' sulla Play e tu giochi con tastiera e mouse del portatile
+    (il telecomando li passa alla schedina attaccata alla Play)."""
     from occhi import Occhi, Schermo
     try:
         from pynput import keyboard, mouse
     except Exception as e:
         print("Non riesco a leggere tastiera e mouse (%s)." % e)
         return
+    if sulla_play is None:
+        sulla_play = _chiedi_dove_giochi()
     cfg = impostazioni.carica(base)
+    mani_play = None
+    if sulla_play:
+        # prima di tutto la schedina sulla Play (tramite il ponte): se non c'e' lo dico subito
+        from mani import ManiSchedina
+        mani_play = ManiSchedina(cfg.get("tasti"), log, (cfg.get("comandi", {}) or {}).get("porta", "auto"))
     tasti = {str(k).lower(): str(v).lower() for k, v in (cfg.get("tasti") or {}).items()}
     tasto_apri = _risolvi_nome(tasti, "interagisci")
     sch = cfg.get("schermo", {}) or {}
@@ -548,10 +570,19 @@ def impara(base, log=print):
     print("Gioca normalmente. Il bot guarda e impara:")
     print("  - ogni volta che premi '%s' (apri/raccogli) guarda i colori davanti a te" % tasto_apri.upper())
     print("  - quando spari a un nemico guarda dove stai mirando")
-    print("  - quando clicchi un pulsante nei menu (es. 'Gioca ancora') se lo ricorda")
+    if not sulla_play:
+        print("  - quando clicchi un pulsante nei menu (es. 'Gioca ancora') se lo ricorda")
     print("  - salva foto con le etichette per addestrare l'IA del tuo gioco")
-    print("Gioca una partita intera, apri piu' casse che puoi (almeno 8-10) e poi")
-    print("passa alla partita successiva cliccando i pulsanti.   F8 = pausa   F9 = ho finito")
+    if sulla_play:
+        print("SULLA PLAY: giochi con la tastiera e il mouse del PORTATILE guardando Remote Play.")
+        print("Il programma li passa alla Play attraverso la schedina. Mentre giochi la freccia")
+        print("del PC resta ferma: il mouse lo usa la Play. Con F9 torna tutto normale.")
+        print("(Sulla Play non so dove clicchi nei menu: i pulsanti salvali col menu 6.)")
+        print("Gioca una partita intera e apri piu' casse che puoi (almeno 8-10).")
+        print("F8 = pausa (continui a giocare, ma non impara)   F9 = ho finito")
+    else:
+        print("Gioca una partita intera, apri piu' casse che puoi (almeno 8-10) e poi")
+        print("passa alla partita successiva cliccando i pulsanti.   F8 = pausa   F9 = ho finito")
     print("Sto caricando l'occhio universale...")
     occhi = Occhi(cfg, base, log)
     schermo = Schermo(int(sch.get("monitor", 1) or 1), sch.get("zona_cattura"))
@@ -565,6 +596,25 @@ def impara(base, log=print):
     pulsanti = ImparaPulsanti(os.path.join(base, "immagini"))
     foto_recenti = deque()        # (tempo, foto): gli ultimi 2 secondi, una ogni 0.2 s
     origine = schermo.origine
+    tele = None
+    if sulla_play:
+        from telecomando import Telecomando
+        print("\nClicca sulla finestra di PS Remote Play (a schermo intero): tra 5 secondi")
+        print("il mouse e la tastiera del portatile passano alla Play.")
+        for n in range(5, 0, -1):
+            print("  %d..." % n, flush=True)
+            time.sleep(1)
+        # la freccia del PC resta ferma al centro: ogni movimento del mouse va alla Play
+        area = schermo.area
+        centro = (area["left"] + area["width"] // 2, area["top"] + area["height"] // 2)
+        try:
+            freccia = mouse.Controller()
+            freccia.position = centro
+            centro = freccia.position
+        except Exception:
+            pass
+        sens = float((cfg.get("telecomando", {}) or {}).get("sensibilita_mouse", 1.0) or 1.0)
+        tele = Telecomando(mani_play, centro, sensibilita=sens)
 
     def premuto(k):
         if k == keyboard.Key.f8:
@@ -574,15 +624,25 @@ def impara(base, log=print):
         if k == keyboard.Key.f9:
             stato["fine"] = True
             return
+        if tele is not None:
+            tele.tasto_giu(k)
         nome = _nome_tasto_pynput(k)
         conteggio[nome] = conteggio.get(nome, 0) + 1
         if nome == tasto_apri:
             eventi.put("apri")
 
+    def rilasciato(k):
+        if tele is not None:
+            tele.tasto_su(k)
+
     def click(x, y, pulsante, giu):
+        if tele is not None:
+            tele.click(x, y, pulsante, giu)
         if pulsante != mouse.Button.left:
             return
         stato["sparo"] = bool(giu)
+        if tele is not None:
+            return                 # sulla Play non so dove clicchi nei menu: niente pulsanti
         adesso = time.monotonic()
         if giu:
             stato["giu"] = (adesso, x, y, cursore_visibile())
@@ -592,12 +652,16 @@ def impara(base, log=print):
             if adesso - t0 < 0.6:                      # un click breve, non una raffica
                 eventi.put(("click", t0, x0 - origine[0], y0 - origine[1], visibile))
 
-    ascolta_t = keyboard.Listener(on_press=premuto)
-    ascolta_m = mouse.Listener(on_click=click)
+    ascolta_t = keyboard.Listener(on_press=premuto, on_release=rilasciato)
+    if tele is not None:
+        # suppress: il mouse non muove la freccia del PC e i click non vanno al PC, ma alla Play
+        ascolta_m = mouse.Listener(on_click=click, on_move=tele.mosso, on_scroll=tele.rotella, suppress=True)
+    else:
+        ascolta_m = mouse.Listener(on_click=click)
     for a in (ascolta_t, ascolta_m):
         a.daemon = True
         a.start()
-    print("VIA! Torna nel gioco.\n")
+    print("VIA! Gioca pure.\n" if tele is not None else "VIA! Torna nel gioco.\n")
 
     campioni = []          # per ogni pressione: pixel colorati davanti a te
     altezze = []           # dove miri sul nemico (0 = testa, 1 = piedi)
@@ -606,6 +670,9 @@ def impara(base, log=print):
     try:
         while not stato["fine"]:
             time.sleep(0.05)
+            if tele is not None and tele.errore is not None:
+                print("\nPROBLEMA con la schedina: %s" % tele.errore)
+                break
             if stato["pausa"]:
                 continue
             img = schermo.foto()
@@ -651,12 +718,16 @@ def impara(base, log=print):
     except KeyboardInterrupt:
         pass
     finally:
-        schermo.chiudi()
-        for a in (ascolta_t, ascolta_m):
+        for a in (ascolta_m, ascolta_t):        # prima il mouse: torna subito al PC
             try:
                 a.stop()
             except Exception:
                 pass
+        if tele is not None:
+            tele.ferma()
+        if mani_play is not None:
+            mani_play.chiudi()
+        schermo.chiudi()
 
     print("\n" + "=" * 70)
     print("  COSA HO IMPARATO")

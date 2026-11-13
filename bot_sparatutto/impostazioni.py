@@ -14,6 +14,7 @@ import yaml
 PREDEFINITE = {
     "comandi": {"modo": "schedina", "porta": "auto", "scrivi_comandi_in_prova": False},
     "tasti_bot": {"pausa": "f8", "esci": "f9"},
+    "telecomando": {"sensibilita_mouse": 1.0},
     "schermo": {
         "monitor": 1,
         "zona_cattura": None,

@@ -68,6 +68,7 @@ jobs:
           $hash = (Get-FileHash $uf2 -Algorithm SHA256).Hash.ToLower()
           if ($hash -ne "1e3134de1f2ea2bd1d46019e90781fa5bd95ea518b6665717cb256a9327a563a") { throw "CircuitPython scaricato male: $hash" }
           python bot_sparatutto/pico/crea_uf2.py --circuitpython $uf2 --uscita BotSparatutto_Schedina.uf2 `
+            --zip BotSparatutto_FileSchedina.zip `
             --versione "${{ github.run_number }}" `
             --url-zip "https://github.com/${{ github.repository }}/releases/download/bot-sparatutto/BotSparatutto.zip"
 
@@ -96,9 +97,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete bot-sparatutto --cleanup-tag --yes || true
-          gh release create bot-sparatutto BotSparatutto_Schedina.uf2 BotSparatutto.zip \
+          gh release create bot-sparatutto BotSparatutto_Schedina.uf2 BotSparatutto.zip BotSparatutto_FileSchedina.zip \
             --target "$GITHUB_SHA" \
             --title "Bot sparatutto" \
             --latest \
             --notes "BotSparatutto_Schedina.uf2: tieni premuto BOOTSEL, attacca la Raspberry Pi Pico al PC e trascina questo file sulla chiavetta RPI-RP2. Poi sulla chiavetta CIRCUITPY fai doppio click su AVVIA IL BOT.
-          BotSparatutto.zip: il programma per il PC (lo scarica da solo AVVIA IL BOT, non serve scaricarlo a mano)."
+          BotSparatutto.zip: il programma per il PC (lo scarica da solo AVVIA IL BOT, non serve scaricarlo a mano).
+          BotSparatutto_FileSchedina.zip: se dopo il .uf2 la chiavetta CIRCUITPY e' vuota (niente AVVIA IL BOT), copia questi file dentro CIRCUITPY."

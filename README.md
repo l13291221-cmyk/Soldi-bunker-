@@ -60,6 +60,10 @@ Con un altro dado, una volta su 10 fa una pausa lunga di 2-4 minuti.
 **F8** = pausa / riprendi, **F9** = chiude. Se chiudi il programma o stacchi la schedina,
 la schedina rilascia da sola tutti i tasti.
 
+Se dopo il passo 2 la chiavetta CIRCUITPY è vuota (niente *AVVIA IL BOT*): scarica
+[BotSparatutto_FileSchedina.zip](https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto_FileSchedina.zip),
+copia tutti i file che ci sono dentro nella chiavetta CIRCUITPY e stacca e riattacca la schedina.
+
 ## Cosa fa
 
 **Obiettivo (scritto nel codice):** vincere la partita (restare vivo ed eliminare i nemici)
@@ -73,9 +77,13 @@ e aprire più casse possibili (casse delle armi e casse dei materiali).
   in qualsiasi gioco; a inizio partita impara da solo sensibilità del mouse e giro completo,
   mentre spara impara la forza giusta della mira, e capisce da solo che il tuo personaggio
   non è un nemico. Con *Impara guardando me* impara i colori delle casse guardando te giocare.
+- **3 modalità**, si sceglie ogni volta che lo avvii: *Normale* (ogni tanto sbaglia), *Pro player*
+  (veloce e preciso), *Tranquillo* (evita gli scontri e apre casse). L'obiettivo resta quello che scrivi tu.
 - **Comandi stile Fortnite** (tastiera e mouse) già impostati in `impostazioni.yaml`, modificabili.
 - **Impara guardando te** (menu 4): giochi tu una partita e lui impara i colori delle casse, dove mirare
   e **i pulsanti da cliccare per passare alla partita successiva**. Non ti copia: poi gioca a modo suo.
+  Funziona anche **sulla Play**: giochi con tastiera e mouse del portatile e il programma li passa alla
+  Play attraverso la schedina.
 - **L'obiettivo lo scrivi tu** (menu 11 o `obiettivo.txt`), es. *aprire 50 casse a partita*,
   *aprire più casse possibili*, *eliminare più nemici possibili*, *sopravvivere*.
 - **Le tue istruzioni** in `istruzioni.txt`, es.

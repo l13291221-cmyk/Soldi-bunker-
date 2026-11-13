@@ -82,7 +82,12 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
 
 B) IMPARA GUARDANDO TE (10 minuti, il modo piu' facile)
 --------------------------------------------------------
-Menu 4 (Impara guardando me). Giochi TU una partita intera, normalmente:
+Menu 4 (Impara guardando me). Ti chiede dove giochi:
+   1 = sul computer
+   2 = sulla Play (con PS Remote Play): giochi con la tastiera e il mouse del
+       PORTATILE e il programma li passa alla Play attraverso la schedina
+       (parte G). Serve un mouse vero attaccato al portatile.
+Giochi TU una partita intera, normalmente:
 - apri piu' casse che puoi (almeno 8-10, sia delle armi sia dei materiali):
   ogni volta che premi E il bot guarda cosa c'e' davanti a te;
 - spara ai nemici: guarda dove miri (testa, petto...);
@@ -111,6 +116,18 @@ Lo scrivi con parole tue (menu 11, oppure nel file obiettivo.txt). Capisce:
    sopravvivere                            -> evita i nemici lontani, si cura prima
 Le casse le conta per ogni partita: il conto riparte quando passa alla
 partita successiva.
+
+
+LE 3 MODALITA' (si sceglie ogni volta che avvii il bot, menu 1)
+----------------------------------------------------------------
+   1) Normale      mira un po' piu' lenta, ci mette un attimo a reagire e ogni
+                   tanto sbaglia il colpo (come una persona)
+   2) Pro player   velocissimo e preciso, reagisce subito
+   3) Tranquillo   evita gli scontri: non insegue, ignora i nemici lontani, si
+                   difende solo se lo attaccano o se un nemico e' vicino, e
+                   intanto apre piu' casse possibili
+Premi solo INVIO per usare l'ultima scelta. L'OBIETTIVO resta quello che hai
+scritto tu: la modalita' dice solo COME gioca.
 
 
 L'ALLENAMENTO (ogni partita lo rende piu' bravo)
@@ -160,6 +177,11 @@ D) PROVA E GIOCA
 
 E) SE QUALCOSA NON VA
 ----------------------------
+- Dopo aver trascinato il file sulla schedina, CIRCUITPY e' VUOTA (niente
+  "AVVIA IL BOT", solo lib, sd, code, settings.toml): scarica
+  https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto_FileSchedina.zip
+  aprilo, seleziona tutti i file (CTRL+A), copiali (CTRL+C) e incollali in
+  CIRCUITPY (CTRL+V, "Sostituisci"). Poi stacca e riattacca la schedina.
 - "Schedina non trovata": stacca e riattacca la schedina. Se non basta,
   rimetti il file unico (passo 2 dei "3 PASSI"). Oppure in impostazioni.yaml
   scrivi la porta (es. porta: COM5).
@@ -268,8 +290,17 @@ Senza resistenze il piedino GP1 della Pico si puo' rompere.
 COSA CAMBIA RISPETTO AL PC
 - Remote Play arriva con un po' di ritardo: la mira e' meno precisa.
   Va meglio con la Play attaccata al router col cavo di rete.
-- "Impara guardando me" (menu 4) qui non funziona: il PC non vede i tasti
-  che premi sulla Play. Fallo col gioco sul PC, oppure usa i menu 5 e 6.
+- I comandi al bot li dai SEMPRE dal portatile: il menu nella finestra nera,
+  F8 = pausa, F9 = chiudi. Sulla Play non devi aprire niente.
+- "Impara guardando me" (menu 4 -> 2): PS Remote Play il mouse del portatile
+  non lo passa alla Play, ma il programma si': legge tastiera e mouse del
+  portatile e li manda alla schedina attaccata alla Play. Tu giochi guardando
+  Remote Play, il bot guarda e impara. Intanto la freccia del PC resta ferma
+  (il mouse lo usa la Play): con F9 torna normale.
+  Se il mouse nel gioco e' troppo veloce o lento: impostazioni.yaml ->
+  telecomando -> sensibilita_mouse (0.5 = meta', 2 = il doppio).
+  Sulla Play non sa dove clicchi nei menu: i pulsanti per passare alla
+  partita dopo salvali col menu 6 e scrivili in istruzioni.txt.
 - Se non trova la schedina: controlla il cavetto RESET-GND, i 3 fili, e che
   pin 0 vada a GP1 (con le resistenze) e pin 1 a GP0. Puoi anche scrivere la
   porta dell'Arduino in impostazioni.yaml (es. porta: COM4: la vedi in

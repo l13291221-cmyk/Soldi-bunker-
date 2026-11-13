@@ -189,6 +189,7 @@ def scrivi_statistiche(statistiche, inizio):
 # ------------------------------------------------------------------ il bot
 def avvia(modo=None):
     import obiettivo as modulo_obiettivo
+    import stile as modulo_stile
     from allenamento import Allenamento
     from apprendimento import Apprendimento
     from cervello import Cervello
@@ -198,6 +199,8 @@ def avvia(modo=None):
     cfg = impostazioni.carica(BASE)
     if modo == "prova":
         cfg["comandi"]["scrivi_comandi_in_prova"] = True
+    # come deve giocare: Normale / Pro player / Tranquillo (in prova usa l'ultima scelta)
+    stile = modulo_stile.leggi(BASE) if modo == "prova" else modulo_stile.chiedi(BASE)
     sch = cfg.get("schermo", {}) or {}
     mani = crea_mani(cfg, log, modo)
     log("Comandi: %s" % mani.nome_modo)
@@ -218,7 +221,7 @@ def avvia(modo=None):
     if modo == "prova":
         allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni
     esecutore.su_fine_partita = allenamento.fine_partita
-    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo)
+    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile)
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
         log("ATTENZIONE: non ho niente per riconoscere i nemici (occhio universale spento e nessun colore).")
     mostra = bool(sch.get("mostra_finestra", False)) or modo == "prova"
@@ -230,6 +233,7 @@ def avvia(modo=None):
     print("=" * 70)
     print("  OBIETTIVO: " + obiettivo.descrizione())
     print("  (si cambia dal menu 11 o nel file obiettivo.txt)")
+    print("  MODALITA': %s - %s" % (stile.nome, stile.descrizione))
     if allenamento.attivo:
         print("  ALLENAMENTO: dopo ogni partita scrive il riepilogo in allenamento.txt e migliora")
     print("  BOT ATTIVO  -  %s = pausa/riprendi   %s = chiudi" % (str(tb.get("pausa", "f8")).upper(),
@@ -395,10 +399,10 @@ def autotest():
 
 # ------------------------------------------------------------------ menu
 MENU = [
-    ("1", "Avvia il bot", "avvia"),
+    ("1", "Avvia il bot (scegli la modalita': Normale, Pro player o Tranquillo)", "avvia"),
     ("2", "Prova senza premere niente (vedi cosa farebbe, con finestra di controllo)", "prova"),
     ("3", "Prova la schedina (il mouse fa un quadrato)", "test"),
-    ("4", "Impara guardando me (giochi tu, il bot impara colori delle casse e come miri)", "impara"),
+    ("4", "Impara guardando me (giochi tu, anche sulla Play: il bot impara casse e mira)", "impara"),
     ("5", "Calibra i colori a mano (casse, casse materiali, armi, compagni)", "colori"),
     ("6", "Salva un'immagine (pulsanti e scritte per le istruzioni)", "immagine"),
     ("7", "Calibra la barra della vita", "vita"),

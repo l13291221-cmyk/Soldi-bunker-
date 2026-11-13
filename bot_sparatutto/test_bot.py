@@ -556,6 +556,169 @@ class TestObiettivo(ConCartella):
         self.assertEqual(cerv.statistiche["partite"], 1)
 
 
+class TestStile(ConCartella):
+    """Le 3 modalita': Normale (sbaglia un po'), Pro player (preciso), Tranquillo (evita gli scontri)."""
+
+    def _cervello(self, chiave, oggetti, frase="vincere"):
+        import obiettivo
+        import stile
+        impostazioni.salva_calibrazione(self.base, ["mira", "pixel_per_passo"], 0.5)
+        impostazioni.salva_calibrazione(self.base, ["mira", "passi_per_giro"], 4800)
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        cerv.obiettivo = obiettivo.capisci(frase)
+        cerv.stile = stile.STILI[chiave]
+        mondo.oggetti += oggetti
+        return mani, mondo, occhi, app, cerv
+
+    def test_scelta_e_file(self):
+        import stile
+        self.assertEqual(stile.capisci("1").chiave, "normale")
+        self.assertEqual(stile.capisci("2").chiave, "pro")
+        self.assertEqual(stile.capisci("3").chiave, "tranquillo")
+        self.assertEqual(stile.capisci("Pro").chiave, "pro")
+        self.assertEqual(stile.capisci("pro player").chiave, "pro")
+        self.assertEqual(stile.capisci("tranq").chiave, "tranquillo")
+        self.assertIsNone(stile.capisci("boh"))
+        self.assertEqual(stile.leggi(self.base).chiave, "normale")        # mai scelta: Normale
+        risposte = iter(["7", "3"])                                        # sbaglia, poi 3
+        import builtins
+        vecchio = builtins.input
+        try:
+            builtins.input = lambda *_: next(risposte)
+            self.assertEqual(stile.chiedi(self.base).chiave, "tranquillo")
+            self.assertEqual(stile.leggi(self.base).chiave, "tranquillo")  # se la ricorda
+            builtins.input = lambda *_: ""
+            self.assertEqual(stile.chiedi(self.base).chiave, "tranquillo")  # INVIO = l'ultima
+        finally:
+            builtins.input = vecchio
+
+    def test_normale_piu_lento_del_pro(self):
+        import random
+        random.seed(3)
+        nemico = (500, 120, 24, 60, ROSSO)
+        mani_p, mondo_p, occhi_p, _, cerv_p = self._cervello("pro", [nemico])
+        mani_n, mondo_n, occhi_n, _, cerv_n = self._cervello("normale", [nemico])
+        img = mondo_p.foto()
+        cerv_p.passo(occhi_p.analizza(img), img)
+        img = mondo_n.foto()
+        cerv_n.passo(occhi_n.analizza(img), img)
+        self.assertGreater(mani_p.mosso_x, 0)
+        self.assertLess(mani_n.mosso_x, mani_p.mosso_x * 0.85)
+
+    def test_normale_reagisce_dopo_un_attimo_ma_spara(self):
+        import random
+        random.seed(5)
+        mani, mondo, occhi, app, cerv = self._cervello("normale", [(308, 160, 24, 60, ROSSO)])  # sul mirino
+        t = time.monotonic()
+        img = mondo.foto()
+        cerv.passo(occhi.analizza(img), img, t)
+        self.assertFalse(mani.e_premuto("spara"))               # appena visto: non spara subito
+        sparato = False
+        for i in range(1, 40):
+            img = mondo.foto()
+            cerv.passo(occhi.analizza(img), img, t + i * 0.03)
+            sparato = sparato or mani.e_premuto("spara")
+        self.assertTrue(sparato)                                  # poi spara
+
+    def test_pro_spara_subito(self):
+        mani, mondo, occhi, app, cerv = self._cervello("pro", [(308, 160, 24, 60, ROSSO)])
+        img = mondo.foto()
+        cerv.passo(occhi.analizza(img), img)
+        self.assertTrue(mani.e_premuto("spara"))
+
+    def test_solo_il_pro_impara_la_forza_della_mira(self):
+        mani, mondo, occhi, app, cerv = self._cervello("normale", [(560, 120, 24, 60, ROSSO)])
+        app.forza = 0.9
+        t = time.monotonic()
+        for i in range(30):
+            img = mondo.foto()
+            cerv.passo(occhi.analizza(img), img, t + i * 0.03)
+        self.assertEqual(app.forza, 0.9)                         # gli errori voluti non la rovinano
+
+    def test_tranquillo_evita_gli_scontri(self):
+        medio = (330, 120, 20, 60, ROSSO)                          # nemico non vicino
+        cassa = (500, 260, 50, 40, ORO)
+        mani, mondo, occhi, app, cerv = self._cervello("tranquillo", [medio, cassa])
+        img = mondo.foto()
+        scritta = cerv.passo(occhi.analizza(img), img)
+        self.assertTrue(scritta.startswith("vado verso cassa"), scritta)
+        # col Pro lo stesso nemico si combatte
+        mani2, mondo2, occhi2, app2, cerv2 = self._cervello("pro", [medio, cassa])
+        img = mondo2.foto()
+        self.assertTrue(cerv2.passo(occhi2.analizza(img), img).startswith("combatto"))
+
+    def test_tranquillo_si_difende_ma_non_insegue(self):
+        vicino = (300, 100, 60, 200, ROSSO)
+        mani, mondo, occhi, app, cerv = self._cervello("tranquillo", [vicino], "eliminare piu' nemici possibili")
+        img = mondo.foto()
+        self.assertTrue(cerv.passo(occhi.analizza(img), img).startswith("combatto"))
+        self.assertFalse(mani.e_premuto("avanti"))
+
+
+class TestTelecomando(unittest.TestCase):
+    """Giochi tu sulla Play dal portatile: tastiera e mouse passano alla schedina."""
+
+    def test_nomi_dei_tasti(self):
+        from telecomando import nome_tasto
+        N = types.SimpleNamespace
+        self.assertEqual(nome_tasto(N(vk=0x57, char="W")), "w")       # W con Maiusc
+        self.assertEqual(nome_tasto(N(vk=0x31, char="!")), "1")       # 1 con Maiusc
+        self.assertEqual(nome_tasto(N(vk=0x45, char="\x05")), "e")    # E con Ctrl
+        self.assertEqual(nome_tasto(N(vk=None, char="e")), "e")
+        self.assertEqual(nome_tasto(N(name="space")), "spazio")
+        self.assertEqual(nome_tasto(N(name="shift_r")), "shift_destro")
+        self.assertEqual(nome_tasto(N(name="f8")), "f8")
+        for nome in ("w", "1", "e", "spazio", "shift_destro", "f8", "ctrl", "esc", "invio", "up"):
+            risolvi_grezzo(nome)                                       # la schedina li sa premere
+
+    def test_passa_tasti_e_mouse_alla_schedina(self):
+        from telecomando import Telecomando
+        N = types.SimpleNamespace
+        mani = ManiFinte({})
+        tele = Telecomando(mani, (500, 400), ogni=0.002)
+        w = N(vk=0x57, char="w")
+        tele.tasto_giu(w)
+        tele.tasto_giu(w)                       # tasto tenuto premuto: Windows lo ripete
+        tele.tasto_giu(N(name="f9"))            # F9 e' del bot: non va alla Play
+        tele.tasto_giu(N(name="menu"))          # tasto che la schedina non conosce: si salta
+        tele.mosso(510, 395)
+        tele.mosso(503, 400)
+        tele.click(500, 400, N(name="left"), True)
+        tele.click(500, 400, N(name="left"), False)
+        tele.rotella(500, 400, 0, 1)
+        tele.tasto_su(w)
+        time.sleep(0.05)
+        tele.ferma()
+        self.assertIsNone(tele.errore)
+        self.assertEqual(mani.storia.count("giu tasto 0x1A"), 1)       # W premuto una volta sola
+        self.assertIn("su tasto 0x1A", mani.storia)
+        self.assertFalse(any("0x42" in r for r in mani.storia))       # niente F9
+        self.assertEqual((mani.mosso_x, mani.mosso_y), (13, -5))
+        self.assertIn("giu mouse 1", mani.storia)
+        self.assertIn("su mouse 1", mani.storia)
+        self.assertIn("rotella 1", mani.storia)
+        self.assertEqual(mani.storia[-1], "rilascia tutto")             # alla fine lascia tutto
+
+    def test_sensibilita_e_schedina_staccata(self):
+        from telecomando import Telecomando
+        mani = ManiFinte({})
+        tele = Telecomando(mani, (0, 0), sensibilita=0.5, ogni=0.002)
+        tele.mosso(20, -10)
+        time.sleep(0.03)
+        tele.ferma()
+        self.assertEqual((mani.mosso_x, mani.mosso_y), (10, -5))
+
+        class Staccata(ManiFinte):
+            def _mouse_muovi(self, dx, dy):
+                raise RuntimeError("cavo staccato")
+        tele = Telecomando(Staccata({}), (0, 0), ogni=0.002)
+        tele.mosso(5, 5)
+        time.sleep(0.03)
+        tele.ferma()
+        self.assertIn("cavo staccato", str(tele.errore))
+
+
 class TestImparaPulsanti(ConCartella):
     def test_impara_i_pulsanti_che_clicchi(self):
         from apprendimento import ImparaPulsanti, aggiungi_regole_pulsanti
@@ -928,6 +1091,13 @@ class TestFileUnicoSchedina(unittest.TestCase):
         self.assertIn(b"$Versione = 42", letti["installa.ps1"])
         self.assertIn(b"https://esempio/BotSparatutto.zip", letti["installa.ps1"])
         self.assertIn(b"\r\n", letti["AVVIA IL BOT.cmd"])
+        # gli stessi file anche in uno .zip (se CIRCUITPY resta vuota si copiano a mano)
+        import zipfile
+        percorso_zip = os.path.join(tempfile.mkdtemp(), "file.zip")
+        crea_uf2.scrivi_zip(file, percorso_zip)
+        with zipfile.ZipFile(percorso_zip) as z:
+            self.assertEqual(z.namelist(), nomi)
+            self.assertEqual(z.read("code.py"), letti["code.py"])
 
         # UF2: CircuitPython finto (2 blocchi) + chiavetta a 0x10100000
         finto = crea_uf2.scrivi_uf2([(0x10000000, b"\x01" * 256), (0x10000100, b"\x02" * 256)])

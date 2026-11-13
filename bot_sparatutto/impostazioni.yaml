@@ -28,6 +28,15 @@ comandi:
 
 
 # ---------------------------------------------------------------------
+# GIOCARE TU SULLA PLAY DAL PORTATILE (menu 4 "Impara guardando me" -> 2)
+# ---------------------------------------------------------------------
+telecomando:
+  # Il mouse del portatile passa alla Play attraverso la schedina.
+  # Se nel gioco ti sembra troppo veloce metti 0.5, troppo lento 2.
+  sensibilita_mouse: 1.0
+
+
+# ---------------------------------------------------------------------
 # TASTI PER COMANDARE IL BOT (mentre gioca)
 # ---------------------------------------------------------------------
 tasti_bot:
