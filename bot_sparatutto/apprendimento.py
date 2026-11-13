@@ -164,6 +164,9 @@ class Apprendimento:
         self._forza_salvata = self.forza
         self.prossimo_tentativo = 0.0
         self.fallimenti = 0
+        # con PS Remote Play l'immagine arriva in ritardo: aspetto di piu' prima di misurare
+        self.attesa_misura = float(ap.get("attesa_misura", 0.45) or 0.45)
+        self.tentativi_massimi = int(ap.get("tentativi_sensibilita", 6) or 6)
         self.fallimenti_giro = 0
         self._att = None                  # bersaglio che sto controllando (attaccato alla visuale?)
         self.salva_foto_ogni = float(ap.get("salva_foto_ogni", 0) or 0)
@@ -185,7 +188,13 @@ class Apprendimento:
                 self.fallimenti = 0
             else:
                 self.fallimenti += 1
-                self.prossimo_tentativo = time.monotonic() + (4.0 if self.fallimenti < 5 else 20.0)
+                self.prossimo_tentativo = time.monotonic() + 6.0
+                if self.fallimenti >= self.tentativi_massimi:
+                    # non riesco a misurarla: tengo la stima e NON riprovo piu' (prima riprovava
+                    # all'infinito e intanto il bot stava fermo a muovere la visuale)
+                    self.ppp_noto = True
+                    self.giro_noto = True
+                    self.log("Non riesco a misurare la sensibilita': uso la stima (%.3f) e gioco" % self.ppp)
             return "imparo la sensibilita' del mouse"
         if self._misura_giro(mani, schermo, esecutore):
             esecutore.passi_per_giro = self.passi_per_giro
@@ -205,10 +214,10 @@ class Apprendimento:
         for _ in range(8):
             prima = schermo.foto()
             mani.muovi(passi, 0)
-            esecutore.dormi(0.22)
+            esecutore.dormi(self.attesa_misura)
             dopo = schermo.foto()
             mani.muovi(-passi, 0)
-            esecutore.dormi(0.22)
+            esecutore.dormi(self.attesa_misura)
             dx, dy, risposta, larghezza = misura_spostamento(prima, dopo)
             if abs(dx) < 3:
                 passi *= 3

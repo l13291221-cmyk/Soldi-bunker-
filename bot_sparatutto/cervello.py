@@ -38,6 +38,15 @@ def _cfg(cfg, sezione):
     return cfg.get(sezione, {}) or {}
 
 
+def viola(img):
+    """Quanta parte dello schermo e' viola (0-1): la tempesta di Fortnite colora tutto di viola."""
+    piccola = cv2.resize(img, (96, 54), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(piccola, cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    m = (h >= 125) & (h <= 165) & (s >= 60) & (v >= 40)
+    return float(np.count_nonzero(m)) / m.size
+
+
 class Conferma:
     """Una cassa (o un'arma) conta solo se la vedo in piu' fotogrammi di fila nello stesso
     posto (tenendo conto di quanto ho girato la visuale): cosi' un riflesso giallo di un
@@ -94,6 +103,8 @@ class Cervello:
         self.in_auto_da = None            # da quando sto guidando
         self.niente_auto_fino = 0.0       # appena sceso non risalgo subito
         self.cursore_atteso = None        # nei menu: dov'era il cursore e quanto l'ho spostato
+        self.scappo_fino = 0.0            # tempesta: fino a quando corro verso la zona sicura
+        self.prossimo_controllo_tempesta = 0.0
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
         self.stile = stile if stile is not None else STILI["pro"]     # come gioca (stile.py)
         self.mani = mani
@@ -311,6 +322,11 @@ class Cervello:
             if self.comb.get("ricarica_dopo", True) and self.mani.esiste("ricarica"):
                 self.mani.premi("ricarica")
 
+        # 3b. tempesta (si vede dal viola): scappo verso dove c'e' meno viola
+        scritta = self._tempesta(img, t)
+        if scritta:
+            return scritta
+
         # 4. cura
         scritta = self._cura(vis, t)
         if scritta:
@@ -496,6 +512,42 @@ class Cervello:
             sinistra = True
         self._cammina(avanti=True, sinistra=sinistra, destra=destra)    # con un muro davanti sterza
         return "guido"
+
+    def _tempesta(self, img, t):
+        """Nella tempesta lo schermo diventa viola: giro su me stesso guardando 8 direzioni,
+        mi giro verso quella con meno viola e corro."""
+        if img is None or not self.fort.get("tempesta_dal_colore", True):
+            return None
+        if t < self.scappo_fino:
+            self._cammina(avanti=True, corri=True)
+            if abs(self.pitch) > 3:
+                self._muovi(0, -self.pitch * 0.15, fluido=True)
+            self._controlla_blocco(img, t)
+            return "corro via dalla tempesta"
+        if t < self.prossimo_controllo_tempesta:
+            return None
+        self.prossimo_controllo_tempesta = t + 1.0
+        quanto = viola(img)
+        if quanto < float(self.fort.get("tempesta_soglia_viola", 0.35) or 0.35):
+            return None
+        self.log("Sono nella tempesta (%.0f%% viola): cerco la zona sicura" % (quanto * 100))
+        self._cammina()
+        direzioni = 8
+        migliore, minimo = 0, quanto
+        for i in range(1, direzioni):
+            self.esecutore.gira(360.0 / direzioni, durata=0.15)
+            self.esecutore.dormi(0.3)
+            q = viola(self.esecutore.foto_fresca())
+            if q < minimo:
+                migliore, minimo = i, q
+        self.esecutore.gira(360.0 / direzioni, durata=0.15)      # di nuovo dove ero partito
+        if migliore:
+            self.esecutore.gira(migliore * 360.0 / direzioni)
+        self.scappo_fino = t + float(self.fort.get("corsa_fuori_tempesta", 10) or 10)
+        self.giro_fino = 0.0
+        self.prossimo_guardarsi = t + 15.0
+        self.mini_prec = None
+        return "scappo dalla tempesta"
 
     def _solo_nemici_vicini(self):
         """Con l'obiettivo delle casse (o sopravvivere, o lo stile Tranquillo) i nemici lontani si ignorano."""
@@ -918,7 +970,7 @@ class Cervello:
         # giro intorno a se', lento e fluido, cosi' guarda in ogni direzione (cerca casse e nemici)
         velocita_giro = float(self.espl.get("velocita_giro_gradi", 120) or 120)
         if t < self.giro_fino:
-            self._cammina()
+            self._cammina(avanti=True)            # si guarda intorno senza fermarsi
             self._muovi(self.passi_per_giro * velocita_giro / 360.0 * dt, 0, fluido=True)
             return "mi guardo intorno"
         ogni = float(self.espl.get("guarda_intorno_ogni", 12) or 0)

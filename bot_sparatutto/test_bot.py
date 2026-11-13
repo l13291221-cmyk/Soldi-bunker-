@@ -44,6 +44,8 @@ def cfg_test(**sopra):
         cfg["raccolta"]["conferma_fotogrammi"] = 1
     if "schermo" not in sopra or "zone_interfaccia_fortnite" not in sopra["schermo"]:
         cfg["schermo"]["zone_interfaccia_fortnite"] = False
+    if "apprendimento" not in sopra or "attesa_misura" not in sopra["apprendimento"]:
+        cfg["apprendimento"]["attesa_misura"] = 0.05        # il mondo finto risponde subito
     cfg["colori"]["nemico"] = [{"tinta": [170, 8], "saturazione": [170, 255], "luminosita": [150, 255]}]
     return cfg
 
@@ -941,6 +943,45 @@ class TestLogicaFortnite(ConCartella):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
         mondo.oggetti.append((330, 120, 20, 60, ROSSO))
         self.assertTrue(self._passo(mondo, occhi, cerv).startswith("combatto"))
+
+
+VIOLA = (200, 50, 140)       # il colore della tempesta (BGR)
+
+
+class TestTempesta(ConCartella):
+    """La tempesta la vede da solo (schermo viola) e scappa verso dove c'e' meno viola."""
+
+    def test_quanto_viola(self):
+        from cervello import viola
+        self.assertGreater(viola(np.full((360, 640, 3), VIOLA, np.uint8)), 0.95)
+        self.assertLess(viola(np.full((360, 640, 3), 60, np.uint8)), 0.01)
+        self.assertLess(viola(np.full((360, 640, 3), (0, 200, 255), np.uint8)), 0.01)   # oro: no
+
+    def test_scappa_dalla_parte_giusta(self):
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        # tutto viola tranne la zona sicura (da 1200 a 1800 pixel del panorama = dietro di me)
+        mondo.oggetti += [(0, -400, 1200, 1200, VIOLA), (1800, -400, 600, 1200, VIOLA)]
+        cerv.prossimo_guardarsi = time.monotonic() + 999
+        t = time.monotonic()
+        img = mondo.foto()
+        self.assertEqual(cerv.passo(occhi.analizza(img), img, t), "scappo dalla tempesta")
+        self.assertEqual(mondo.x_visuale(), 1200)                       # girato verso la zona sicura
+        img = mondo.foto()
+        self.assertEqual(cerv.passo(occhi.analizza(img), img, t + 0.1), "corro via dalla tempesta")
+        self.assertTrue(mani.e_premuto("avanti"))
+        self.assertTrue(mani.e_premuto("corri"))
+
+    def test_non_riprova_all_infinito_a_misurare(self):
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        app.ppp_noto = app.giro_noto = False
+        schermo_fermo = types.SimpleNamespace(foto=lambda: np.full((360, 640, 3), 50, np.uint8),
+                                              origine=(0, 0))
+        for _ in range(app.tentativi_massimi):
+            self.assertTrue(app.serve_calibrare(app.prossimo_tentativo))
+            app.calibra(mani, schermo_fermo, esec)
+        self.assertFalse(app.serve_calibrare(time.monotonic() + 1000))   # basta: gioca con la stima
 
 
 class TestVisualeFluida(unittest.TestCase):

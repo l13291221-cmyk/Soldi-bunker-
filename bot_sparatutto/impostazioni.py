@@ -21,6 +21,9 @@ PREDEFINITE = {
         "usa_veicoli": True,             # sale in macchina se e' vicina (per girare la mappa e la tempesta)
         "guida_secondi_massimi": 25,     # poi scende (o prima, se vede una cassa o un nemico)
         "cura_con_ia": True,             # se l'IA vede poca vita (e nessun nemico) si cura
+        "tempesta_dal_colore": True,     # la tempesta la vede anche da solo (schermo viola), senza IA
+        "tempesta_soglia_viola": 0.35,   # parte dello schermo viola per dire "sono nella tempesta"
+        "corsa_fuori_tempesta": 10,      # secondi di corsa verso la zona sicura, poi ricontrolla
     },
     # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
     "ia": {
