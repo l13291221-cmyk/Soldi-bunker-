@@ -23,6 +23,10 @@ PREDEFINITE = {
         "guida_secondi_massimi": 25,     # poi scende (o prima, se vede una cassa o un nemico)
         "cura_con_ia": True,             # se l'IA vede poca vita (e nessun nemico) si cura
         "tempesta_dal_colore": True,     # la tempesta la vede anche da solo (schermo viola), senza IA
+        "piccona_i_muri": True,          # bloccato contro un muro: salta e lo sfonda col piccone
+        "piccona_secondi": 1.5,
+        "rianima_compagni": True,        # con l'IA: va dal compagno a terra e lo rianima
+        "rianima_secondi": 10,
         "tempesta_soglia_viola": 0.35,   # parte dello schermo viola per dire "sono nella tempesta"
         "corsa_fuori_tempesta": 10,      # secondi di corsa verso la zona sicura, poi ricontrolla
     },

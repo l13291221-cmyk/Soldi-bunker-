@@ -569,6 +569,20 @@ class Cervello:
         self.ultimo_consiglio = c.numero
         if not nuovo or vis.nemici:
             return None                          # ogni consiglio si usa una volta, e i nemici vengono prima
+        if c.compagno != "none" and self.fort.get("rianima_compagni", True):
+            if c.compagno == "close" and self.mani.esiste("interagisci"):
+                self.log("IA: un compagno e' a terra vicino -> lo rianimo")
+                self._cammina()
+                self.mani.giu("interagisci")
+                try:
+                    self.esecutore.dormi(float(self.fort.get("rianima_secondi", 10) or 10))
+                finally:
+                    self.mani.su("interagisci")
+                return "rianimo un compagno"
+            if c.compagno in ("left", "right"):
+                self.esecutore.gira(-35 if c.compagno == "left" else 35)
+                self._cammina(avanti=True, corri=True)
+                return "vado dal compagno a terra"
         if c.poca_vita and self.fort.get("cura_con_ia", True) and t >= self.prossima_cura:
             self.prossima_cura = t + 10.0
             self._cammina()
@@ -1064,12 +1078,31 @@ class Cervello:
         # giro dall'altra parte e di piu' (cosi' non torno contro lo stesso muro)
         di_nuovo = t - self.ultimo_sblocco < 4.0
         self.ultimo_sblocco = t
-        self.verso_sblocco = -self.verso_sblocco if di_nuovo else random.choice((-1, 1))
-        gradi = random.uniform(150, 210) if di_nuovo else random.uniform(80, 140)
-        self.log("Sono bloccato contro qualcosa: salto, torno indietro e giro" +
-                 (" dall'altra parte" if di_nuovo else ""))
         self.statistiche["bloccato"] = self.statistiche.get("bloccato", 0) + 1
         self.fermo_conta = 0
+        if not di_nuovo and self.fort.get("piccona_i_muri", True) and self.mani.esiste("piccone"):
+            # come un giocatore di Fortnite: salto in avanti (ci si arrampica sugli ostacoli bassi);
+            # se non passo, il muro lo sfondo col piccone (e prendo materiali). Poi riprendo l'arma
+            self.log("Sono bloccato: salto e sfondo col piccone")
+            self._cammina(avanti=True)
+            if self.mani.esiste("salta"):
+                self.mani.premi("salta")
+            self.esecutore.dormi(0.35)
+            self.mani.premi("piccone")
+            self.mani.imposta("spara", True)
+            try:
+                self.esecutore.dormi(float(self.fort.get("piccona_secondi", 1.5) or 1.5))
+            finally:
+                self.mani.imposta("spara", False)
+                self._cammina()
+            if self.mani.esiste("arma_1"):
+                self.mani.premi("arma_1")
+            self.mini_prec = None
+            return True
+        self.verso_sblocco = -self.verso_sblocco if di_nuovo else random.choice((-1, 1))
+        gradi = random.uniform(150, 210) if di_nuovo else random.uniform(80, 140)
+        self.log("Sono ancora bloccato: salto, torno indietro e giro" +
+                 (" dall'altra parte" if di_nuovo else ""))
         if self.mani.esiste("salta"):
             self.mani.premi("salta")
         self._cammina(indietro=True)

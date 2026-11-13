@@ -494,7 +494,7 @@ class TestCervello(ConCartella):
         giri = []
         salto = "giu tasto 0x%02X" % CODICI["spazio"]
         primo = None
-        for i in range(40):
+        for i in range(80):
             prima_x, salti = mani.mosso_x, mani.storia.count(salto)
             img = mondo.foto()
             cerv.passo(occhi.analizza(img), img, t + i * 0.1)
@@ -504,8 +504,11 @@ class TestCervello(ConCartella):
                     primo = i * 0.1
         self.assertIsNotNone(primo)
         self.assertLess(primo, 1.5)                                  # prima ci metteva 2 secondi
+        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)   # la prima volta: piccone
+        self.assertIn("giu mouse 1", mani.storia)                        # ...e sfonda
+        giri = [g for g in giri if g]
         self.assertGreaterEqual(len(giri), 2)
-        self.assertLess(giri[0] * giri[1], 0)                       # la seconda volta gira dall'altra parte
+        self.assertLess(giri[0] * giri[1], 0)                       # poi gira, e la volta dopo dall'altra parte
 
 
 # ====================================================================== obiettivo e pulsanti imparati
@@ -955,6 +958,16 @@ class TestLogicaFortnite(ConCartella):
         c.miniatura = ia.miniatura(mondo.foto())
         self.assertTrue(self._passo(mondo, occhi, cerv).startswith(("aspetto", "clicco", "porto")))
 
+    def test_rianima_il_compagno(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno="close")
+        cerv.fort["rianima_secondi"] = 0.1
+        self.assertEqual(self._passo(mondo, occhi, cerv), "rianimo un compagno")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        self.assertFalse(mani.e_premuto("interagisci"))                 # poi lo lascia
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno="left")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "vado dal compagno a terra")
+        self.assertLess(mani.mosso_x, 0)
+
     def test_i_nemici_vengono_prima(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
         mondo.oggetti.append((330, 120, 20, 60, ROSSO))
@@ -1096,10 +1109,11 @@ class TestPulsanteGiallo(ConCartella):
         mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
         mondo.oggetti.append((430, 280, 170, 50, GIALLO))
         t = time.monotonic()
+        scritte = []
         for i in range(10):
             img = mondo.foto()
-            cerv.passo(occhi.analizza(img), img, t + i * 1.0)
-        self.assertNotIn("giu mouse 1", mani.storia)
+            scritte.append(cerv.passo(occhi.analizza(img), img, t + i * 1.0))
+        self.assertNotIn("clicco Gioca di nuovo", scritte)
 
 
 def trova_pulsante_giallo_none(menu):

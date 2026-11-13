@@ -37,6 +37,8 @@ fortnite:
   guida_secondi_massimi: 25   # poi scende (o prima, se vede una cassa o un nemico)
   cura_con_ia: true           # se l'IA vede poca vita e non ci sono nemici, si cura
   tempesta_dal_colore: true   # la tempesta la vede anche da solo (schermo viola), senza IA
+  piccona_i_muri: true        # bloccato contro un muro: salta e lo sfonda col piccone (prende materiali)
+  rianima_compagni: true      # con l'IA: va dal compagno a terra e lo rianima (tiene premuto E)
   tempesta_soglia_viola: 0.35 # parte dello schermo viola per dire "sono nella tempesta"
   corsa_fuori_tempesta: 10    # secondi di corsa verso la zona sicura, poi ricontrolla
 

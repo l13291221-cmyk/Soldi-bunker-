@@ -74,7 +74,7 @@ DOMANDA = (
     '"enemy": true|false, "low_health": true|false, '
     '"vehicle": "none|left|center|right|close", "in_vehicle": true|false, '
     '"button": {"x": 0.5, "y": 0.9} or null, "cursor": {"x": 0.5, "y": 0.5} or null, '
-    '"key": "none|space|enter|esc|e|f"}\n'
+    '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close"}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = eliminated or spectating. chest = a closed loot chest (golden glowing box) in the 3D world, "
     "NOT icons of the interface; tell where it is on screen. wall_ahead = a wall, rock or obstacle "
@@ -85,7 +85,9 @@ DOMANDA = (
     "button = ONLY in lobby, menus or after being eliminated: the one button to press to get to the "
     "NEXT MATCH (Return to Lobby, Play, Ready, Continue, Skip...), as fractions of screen width and "
     "height; never Quit or Exit game. cursor = where the mouse pointer is, if you see it. "
-    "key = a key the screen says to press to continue (for example 'Press SPACE'), else none."
+    "key = a key the screen says to press to continue (for example 'Press SPACE'), else none. "
+    "downed_teammate = a knocked-down teammate (crawling, waiting to be revived), close = right next "
+    "to the character."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
@@ -101,8 +103,9 @@ class Consiglio:
 
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
-                 pulsante=None, cursore=None, tasto="none"):
+                 pulsante=None, cursore=None, tasto="none", compagno="none"):
         self.fase = fase
+        self.compagno = compagno          # compagno a terra da rianimare (none/left/center/right/close)
         self.poca_vita = poca_vita
         self.veicolo = veicolo
         self.in_veicolo = in_veicolo
@@ -203,7 +206,8 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         in_veicolo=_si(dati.get("in_vehicle", False)),
         pulsante=_punto(dati.get("button")),
         cursore=_punto(dati.get("cursor")),
-        tasto=_scegli(dati.get("key"), TASTI, "none"))
+        tasto=_scegli(dati.get("key"), TASTI, "none"),
+        compagno=_scegli(dati.get("downed_teammate"), VEICOLO, "none"))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA
