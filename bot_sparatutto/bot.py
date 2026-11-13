@@ -233,6 +233,13 @@ def avvia(modo=None):
     ia = IA(cfg, log, conoscenza=modulo_ia.leggi_conoscenza(BASE))
     cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
                         ia if ia.attiva else None)
+    import remote_play
+    cervello.pc = remote_play.PC(log)
+    if not controllo.titolo and cervello.pc.trova_finestra() is not None:
+        # giochi sulla Play con PS Remote Play: se un'altra finestra la copre il bot si ferma
+        # (prima "giocava" sul desktop scambiando le icone gialle per casse)
+        controllo.titolo = remote_play.TITOLO.lower()
+        log("Gioco dentro PS Remote Play: se un'altra finestra la copre mi fermo e aspetto")
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
         log("ATTENZIONE: non ho niente per riconoscere i nemici (occhio universale spento e nessun colore).")
     mostra = bool(sch.get("mostra_finestra", False)) or modo == "prova"

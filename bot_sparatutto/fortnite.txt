@@ -283,3 +283,22 @@ RARITA' (il colore dell'alone e della cornice)
 10. In squadra: rianima i compagni abbattuti e porta le loro carte al furgone
     del riavvio.
 11. Nelle ultime fasi: stai in alto, dietro ripari, e non farti vedere.
+
+
+---------------------------------------------------------------------
+13. PS5 E PS REMOTE PLAY (quando non si vede il gioco)
+---------------------------------------------------------------------
+- "CHI STA USANDO QUESTO CONTROLLER?" / "CHI STA USANDO QUESTA TASTIERA?": un
+  riquadro grigio scuro della PS5 con le foto rotonde degli utenti ("+ Aggiungi
+  utente", il tuo nome con scritto "Connesso", altri utenti). Copre il gioco.
+  Si chiude scegliendo il tuo utente: e' gia' selezionato, basta INVIO.
+- PS REMOTE PLAY SCOLLEGATO: sul PC compare la finestra di PS Remote Play con
+  "Hai perso la connessione alla PS5" (pulsante OK), poi "Seleziona l'ultima
+  console a cui ti sei connesso" con il pulsante del nome della console (es.
+  "PS5-649") e "Altre connessioni". Per ricollegarsi: OK, poi il nome della console.
+  Se chiede di "Collega la PS5 manualmente" con un NUMERO (codice che si legge
+  sulla TV) o di aggiornare PS Remote Play, deve farlo una persona.
+- Dopo che si e' ricollegato: si vede la schermata Home della PS5 con i giochi;
+  Fortnite e' gia' selezionato: INVIO per tornare nel gioco.
+- DESKTOP DI WINDOWS (icone, barra in basso, finestre nere con scritte): il gioco
+  non si vede. Le icone gialle delle cartelle NON sono casse!

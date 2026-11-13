@@ -145,6 +145,15 @@ class Cervello:
         self.giallo_visto = None          # (cx, cy, miniatura) dell'ultima volta che l'ho visto
         self.giallo_tentativo = None      # (quando ho cliccato, passi per pixel usati)
         self.giallo_indice = 0
+        self.pc = None                    # il mouse del PC e la finestra di PS Remote Play (remote_play.py)
+        self.ultimo_consiglio_schermo = 0
+        self.volte_chi = 0                # quante volte ho risposto a "Chi sta usando...?"
+        self.prossimo_avviso_schermo = 0.0
+        self.prossimo_davanti = 0.0
+        self.fase_lunga = (None, 0.0)     # (bus/caduta, da quando l'IA lo dice senza smettere)
+        self.ignora_fase_fino = 0.0
+        self.attesa_da = None             # da quando aspetto nei menu / da eliminato
+        self.prossimo_avviso_attesa = 0.0
         self.ultima_partita_contata = -1000.0
         self.prossimo_controllo_tempesta = 0.0
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
@@ -403,6 +412,26 @@ class Cervello:
         if c.fase != "playing" and not self._ancora_valido(c, img, t):
             # l'IA (lenta) parlava di uno schermo che ormai e' cambiato: non le credo e gioco
             return None
+        scritta = self._schermo_ia(c, img, t)
+        if scritta:
+            return scritta
+        if c.fase in ("bus", "falling"):
+            # sul bus o in caduta non si sta per minuti: se l'IA lo dice da troppo, sbaglia
+            if self.fase_lunga[0] != c.fase:
+                self.fase_lunga = (c.fase, t)
+            elif t - self.fase_lunga[1] > float(self.fort.get("fase_massima_secondi", 120) or 120):
+                self.log("L'IA dice '%s' da troppo tempo: non le credo e gioco" % c.descrizione())
+                self.ignora_fase_fino = t + 60.0
+                self.fase_lunga = (None, t)
+            if t < self.ignora_fase_fino:
+                return None
+        else:
+            self.fase_lunga = (None, t)
+        if c.fase in ("menu", "dead"):
+            if self.attesa_da is None:
+                self.attesa_da = t
+        else:
+            self.attesa_da = None
         if c.fase in ("bus", "falling", "playing"):
             self.in_partita = True
         if c.fase == "bus":
@@ -425,8 +454,51 @@ class Cervello:
                 self.apprendimento.forse_salva_foto(img, vis, t)
             if self.in_partita:
                 self._partita_finita(t, sicuro=True)
-            return self._prossima_partita(c, img)
+            return self._prossima_partita(c, img, t)
         return None
+
+    def _schermo_ia(self, c, img, t):
+        """Quando non si vede il gioco: il riquadro della PS5 "Chi sta usando...?", PS Remote Play
+        scollegato, il desktop di Windows. Mi fermo (niente casse finte sul desktop!) e provo a
+        tornare a giocare."""
+        if c.schermo == "game":
+            self.volte_chi = 0
+            return None
+        self._spara(False)
+        self._cammina()
+        nuovo = c.numero != self.ultimo_consiglio_schermo
+        self.ultimo_consiglio_schermo = c.numero
+        if c.schermo == "ps5_who_is_using":
+            if nuovo:
+                # di solito e' gia' scelto il tuo utente: INVIO. Se non basta, ogni tanto ESC
+                self.volte_chi += 1
+                tasto = "esc" if self.volte_chi % 4 == 0 else "invio"
+                if self.mani.esiste(tasto):
+                    self.log("PS5: 'Chi sta usando questo controller?' -> premo %s" % tasto.upper())
+                    self.mani.premi(tasto, 0.1)
+            return "la PS5 chiede chi sta giocando"
+        if c.schermo == "remote_play":
+            if nuovo and c.pulsante_pc is not None and self.pc is not None and img is not None:
+                H, W = img.shape[:2]
+                ox, oy = self.schermo.origine if self.schermo is not None else (0, 0)
+                self.log("PS Remote Play si e' scollegato: clicco per ricollegarmi")
+                self.pc.clicca(ox + c.pulsante_pc[0] * W, oy + c.pulsante_pc[1] * H)
+                self.prossimo_avviso_schermo = t + 60.0
+            elif t >= self.prossimo_avviso_schermo:
+                self.prossimo_avviso_schermo = t + 60.0
+                self.log("PS Remote Play e' scollegato. Se chiede il codice della PS5 o un aggiornamento, "
+                         "fallo tu: poi riparto da solo")
+            return "PS Remote Play scollegato"
+        # desktop o un altro programma davanti al gioco
+        if self.pc is not None and t >= self.prossimo_davanti:
+            self.prossimo_davanti = t + 10.0
+            if self.pc.porta_davanti():
+                self.log("Non vedo il gioco: riporto davanti PS Remote Play")
+                return "non vedo il gioco"
+        if t >= self.prossimo_avviso_schermo:
+            self.prossimo_avviso_schermo = t + 60.0
+            self.log("Non vedo il gioco (c'e' il desktop o un altro programma): aspetto che torni")
+        return "non vedo il gioco"
 
     def _partita_finita(self, t, sicuro=False):
         """Conta la partita (una volta sola) e fa scrivere il riepilogo all'allenamento.
@@ -448,8 +520,7 @@ class Cervello:
         pulsante visto due volte nello stesso posto (cosi' in partita non clicca a caso).
         Sulla Play non so dove sia il cursore: se dopo il click il pulsante c'e' ancora, riprovo
         con un'altra 'velocita' del cursore' finche' non lo prendo, e me la ricordo."""
-        if (img is None or vis.nemici or not self.fort.get("pulsante_giallo", True)
-                or t < self.prossimo_giallo):
+        if img is None or not self.fort.get("pulsante_giallo", True) or t < self.prossimo_giallo:
             return None
         self.prossimo_giallo = t + 1.0
         from ia import miniatura
@@ -474,8 +545,11 @@ class Cervello:
             float(np.mean(np.abs(mini - prima[2]))) < 8.0
         volte = prima[3] + 1 if fermo else 1
         self.giallo_visto = (cx, cy, mini, volte)
-        if volte < 3:
-            return None                      # lo devo vedere 3 volte di fila, a schermo fermo
+        # lo devo vedere 3 volte di fila, a schermo fermo. Se mi sembra di vedere un "nemico" (nella
+        # schermata finale c'e' il TUO personaggio, e lo scambiavo per un nemico: non cliccava mai)
+        # aspetto 5 volte: in partita, con un nemico vero, lo schermo non sta fermo cosi' a lungo
+        if volte < (5 if vis.nemici else 3):
+            return None
         if self.giallo_tentativo is not None:
             if t - self.giallo_tentativo[0] < 2.5:
                 return "aspetto che riparta"
@@ -507,10 +581,15 @@ class Cervello:
         from ia import miniatura
         return float(np.mean(np.abs(miniatura(img) - prima))) < 10.0
 
-    def _prossima_partita(self, c, img):
+    def _prossima_partita(self, c, img, t=None):
         """Nei menu e da eliminato: preme il tasto o clicca il pulsante che porta alla partita dopo.
         Un'azione per ogni risposta dell'IA, poi guarda di nuovo (cosi' si corregge)."""
         aspetto = "aspetto (%s)" % ("menu" if c.fase == "menu" else "eliminato")
+        adesso = time.monotonic() if t is None else t
+        if self.attesa_da is not None and adesso - self.attesa_da > 60 and adesso >= self.prossimo_avviso_attesa:
+            self.prossimo_avviso_attesa = adesso + 60.0
+            self.log("Aspetto da %d secondi (%s): l'IA non vede ancora un pulsante per la partita dopo"
+                     % (adesso - self.attesa_da, "menu" if c.fase == "menu" else "eliminato"))
         if not self.fort.get("partite_in_loop", True) or c.numero == self.ultimo_consiglio_menu:
             return aspetto
         self.ultimo_consiglio_menu = c.numero

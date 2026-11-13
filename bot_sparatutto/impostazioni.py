@@ -27,13 +27,14 @@ PREDEFINITE = {
         "piccona_secondi": 1.5,
         "rianima_compagni": True,        # con l'IA: va dal compagno a terra e lo rianima
         "rianima_secondi": 10,
+        "fase_massima_secondi": 120,     # se l'IA dice "bus"/"caduta" piu' a lungo, sbaglia: non le credo
         "tempesta_soglia_viola": 0.35,   # parte dello schermo viola per dire "sono nella tempesta"
         "corsa_fuori_tempesta": 10,      # secondi di corsa verso la zona sicura, poi ricontrolla
     },
     # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
     "ia": {
         "attiva": False,
-        "ogni_secondi": 3,               # ogni quanto le manda una foto
+        "ogni_secondi": 4,               # ogni quanto le manda una foto (Gemini gratis: circa 15 al minuto)
         "validita_secondi": 8,           # casse, muri, tempesta: dopo questo tempo il consiglio e' vecchio
         "validita_fase_secondi": 45,     # bus, caduta, menu: cambiano piu' piano
         "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte

@@ -993,6 +993,55 @@ class TestLogicaFortnite(ConCartella):
         self.assertEqual(self._passo(mondo, occhi, cerv), "aspetto (menu)")
         self.assertFalse(mani.e_premuto("spara"))
 
+    def test_capisce_ps5_e_remote_play(self):
+        import ia
+        c = ia.leggi_risposta('{"phase": "unknown", "chest": "none", "screen": "remote_play", '
+                              '"pc_button": {"x": 0.5, "y": 0.64}}')
+        self.assertEqual((c.schermo, c.pulsante_pc), ("remote_play", (0.5, 0.64)))
+        c = ia.leggi_risposta('{"phase": "menu", "screen": "ps5_who_is_using"}')
+        self.assertEqual(c.schermo, "ps5_who_is_using")
+        c = ia.leggi_risposta('{"phase": "playing", "chest": "none"}')               # IA vecchie: gioco
+        self.assertEqual((c.schermo, c.pulsante_pc), ("game", None))
+        self.assertIn("PS Remote Play", ia.DOMANDA)
+
+    def test_chi_sta_usando_il_controller(self):
+        """Il riquadro della PS5 che bloccava il bot a fine partita: preme INVIO."""
+        mani, mondo, occhi, cerv = self._cervello(fase="menu", schermo="ps5_who_is_using")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "la PS5 chiede chi sta giocando")
+        self.assertIn("giu tasto 0x%02X" % CODICI["invio"], mani.storia)
+        n = len(mani.storia)
+        self._passo(mondo, occhi, cerv)                                   # stesso consiglio: non ripreme
+        self.assertEqual(len(mani.storia), n)
+
+    def test_remote_play_scollegato_si_ricollega(self):
+        from remote_play import PCFinto
+        mani, mondo, occhi, cerv = self._cervello(fase="unknown", schermo="remote_play", pulsante_pc=(0.5, 0.64))
+        cerv.pc = PCFinto()
+        mondo.oggetti.append((330, 220, 40, 30, ORO))                     # un'icona gialla: NON e' una cassa
+        self.assertEqual(self._passo(mondo, occhi, cerv), "PS Remote Play scollegato")
+        self.assertEqual(len(cerv.pc.click), 1)
+        x, y = cerv.pc.click[0]
+        self.assertAlmostEqual(x, 0.5 * mondo.W)
+        self.assertAlmostEqual(y, 0.64 * mondo.H)
+        self.assertFalse(mani.e_premuto("avanti"))
+        self.assertFalse(mani.e_premuto("spara"))
+
+    def test_desktop_si_ferma_e_riporta_davanti_remote_play(self):
+        from remote_play import PCFinto
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", schermo="desktop")
+        cerv.pc = PCFinto()
+        mondo.oggetti.append((330, 220, 40, 30, ORO))                     # cartella gialla del desktop
+        self.assertEqual(self._passo(mondo, occhi, cerv), "non vedo il gioco")
+        self.assertEqual(cerv.pc.davanti, 1)
+        self.assertFalse(mani.e_premuto("avanti"))
+
+    def test_in_caduta_per_troppo_tempo_non_ci_crede(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="falling")
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "cado verso terra")
+        cerv.ia.c.quando = t + 130
+        self.assertNotEqual(self._passo(mondo, occhi, cerv, t + 130), "cado verso terra")
+
     def test_casse_finte_e_vere(self):
         cassa = (500, 260, 50, 40, ORO)
         mani, mondo, occhi, cerv = self._cervello(fase="playing", cassa="none")
@@ -1225,6 +1274,28 @@ class TestPulsanteGiallo(ConCartella):
         self.assertEqual(cerv.statistiche["partite"], 1)                # ma la partita e' una
         cal = impostazioni.leggi_calibrazione(self.base)
         self.assertIn("passi_per_pixel", cal.get("menu", {}))           # si ricorda come fare
+
+    def test_clicca_anche_se_crede_di_vedere_un_nemico(self):
+        """Nella schermata finale c'e' il tuo personaggio: il bot lo prendeva per un nemico e non
+        cliccava mai 'Gioca di nuovo'. Ora, a schermo fermo, clicca lo stesso."""
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        app.ppp_noto = app.giro_noto = True
+        menu = MenuFinto(mani, 1.0)
+        esec.schermo = menu
+        cerv.schermo = menu
+        cerv.prossimo_guardarsi = time.monotonic() + 9999
+        t = time.monotonic()
+        scritte = []
+        for i in range(12):
+            img = menu.foto()
+            vis = occhi.analizza(img)
+            vis.oggetti["nemico"] = [Box(100, 150, 60, 160, 0.9, "nemico")]      # il tuo personaggio
+            scritte.append(cerv.passo(vis, img, t + i * 1.0))
+            if menu.cliccato:
+                break
+        self.assertTrue(menu.cliccato)
+        self.assertGreaterEqual(len(scritte), 5)                           # ma ci ha pensato di piu'
 
     def test_in_partita_non_clicca(self):
         """Uno schermo che si muove (si gioca) con qualcosa di giallo: non clicca."""

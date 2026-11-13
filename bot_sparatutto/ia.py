@@ -87,7 +87,8 @@ DOMANDA = (
     '"enemy": true|false, "low_health": true|false, '
     '"vehicle": "none|left|center|right|close", "in_vehicle": true|false, '
     '"button": {"x": 0.5, "y": 0.9} or null, "cursor": {"x": 0.5, "y": 0.5} or null, '
-    '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close"}\n'
+    '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close", '
+    '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = eliminated or spectating. chest = a closed loot chest (golden glowing box) in the 3D world, "
     "NOT icons of the interface; tell where it is on screen. wall_ahead = a wall, rock or obstacle "
@@ -100,7 +101,16 @@ DOMANDA = (
     "height; never Quit or Exit game. cursor = where the mouse pointer is, if you see it. "
     "key = a key the screen says to press to continue (for example 'Press SPACE'), else none. "
     "downed_teammate = a knocked-down teammate (crawling, waiting to be revived), close = right next "
-    "to the character."
+    "to the character. "
+    "screen: game = Fortnite or the PS5 menus are visible normally; ps5_who_is_using = a PS5 panel asks "
+    "'Who is using this controller/keyboard?' ('Chi sta usando questo controller/questa tastiera?') with "
+    "round user pictures; remote_play = a window or message of the PS Remote Play app on the computer "
+    "(lost connection 'Hai perso la connessione', select the console, connecting, enter a number, update "
+    "question...) instead of the game; desktop = the Windows desktop, a terminal or another program: the "
+    "game is not visible. pc_button = ONLY when screen is remote_play: where to click on the screen to "
+    "connect again to the PS5 (the OK button of a message, the console name button like 'PS5-123', "
+    "'Riprova'/'Retry'), as fractions of screen width and height; null if it asks for a number/code or "
+    "for an update."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
@@ -109,6 +119,7 @@ VEICOLO = ("none", "left", "center", "right", "close")
 TASTI = ("none", "space", "enter", "esc", "e", "f")
 NOMI_TASTI = {"space": "spazio", "enter": "invio", "esc": "esc", "e": "e", "f": "f"}
 DIREZIONI = ("left", "right", "ahead", "behind", "unknown")
+SCHERMI = ("game", "ps5_who_is_using", "remote_play", "desktop")
 
 
 class Consiglio:
@@ -116,8 +127,10 @@ class Consiglio:
 
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
-                 pulsante=None, cursore=None, tasto="none", compagno="none"):
+                 pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None):
         self.fase = fase
+        self.schermo = schermo            # game / ps5_who_is_using / remote_play / desktop
+        self.pulsante_pc = pulsante_pc    # dove cliccare col mouse del PC (Remote Play), oppure None
         self.compagno = compagno          # compagno a terra da rianimare (none/left/center/right/close)
         self.poca_vita = poca_vita
         self.veicolo = veicolo
@@ -154,6 +167,9 @@ class Consiglio:
                                       "close": "vicina"}[self.veicolo]
         if self.pulsante is not None:
             parti += ", pulsante per continuare in %.2f,%.2f" % self.pulsante
+        if self.schermo != "game":
+            parti += ", " + {"ps5_who_is_using": "la PS5 chiede chi sta giocando",
+                             "remote_play": "PS Remote Play scollegato", "desktop": "non si vede il gioco"}[self.schermo]
         return parti
 
 
@@ -220,7 +236,9 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         pulsante=_punto(dati.get("button")),
         cursore=_punto(dati.get("cursor")),
         tasto=_scegli(dati.get("key"), TASTI, "none"),
-        compagno=_scegli(dati.get("downed_teammate"), VEICOLO, "none"))
+        compagno=_scegli(dati.get("downed_teammate"), VEICOLO, "none"),
+        schermo=_scegli(dati.get("screen"), SCHERMI, "game"),
+        pulsante_pc=_punto(dati.get("pc_button")))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

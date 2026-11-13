@@ -346,6 +346,17 @@ ogni tanto il bot le manda una foto piccola dello schermo e lei dice cosa succed
     ("Torna alla lobby", "Gioca", "Pronto") e clicca, finche' non riparte. Conta
     le partite e a ogni partita l'allenamento scrive il riepilogo.
     Impara da solo di quanto si muove il cursore nei menu della Play.
+PARTITE ALL'INFINITO SULLA PLAY (con l'IA che guarda, meglio Gemini):
+  - se la PS5 mostra "Chi sta usando questo controller/questa tastiera?" preme INVIO
+    (il tuo utente e' gia' selezionato) e riprende;
+  - se PS Remote Play si scollega ("Hai perso la connessione alla PS5") clicca col
+    mouse del PC OK e poi il nome della console (es. PS5-649) per ricollegarsi. Se
+    chiede il NUMERO (codice sulla TV) o di aggiornarsi deve farlo una persona: lui
+    aspetta e riparte da solo quando torna il gioco;
+  - se non vede il gioco (desktop o un'altra finestra davanti) si ferma: non va piu'
+    a cercare "casse" tra le icone gialle del desktop. Se la finestra di PS Remote
+    Play c'e', si ferma da solo quando non e' davanti e riparte quando lo e';
+  - se l'IA dice "sul bus" o "in caduta" per piu' di 2 minuti non le crede e gioca.
 Anche SENZA IA: quando tutta la squadra e' eliminata e compare il pulsante grande e
 GIALLO "Gioca di nuovo" (o "Gioca" nella lobby), il bot lo clicca da solo. Sulla Play
 non sa dove sia il cursore: se il primo click non lo prende, riprova cambiando la
