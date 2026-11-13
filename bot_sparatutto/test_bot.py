@@ -482,6 +482,29 @@ class TestCervello(ConCartella):
             cerv.passo(occhi.analizza(img), img, t + i * 0.45)
         self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
 
+    def test_si_accorge_presto_e_la_seconda_volta_gira_dall_altra_parte(self):
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, self.cfg, {"ppp": 0.5})
+        mondo.foto = lambda: np.full((360, 640, 3), 50, np.uint8)   # contro un muro: non cambia niente
+        t = time.monotonic()
+        cerv.prossimo_guardarsi = t + 999
+        cerv.deriva = 0.0
+        cerv.prossima_deriva = t + 999
+        giri = []
+        salto = "giu tasto 0x%02X" % CODICI["spazio"]
+        primo = None
+        for i in range(40):
+            prima_x, salti = mani.mosso_x, mani.storia.count(salto)
+            img = mondo.foto()
+            cerv.passo(occhi.analizza(img), img, t + i * 0.1)
+            if mani.storia.count(salto) > salti:
+                giri.append(mani.mosso_x - prima_x)
+                if primo is None:
+                    primo = i * 0.1
+        self.assertIsNotNone(primo)
+        self.assertLess(primo, 1.5)                                  # prima ci metteva 2 secondi
+        self.assertGreaterEqual(len(giri), 2)
+        self.assertLess(giri[0] * giri[1], 0)                       # la seconda volta gira dall'altra parte
+
 
 # ====================================================================== obiettivo e pulsanti imparati
 class TestObiettivo(ConCartella):

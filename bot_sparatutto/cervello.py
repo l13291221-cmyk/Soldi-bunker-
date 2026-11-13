@@ -147,6 +147,8 @@ class Cervello:
         self.t_mini = adesso
         self.fermo_conta = 0
         self.ultimo_mosso = adesso
+        self.ultimo_sblocco = -100.0      # quando mi sono sbloccato l'ultima volta
+        self.verso_sblocco = 1            # da che parte ho girato (se mi riblocco giro dall'altra)
         self.prossimo_controllo_regole = 0.0
 
     # ------------------------------------------------------------------ valori imparati
@@ -656,11 +658,14 @@ class Cervello:
 
     # ------------------------------------------------------------------ esplorazione
     def _controlla_blocco(self, img, t, sto_camminando=True):
-        """Se cammino ma lo schermo non cambia, sono bloccato contro qualcosa."""
-        if img is None or t - self.t_mini < 0.4:
+        """Se cammino ma il CENTRO dello schermo (quello che ho davanti) non cambia,
+        sono bloccato contro qualcosa."""
+        if img is None or t - self.t_mini < 0.25:
             return False
         self.t_mini = t
-        mini = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (64, 36), interpolation=cv2.INTER_AREA)
+        H, W = img.shape[:2]
+        centro = img[int(0.3 * H):int(0.8 * H), int(0.25 * W):int(0.75 * W)]
+        mini = cv2.resize(cv2.cvtColor(centro, cv2.COLOR_BGR2GRAY), (48, 28), interpolation=cv2.INTER_AREA)
         if not sto_camminando:
             self.ultimo_mosso = t
             self.fermo_conta = 0
@@ -676,18 +681,24 @@ class Cervello:
                 self.fermo_conta += 1
         self.mini_prec = mini
         self.stato["fermo_da"] = t - self.ultimo_mosso
-        if self.fermo_conta < 4:
+        if self.fermo_conta < int(self.espl.get("controlli_blocco", 3) or 3):
             return False
-        # bloccato: salto, faccio un passo indietro e giro
-        self.log("Sono bloccato: salto e giro")
+        # bloccato: salto, faccio un passo indietro e giro. Se mi ero gia' bloccato da poco,
+        # giro dall'altra parte e di piu' (cosi' non torno contro lo stesso muro)
+        di_nuovo = t - self.ultimo_sblocco < 4.0
+        self.ultimo_sblocco = t
+        self.verso_sblocco = -self.verso_sblocco if di_nuovo else random.choice((-1, 1))
+        gradi = random.uniform(150, 210) if di_nuovo else random.uniform(80, 140)
+        self.log("Sono bloccato contro qualcosa: salto, torno indietro e giro" +
+                 (" dall'altra parte" if di_nuovo else ""))
         self.statistiche["bloccato"] = self.statistiche.get("bloccato", 0) + 1
         self.fermo_conta = 0
         if self.mani.esiste("salta"):
             self.mani.premi("salta")
         self._cammina(indietro=True)
-        self.esecutore.dormi(0.3)
+        self.esecutore.dormi(0.4)
         self._cammina()
-        self.esecutore.gira(random.choice((-1, 1)) * random.uniform(70, 160))
+        self.esecutore.gira(self.verso_sblocco * gradi)
         self.mini_prec = None
         return True
 
