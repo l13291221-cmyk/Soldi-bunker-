@@ -719,6 +719,31 @@ class TestTelecomando(unittest.TestCase):
         self.assertIn("cavo staccato", str(tele.errore))
 
 
+class TestAggiorna(ConCartella):
+    """Menu 13: il programma si aggiorna da solo senza toccare le tue impostazioni."""
+
+    def test_versione_e_script(self):
+        import bot
+        self.assertEqual(bot.leggi_versione(self.base), 0)               # manca: 0
+        with open(os.path.join(self.base, "versione.txt"), "w") as f:
+            f.write("7")
+        self.assertEqual(bot.leggi_versione(self.base), 7)
+        script = bot.script_aggiornamento(r"C:\T\BotSparatutto", r"C:\Users\x\BotSparatutto",
+                                          "BotSparatutto.exe", r"C:\T")
+        self.assertIn('robocopy "C:\\T\\BotSparatutto" "C:\\Users\\x\\BotSparatutto" /E', script)
+        for nome in ("impostazioni.yaml", "istruzioni.txt", "obiettivo.txt"):
+            self.assertIn(nome, script.split("/XF", 1)[1].splitlines()[0])   # le tue non si toccano
+        self.assertIn('start "" /D "C:\\Users\\x\\BotSparatutto" "BotSparatutto.exe"', script)
+        self.assertTrue(script.endswith("\r\n"))
+        self.assertNotIn("\n", script.replace("\r\n", ""))                   # righe da Windows
+
+    def test_trenta_secondi_per_partire(self):
+        cfg = impostazioni.carica(self.base)
+        self.assertEqual(cfg["schermo"]["secondi_prima_di_partire"], 30)
+        cfg = impostazioni.carica(QUI)                                         # il file vero
+        self.assertEqual(cfg["schermo"]["secondi_prima_di_partire"], 30)
+
+
 class TestImparaPulsanti(ConCartella):
     def test_impara_i_pulsanti_che_clicchi(self):
         from apprendimento import ImparaPulsanti, aggiungi_regole_pulsanti

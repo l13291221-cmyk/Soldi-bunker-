@@ -181,6 +181,8 @@ D) PROVA E GIOCA
 
 E) SE QUALCOSA NON VA
 ----------------------------
+- Per avere l'ultima versione del programma: menu 13 (Aggiorna). Scarica,
+  si chiude, si aggiorna e si riapre da solo. Le tue impostazioni restano.
 - Dopo aver trascinato il file sulla schedina, CIRCUITPY e' VUOTA (niente
   "AVVIA IL BOT", solo lib, sd, code, settings.toml): scarica
   https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto_FileSchedina.zip
@@ -296,6 +298,14 @@ COSA CAMBIA RISPETTO AL PC
   Va meglio con la Play attaccata al router col cavo di rete.
 - I comandi al bot li dai SEMPRE dal portatile: il menu nella finestra nera,
   F8 = pausa, F9 = chiudi. Sulla Play non devi aprire niente.
+- Il programma sta sul COMPUTER (icona "Bot Sparatutto" sul desktop): la
+  chiavetta CIRCUITPY serve solo la prima volta. Se l'icona non c'e':
+  tasto Windows + R e scrivi  %USERPROFILE%\BotSparatutto\BotSparatutto.exe
+- Quando attacchi la schedina, la Play chiede "chi sta usando questa
+  tastiera?": menu 12 (Telecomando), clicca su Remote Play e premi INVIO sulla
+  tastiera del portatile. Poi F9.
+- Dopo "Avvia il bot" hai 30 secondi per cliccare sulla finestra di Remote Play
+  (si cambia in impostazioni.yaml -> schermo -> secondi_prima_di_partire).
 - "Impara guardando me" (menu 4 -> 2): PS Remote Play il mouse del portatile
   non lo passa alla Play, ma il programma si': legge tastiera e mouse del
   portatile e li manda alla schedina attaccata alla Play. Tu giochi guardando

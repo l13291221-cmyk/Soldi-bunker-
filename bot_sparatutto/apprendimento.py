@@ -599,9 +599,10 @@ def impara(base, log=print, sulla_play=None):
     tele = None
     if sulla_play:
         from telecomando import Telecomando
-        print("\nClicca sulla finestra di PS Remote Play (a schermo intero): tra 5 secondi")
+        attesa = int(float(sch.get("secondi_prima_di_partire", 30) or 30))
+        print("\nClicca sulla finestra di PS Remote Play (a schermo intero): tra %d secondi" % attesa)
         print("il mouse e la tastiera del portatile passano alla Play.")
-        for n in range(5, 0, -1):
+        for n in range(attesa, 0, -1):
             print("  %d..." % n, flush=True)
             time.sleep(1)
         # la freccia del PC resta ferma al centro: ogni movimento del mouse va alla Play
@@ -727,6 +728,8 @@ def impara(base, log=print, sulla_play=None):
             tele.ferma()
         if mani_play is not None:
             mani_play.chiudi()
+            from telecomando import svuota_tastiera_console
+            svuota_tastiera_console()
         schermo.chiudi()
 
     print("\n" + "=" * 70)

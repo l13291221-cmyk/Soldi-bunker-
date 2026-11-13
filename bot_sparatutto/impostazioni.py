@@ -21,6 +21,7 @@ PREDEFINITE = {
         "fps_massimi": 60,
         "scala_analisi": 0.5,
         "titolo_finestra_gioco": "",
+        "secondi_prima_di_partire": 30,
         "mirino": [0.5, 0.5],
         "zone_ignorate": [],
         "mostra_finestra": False,

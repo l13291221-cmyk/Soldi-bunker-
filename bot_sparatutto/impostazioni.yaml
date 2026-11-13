@@ -145,6 +145,8 @@ schermo:
   # Scrivi il nome del gioco: cosi' se vai su un'altra finestra si ferma da solo.
   # Se giochi sulla Play guardandola con PS Remote Play scrivi: "PS Remote Play"
   titolo_finestra_gioco: ""
+  # Secondi che hai per cliccare sulla finestra del gioco (o di PS Remote Play) prima che parta
+  secondi_prima_di_partire: 30
   mirino: [0.5, 0.5]          # dov'e' il mirino: [0.5, 0.5] = centro dello schermo
   # Zone da ignorare [x, y, larghezza, altezza] in frazioni (0 = sinistra/alto, 1 = destra/basso).
   # Si impostano meglio col menu "Zone da ignorare".

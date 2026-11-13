@@ -11,10 +11,12 @@ Durante il gioco:  F8 = pausa / riprendi    F9 = chiudi il bot
 (i tasti si cambiano in impostazioni.yaml -> tasti_bot)
 
 Per usarlo da riga di comando:  python bot.py avvia | prova | test | impara | colori |
-                                 immagine | vita | zone | mira | giro | obiettivo | --autotest
+                                 immagine | vita | zone | mira | giro | obiettivo |
+                                 telecomando | aggiorna | --autotest
 """
 
 import os
+import shutil
 import sys
 import time
 import traceback
@@ -244,7 +246,8 @@ def avvia(modo=None):
     if controllo.titolo:
         print("  Gioca solo quando e' in primo piano una finestra con '%s' nel titolo" % controllo.titolo)
     print("=" * 70)
-    conto_alla_rovescia(5, "Clicca sulla finestra del gioco")
+    attesa = int(float(sch.get("secondi_prima_di_partire", 30) or 30))
+    conto_alla_rovescia(attesa, "Clicca sulla finestra del gioco (o di PS Remote Play)")
     inizio = time.monotonic()
     prossime_stat = inizio + 60
     fermo_prima = False
@@ -343,6 +346,74 @@ def prova_schedina():
         mani.chiudi()
 
 
+# ------------------------------------------------------------------ aggiorna il programma
+URL_AGGIORNAMENTO = "https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto.zip"
+TUE_IMPOSTAZIONI = ("impostazioni.yaml", "istruzioni.txt", "obiettivo.txt")
+
+
+def leggi_versione(cartella):
+    try:
+        with open(os.path.join(cartella, "versione.txt"), "r", encoding="utf-8-sig") as f:
+            return int(f.read().strip())
+    except (OSError, ValueError):
+        return 0
+
+
+def script_aggiornamento(sorgente, destinazione, exe, temporanea):
+    """Il .cmd che, a bot chiuso, copia la versione nuova (senza toccare le TUE impostazioni)
+    e lo riapre. robocopy riprova finche' l'exe non e' libero."""
+    righe = [
+        "@echo off",
+        "title Aggiorno il Bot Sparatutto",
+        "echo  Aggiorno il bot... (qualche secondo)",
+        "timeout /t 3 /nobreak >nul",
+        'robocopy "%s" "%s" /E /R:30 /W:1 /XF %s >nul' % (sorgente, destinazione, " ".join(TUE_IMPOSTAZIONI)),
+        "if errorlevel 8 (",
+        "  echo  Aggiornamento NON riuscito: chiudi tutte le finestre del bot e riprova dal menu.",
+        "  pause",
+        "  exit /b 1",
+        ")",
+        'rmdir /s /q "%s" >nul 2>&1' % temporanea,
+        "echo  Fatto! Riapro il bot.",
+        'start "" /D "%s" "%s"' % (destinazione, exe),
+    ]
+    return "\r\n".join(righe) + "\r\n"
+
+
+def aggiorna():
+    """Menu 13: scarica l'ultima versione da GitHub e la mette al posto di questa."""
+    import subprocess
+    import tempfile
+    import urllib.request
+    import zipfile
+    if not getattr(sys, "frozen", False) or sys.platform != "win32":
+        print("L'aggiornamento automatico funziona solo con BotSparatutto.exe su Windows.")
+        return
+    temporanea = os.path.join(tempfile.gettempdir(), "BotSparatutto_aggiornamento")
+    shutil.rmtree(temporanea, ignore_errors=True)
+    os.makedirs(temporanea, exist_ok=True)
+    file_zip = os.path.join(temporanea, "BotSparatutto.zip")
+    print("\nScarico l'ultima versione (circa 100 MB, puo' metterci qualche minuto)...", flush=True)
+    urllib.request.urlretrieve(URL_AGGIORNAMENTO, file_zip)
+    print("Estraggo...", flush=True)
+    with zipfile.ZipFile(file_zip) as z:
+        z.extractall(temporanea)
+    sorgente = os.path.join(temporanea, "BotSparatutto")
+    nuova, attuale = leggi_versione(sorgente), leggi_versione(BASE)
+    if nuova <= attuale:
+        print("Hai gia' l'ultima versione (%d)." % attuale)
+        shutil.rmtree(temporanea, ignore_errors=True)
+        return
+    print("C'e' la versione %d (tu hai la %d)." % (nuova, attuale))
+    print("Ora il bot si chiude, si aggiorna e si riapre da solo. Le tue impostazioni restano.")
+    script = os.path.join(tempfile.gettempdir(), "aggiorna_bot_sparatutto.cmd")
+    with open(script, "w", encoding="ascii", errors="replace", newline="") as f:
+        f.write(script_aggiornamento(sorgente, BASE, os.path.basename(sys.executable), temporanea))
+    time.sleep(2)
+    subprocess.Popen(["cmd", "/c", script], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+    sys.exit(0)
+
+
 # ------------------------------------------------------------------ autotest (per GitHub)
 def autotest():
     """Controlla che tutto si carichi e che il cervello reagisca a un nemico finto."""
@@ -410,6 +481,8 @@ MENU = [
     ("9", "Calibra la mira a mano (di solito la impara da solo)", "mira"),
     ("10", "Calibra il giro completo a mano (di solito lo impara da solo)", "giro"),
     ("11", "Scrivi l'obiettivo (es. aprire 50 casse a partita)", "obiettivo"),
+    ("12", "Telecomando: tastiera e mouse del portatile sulla Play (es. INVIO per l'account)", "telecomando"),
+    ("13", "Aggiorna il programma (scarica l'ultima versione)", "aggiorna"),
     ("0", "Esci", "esci"),
 ]
 
@@ -425,6 +498,13 @@ def esegui_comando(cmd):
     elif cmd == "obiettivo":
         import obiettivo
         obiettivo.chiedi(BASE)
+    elif cmd == "telecomando":
+        import telecomando
+        cfg = impostazioni.carica(BASE)
+        attesa = int(float((cfg.get("schermo", {}) or {}).get("secondi_prima_di_partire", 30) or 30))
+        telecomando.usa(cfg, log, attesa)
+    elif cmd == "aggiorna":
+        aggiorna()
     elif cmd in ("colori", "immagine", "vita", "zone", "mira", "giro", "impara"):
         getattr(calibra, cmd)(BASE, log)
     else:

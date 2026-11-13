@@ -136,3 +136,90 @@ class Telecomando:
             self.mani.rilascia_tutto()
         except Exception:
             pass
+
+
+# ------------------------------------------------------------------ menu "Telecomando"
+def svuota_tastiera_console():
+    """I tasti premuti mentre il telecomando era acceso arrivano anche alla finestra nera:
+    li butto via, cosi' il menu non li legge come se li avessi scritti li'."""
+    try:
+        import msvcrt
+    except ImportError:
+        return
+    try:
+        while msvcrt.kbhit():
+            msvcrt.getwch()
+    except Exception:
+        pass
+
+
+def centro_dello_schermo(area, mouse_modulo):
+    """Mette la freccia del PC al centro dello schermo e restituisce dov'e' davvero."""
+    centro = (area["left"] + area["width"] // 2, area["top"] + area["height"] // 2)
+    try:
+        freccia = mouse_modulo.Controller()
+        freccia.position = centro
+        centro = freccia.position
+    except Exception:
+        pass
+    return centro
+
+
+def usa(cfg, log=print, attesa=30):
+    """Menu 12: tastiera e mouse del portatile vanno alla Play (attraverso la schedina)
+    finche' non premi F9. Serve per esempio quando la Play chiede 'chi sta usando questa
+    tastiera?' (premi INVIO), o per muoverti nei menu della Play dal portatile."""
+    from pynput import keyboard, mouse
+
+    from mani import ManiSchedina
+    from occhi import Schermo
+
+    mani = ManiSchedina(cfg.get("tasti"), log, (cfg.get("comandi", {}) or {}).get("porta", "auto"))
+    esci = str((cfg.get("tasti_bot", {}) or {}).get("esci", "f9")).strip().lower()
+    sch = cfg.get("schermo", {}) or {}
+    print("\n" + "=" * 70)
+    print("  TELECOMANDO: la tastiera e il mouse del portatile vanno alla Play")
+    print("=" * 70)
+    print("Esempio: la Play chiede 'chi sta usando questa tastiera?' -> premi INVIO.")
+    print("Mentre e' acceso la freccia del PC resta ferma (il mouse lo usa la Play).")
+    print("%s = basta, tutto torna normale." % esci.upper())
+    print("\nClicca sulla finestra di PS Remote Play. Parto tra %d secondi..." % attesa)
+    for n in range(int(attesa), 0, -1):
+        print("  %d..." % n, flush=True)
+        time.sleep(1)
+    schermo = Schermo(int(sch.get("monitor", 1) or 1), sch.get("zona_cattura"))
+    area = dict(schermo.area)
+    schermo.chiudi()
+    sens = float((cfg.get("telecomando", {}) or {}).get("sensibilita_mouse", 1.0) or 1.0)
+    tele = Telecomando(mani, centro_dello_schermo(area, mouse), riservati=(esci,), sensibilita=sens)
+    fine = threading.Event()
+
+    def premuto(k):
+        if nome_tasto(k) == esci:
+            fine.set()
+            return
+        tele.tasto_giu(k)
+
+    ascolta_t = keyboard.Listener(on_press=premuto, on_release=tele.tasto_su)
+    ascolta_m = mouse.Listener(on_click=tele.click, on_move=tele.mosso, on_scroll=tele.rotella, suppress=True)
+    for a in (ascolta_t, ascolta_m):
+        a.daemon = True
+        a.start()
+    print("ACCESO: ora tastiera e mouse vanno alla Play.   %s = basta" % esci.upper(), flush=True)
+    try:
+        while not fine.wait(0.1):
+            if tele.errore is not None:
+                print("\nPROBLEMA con la schedina: %s" % tele.errore)
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for a in (ascolta_m, ascolta_t):        # prima il mouse: torna subito al PC
+            try:
+                a.stop()
+            except Exception:
+                pass
+        tele.ferma()
+        mani.chiudi()
+        svuota_tastiera_console()
+    print("Telecomando spento: tastiera e mouse sono di nuovo del PC.")
