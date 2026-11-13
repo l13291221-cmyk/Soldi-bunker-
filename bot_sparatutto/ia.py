@@ -88,9 +88,14 @@ DOMANDA = (
     '"vehicle": "none|left|center|right|close", "in_vehicle": true|false, '
     '"button": {"x": 0.5, "y": 0.9} or null, "cursor": {"x": 0.5, "y": 0.5} or null, '
     '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close", '
-    '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null}\n'
+    '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null, '
+    '"spectating": true|false}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
-    "dead = eliminated or spectating. chest = a closed loot chest (golden glowing box) in the 3D world, "
+    "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
+    "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
+    "enemy who eliminated him): a different character is on screen, with texts like 'Stai osservando' / "
+    "'Spectating', the name of the watched player, 'Ritorna alla lobby'; then phase is dead too. "
+    "chest = a closed loot chest (golden glowing box) in the 3D world, "
     "NOT icons of the interface; tell where it is on screen. wall_ahead = a wall, rock or obstacle "
     "right in front of the character, very close. storm_near = the storm (purple wall or purple sky) "
     "is close or the character is inside it; safe_direction = where to go to get away from it. "
@@ -127,8 +132,10 @@ class Consiglio:
 
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
-                 pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None):
+                 pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
+                 osservo=False):
         self.fase = fase
+        self.osservo = osservo            # eliminato: guardo un ALTRO giocatore (non sono io!)
         self.schermo = schermo            # game / ps5_who_is_using / remote_play / desktop
         self.pulsante_pc = pulsante_pc    # dove cliccare col mouse del PC (Remote Play), oppure None
         self.compagno = compagno          # compagno a terra da rianimare (none/left/center/right/close)
@@ -154,6 +161,8 @@ class Consiglio:
     def descrizione(self):
         parti = {"bus": "sul bus", "falling": "in caduta", "playing": "in gioco", "menu": "nei menu",
                  "dead": "eliminato", "unknown": "non so"}[self.fase]
+        if self.osservo:
+            parti += " (guardo un altro giocatore)"
         if self.cassa != "none":
             parti += ", cassa a " + {"left": "sinistra", "center": "davanti", "right": "destra"}[self.cassa]
         if self.muro:
@@ -238,7 +247,8 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         tasto=_scegli(dati.get("key"), TASTI, "none"),
         compagno=_scegli(dati.get("downed_teammate"), VEICOLO, "none"),
         schermo=_scegli(dati.get("screen"), SCHERMI, "game"),
-        pulsante_pc=_punto(dati.get("pc_button")))
+        pulsante_pc=_punto(dati.get("pc_button")),
+        osservo=_si(dati.get("spectating", False)))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

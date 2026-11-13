@@ -32,6 +32,8 @@ comandi:
 # ---------------------------------------------------------------------
 fortnite:
   partite_in_loop: true       # finita la partita preme/clicca da solo per la prossima, e cosi' via
+  aspetta_riavvio_secondi: 90 # eliminato in squadra (guarda un compagno): aspetta il furgone del
+                              # riavvio, poi torna alla lobby e rigioca. 0 = esce subito
   pulsante_giallo: true       # clicca da solo il pulsante grande e giallo "Gioca di nuovo" (anche senza IA)
   usa_veicoli: true           # sale in macchina se ce n'e' una vicina
   guida_secondi_massimi: 25   # poi scende (o prima, se vede una cassa o un nemico)

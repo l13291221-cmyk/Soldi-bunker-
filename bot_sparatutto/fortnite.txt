@@ -221,6 +221,16 @@ RARITA' (il colore dell'alone e della cornice)
 - I compagni si riconoscono dal NOME COLORATO sopra la testa: NON SPARARE a loro.
 
 
+- QUANDO MUORI (eliminato) IN SQUADRA, LA TELECAMERA SEGUE UN ALTRO GIOCATORE:
+  sullo schermo compare UN ALTRO PERSONAGGIO (un compagno ancora vivo, o il nemico
+  che ti ha eliminato), con scritto "Stai osservando ..." e il suo nome. QUELLO NON
+  SEI TU: non puoi muoverlo, non puoi sparare, non apri casse. Puoi solo aspettare
+  che un compagno ti riporti in partita col furgone del riavvio, oppure premere
+  "Ritorna alla lobby" e cominciare un'altra partita.
+- In Singolo, quando muori compare subito "Posizione finale N. X" e poi "Gioca di
+  nuovo" / "Ritorna alla lobby".
+
+
 ---------------------------------------------------------------------
 9. LA TEMPESTA
 ---------------------------------------------------------------------

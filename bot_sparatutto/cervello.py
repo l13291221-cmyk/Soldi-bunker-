@@ -153,6 +153,7 @@ class Cervello:
         self.fase_lunga = (None, 0.0)     # (bus/caduta, da quando l'IA lo dice senza smettere)
         self.ignora_fase_fino = 0.0
         self.attesa_da = None             # da quando aspetto nei menu / da eliminato
+        self.morto_da = None              # da quando sono stato eliminato (per il furgone del riavvio)
         self.prossimo_avviso_attesa = 0.0
         self.ultima_partita_contata = -1000.0
         self.prossimo_controllo_tempesta = 0.0
@@ -415,6 +416,8 @@ class Cervello:
         scritta = self._schermo_ia(c, img, t)
         if scritta:
             return scritta
+        if c.fase != "dead":
+            self.morto_da = None              # vivo (o riportato in partita col furgone del riavvio)
         if c.fase in ("bus", "falling"):
             # sul bus o in caduta non si sta per minuti: se l'IA lo dice da troppo, sbaglia
             if self.fase_lunga[0] != c.fase:
@@ -452,8 +455,18 @@ class Cervello:
             if c.fase == "dead" and vis is not None and img is not None and self.apprendimento is not None:
                 # da eliminato guardo i compagni che giocano: le foto servono ad addestrare gli occhi
                 self.apprendimento.forse_salva_foto(img, vis, t)
+            if c.fase == "dead" and self.morto_da is None:
+                self.morto_da = t
+                self.log("Sono stato eliminato" + (": il personaggio che vedo adesso e' un ALTRO giocatore "
+                                                   "(non sono io): non lo comando" if c.osservo else ""))
             if self.in_partita:
                 self._partita_finita(t, sicuro=True)
+            if c.fase == "dead" and c.osservo:
+                # in squadra un compagno puo' riportarmi in partita col furgone del riavvio (la carta
+                # dura circa 90 secondi): aspetto un po', poi torno alla lobby per la partita dopo
+                attesa = float(self.fort.get("aspetta_riavvio_secondi", 90) or 0)
+                if t - self.morto_da < attesa:
+                    return "eliminato: guardo un compagno, aspetto il furgone del riavvio"
             return self._prossima_partita(c, img, t)
         return None
 

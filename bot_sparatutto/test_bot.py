@@ -1095,6 +1095,30 @@ class TestLogicaFortnite(ConCartella):
         self._passo(mondo, occhi, cerv)
         self.assertAlmostEqual(cerv.esecutore.passi_per_pixel_menu, 1.5, places=2)
 
+    def test_da_eliminato_guarda_un_altro_e_poi_esce(self):
+        """Morto in squadra la telecamera segue un ALTRO personaggio: non lo comanda, aspetta il
+        furgone del riavvio e poi clicca 'Ritorna alla lobby' per la partita dopo."""
+        import ia
+        c = ia.leggi_risposta('{"phase": "dead", "spectating": true, "button": {"x": 0.5, "y": 0.9}}')
+        self.assertTrue(c.osservo)
+        self.assertIn("Stai osservando", ia.DOMANDA)
+        mani, mondo, occhi, cerv = self._cervello(fase="dead", osservo=True, pulsante=(0.5, 0.9))
+        cerv.in_partita = True
+        mondo.oggetti.append((330, 120, 20, 60, ROSSO))                    # l'altro personaggio / un nemico
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "eliminato: guardo un compagno, aspetto il furgone "
+                         "del riavvio")
+        self.assertNotIn("giu mouse 1", mani.storia)                         # non spara, non clicca
+        self.assertFalse(mani.e_premuto("avanti"))
+        self.assertEqual(cerv.statistiche["partite"], 1)
+        cerv.ia.c.quando = t + 95
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 95), "clicco per la partita dopo")
+        self.assertIn("giu mouse 1", mani.storia)
+        # se lo riportano in partita (furgone del riavvio) torna a giocare
+        cerv.ia.c.fase, cerv.ia.c.osservo, cerv.ia.c.numero = "falling", False, 2
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 100), "cado verso terra")
+        self.assertIsNone(cerv.morto_da)
+
     def test_clicca_anche_senza_vedere_il_cursore(self):
         mani, mondo, occhi, cerv = self._cervello(fase="menu", pulsante=(0.5, 0.5))
         self.assertEqual(self._passo(mondo, occhi, cerv), "clicco per la partita dopo")
