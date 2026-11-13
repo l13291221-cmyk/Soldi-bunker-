@@ -81,9 +81,9 @@ e aprire più casse possibili (casse delle armi e casse dei materiali).
   (veloce e preciso), *Tranquillo* (evita gli scontri e apre casse). L'obiettivo resta quello che scrivi tu.
 - **Comandi stile Fortnite** (tastiera e mouse) già impostati in `impostazioni.yaml`, modificabili.
 - **IA che guarda** (menu 14, facoltativa): ogni tanto un'IA guarda lo schermo e dice se è sul bus, in caduta,
-  nei menu, se le casse sono vere, se c'è un muro o la tempesta. Funziona con Ollama sul tuo PC (senza chiave)
-  e con IA online gratuite (Pollinations senza chiave; Gemini, GitHub Models, OpenRouter, Groq, Mistral, Z.ai
-  con chiave gratuita). Il bot veloce non la aspetta mai.
+  nei menu, se le casse sono vere, se c'è un muro o la tempesta. Senza chiave funziona con Ollama sul tuo PC
+  (se c'è la collega da sola, se no il menu 14 la installa); con chiave gratuita anche con Gemini, GitHub Models,
+  OpenRouter, Groq, Mistral, Z.ai. Il bot veloce non la aspetta mai.
 - **Impara guardando te** (menu 4): giochi tu una partita e lui impara i colori delle casse, dove mirare
   e **i pulsanti da cliccare per passare alla partita successiva**. Non ti copia: poi gioca a modo suo.
   Funziona anche **sulla Play**: giochi con tastiera e mouse del portatile e il programma li passa alla

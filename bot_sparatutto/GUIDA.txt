@@ -344,15 +344,16 @@ Senza l'IA il loop funziona solo con le immagini dei pulsanti (menu 6 + istruzio
 Si regola in impostazioni.yaml -> fortnite.
 Il bot non aspetta mai l'IA: usa l'ultima risposta. I nemici vengono sempre prima.
 
-Menu 14: prova da solo quelle SENZA chiave e per le altre ti chiede la chiave
-(INVIO = salta). Tiene quelle che funzionano; se una non risponde o finisce le
+L'unica IA che vede le immagini GRATIS e SENZA chiave e' OLLAMA, che gira sul tuo
+computer (le IA online senza chiave provate a novembre 2026 non accettano immagini).
+  - Se Ollama c'e' gia' (con un modello che vede), il bot la collega DA SOLO.
+  - Se non c'e': menu 14, rispondi "s" e la installa lui (circa 4 GB da scaricare
+    una volta sola: Ollama + il modello qwen2.5vl:3b).
+  - Senza scheda video e' lenta (anche 30-60 secondi a foto): va bene soprattutto
+    per bus, menu e partita successiva; per casse e muri arriva tardi.
+Menu 14 poi chiede anche le chiavi delle IA online (facoltative, piu' veloci;
+INVIO = salta). Tiene quelle che funzionano; se una non risponde o finisce le
 richieste gratis, passa alla prossima.
-  ollama       sul TUO computer: gratis, senza chiave e senza account.
-               Installa Ollama (ollama.com), poi nel Prompt dei comandi scrivi:
-                   ollama pull moondream
-               Senza scheda video e' lenta (anche 20-30 secondi a foto): va bene
-               per bus/caduta/menu, meno per muri e casse.
-  pollinations online, senza chiave: gratis ma limitata, a volte non risponde.
   gemini       chiave gratuita su aistudio.google.com (Google chiede 18 anni:
                se sei minorenne la crea un adulto).
   github       token gratuito su github.com/settings/tokens (permesso "models").

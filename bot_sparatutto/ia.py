@@ -9,10 +9,12 @@ Il bot veloce (mira, spara, si muove) NON la aspetta mai: usa l'ultima risposta.
 
 Le IA si provano in ordine (ia -> fornitori): se una non risponde o ha finito le
 richieste gratis, si passa alla prossima.
-  ollama       sul TUO computer: gratis, senza chiave e senza account. Va installato
-               Ollama (ollama.com) e un modello che vede (es. "ollama pull moondream").
-               Senza scheda video e' lento (anche 20-30 secondi a foto).
-  pollinations online, senza chiave (gratis ma limitato: a volte non risponde)
+  ollama       sul TUO computer: gratis, senza chiave e senza account. Se c'e' il bot la
+               collega DA SOLO; se non c'e' il menu "Collega le IA" la installa (con un
+               modello che vede le immagini). Senza scheda video e' lenta (anche 30-60
+               secondi a foto): va bene soprattutto per bus, menu e partita successiva.
+  (Le IA online senza chiave provate a novembre 2026 - Pollinations, LLM7 - non accettano
+   immagini: per questo non ci sono.)
   gemini       Google, gratis con chiave (aistudio.google.com)
   github       GitHub Models, gratis con un token di GitHub
   openrouter   modelli ":free" gratis con chiave (openrouter.ai)
@@ -36,10 +38,8 @@ import urllib.request
 import yaml
 
 FORNITORI = {
-    "ollama": {"url": "http://localhost:11434/api/chat", "modello": "moondream", "tipo": "ollama",
-               "chiave": False, "attesa": 90, "dove": "sul tuo computer (ollama.com)"},
-    "pollinations": {"url": "https://text.pollinations.ai/openai", "modello": "openai", "tipo": "openai",
-                     "chiave": False, "attesa": 30, "dove": "pollinations.ai"},
+    "ollama": {"url": "http://localhost:11434/api/chat", "modello": "qwen2.5vl:3b", "tipo": "ollama",
+               "chiave": False, "attesa": 180, "dove": "sul tuo computer (ollama.com)"},
     "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
                "modello": "gemini-flash-lite-latest", "tipo": "openai", "chiave": True, "attesa": 30,
                "dove": "aistudio.google.com (chiave gratuita; Google chiede di avere 18 anni)"},
@@ -57,7 +57,13 @@ FORNITORI = {
     "zai": {"url": "https://api.z.ai/api/paas/v4/chat/completions", "modello": "glm-4.6v-flash",
             "tipo": "openai", "chiave": True, "attesa": 40, "dove": "z.ai (GLM-4.6V-Flash gratis)"},
 }
-ORDINE = ["ollama", "pollinations", "gemini", "github", "openrouter", "groq", "mistral", "zai", "personale"]
+ORDINE = ["ollama", "gemini", "github", "openrouter", "groq", "mistral", "zai", "personale"]
+OLLAMA_BASE = "http://localhost:11434"
+OLLAMA_MODELLO = "qwen2.5vl:3b"          # piccolo, vede le immagini, risponde bene in JSON e trova i pulsanti
+# nomi dei modelli di Ollama che sanno guardare le immagini (il primo trovato si usa)
+OLLAMA_CHE_VEDONO = ("qwen2.5vl", "qwen3-vl", "gemma3", "llava", "minicpm-v", "llama3.2-vision",
+                     "granite3.2-vision", "moondream", "bakllava")
+OLLAMA_INSTALLATORE = "https://ollama.com/download/OllamaSetup.exe"
 
 DOMANDA = (
     "You help a bot play a Fortnite-like third-person shooter. Look at this game screenshot and "
@@ -207,7 +213,7 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA):
     if fornitore["chiave"]:
         intestazioni["Authorization"] = "Bearer " + fornitore["chiave"]
     if fornitore["tipo"] == "ollama":
-        corpo = {"model": fornitore["modello"], "stream": False,
+        corpo = {"model": fornitore["modello"], "stream": False, "format": "json",
                  "options": {"temperature": 0.1, "num_predict": 260},
                  "messages": [{"role": "user", "content": domanda, "images": [jpeg_base64]}]}
     else:
@@ -334,6 +340,14 @@ class IA:
         self._lock = threading.Lock()
         self._vivo = False
         self._thread = None
+        if not self.attiva and c.get("auto_ollama", True):
+            # nessuna IA collegata: se sul PC c'e' Ollama con un modello che vede, la collego da solo
+            modello = ollama_pronto()
+            if modello:
+                f = dict(FORNITORI["ollama"], nome="ollama", modello=modello)
+                self.fornitori = [f] + [x for x in self.fornitori if x["nome"] != "ollama"]
+                self.attiva = True
+                self.log("IA: ho trovato Ollama sul computer (%s): la collego da solo" % modello)
         if self.attiva and not self.fornitori:
             self.log("IA: e' accesa ma non c'e' nessuna IA collegata (menu 'Collega le IA').")
             self.attiva = False
@@ -368,13 +382,16 @@ class IA:
     def chiedi(self, img, adesso=None):
         """Chiede alle IA in ordine finche' una risponde. -> Consiglio oppure None."""
         foto = jpeg_base64(img)
+        foto_piccola = None                   # per Ollama sul PC: piu' piccola = piu' veloce
         adesso = time.monotonic() if adesso is None else adesso
         scattata = adesso                     # il consiglio vale per il momento della foto
         for f in self.fornitori:
             if self.errori.get(f["nome"], 0) > adesso:
                 continue
             try:
-                url, intest, corpo = richiesta(f, foto)
+                if f["tipo"] == "ollama" and foto_piccola is None:
+                    foto_piccola = jpeg_base64(img, 448)
+                url, intest, corpo = richiesta(f, foto_piccola if f["tipo"] == "ollama" else foto)
                 testo = testo_della_risposta(f, self.invia(url, intest, corpo, f["attesa"]))
                 c = leggi_risposta(testo, scattata, f["nome"])
                 if c is None:
@@ -404,6 +421,82 @@ class IA:
                 self.chiedi(img)
             except Exception as e:
                 self.log("IA: %s" % e)
+
+
+# ------------------------------------------------------------------ Ollama sul computer
+def ollama_modelli(attesa=1.5):
+    """I modelli scaricati in Ollama, oppure None se Ollama non e' acceso."""
+    try:
+        with urllib.request.urlopen(OLLAMA_BASE + "/api/tags", timeout=attesa) as r:
+            dati = json.loads(r.read().decode("utf-8", "replace"))
+        return [str(m.get("name") or m.get("model") or "") for m in dati.get("models") or []]
+    except Exception:
+        return None
+
+
+def ollama_pronto():
+    """Il nome del primo modello di Ollama che vede le immagini, oppure None."""
+    modelli = ollama_modelli()
+    if not modelli:
+        return None
+    for preferito in OLLAMA_CHE_VEDONO:
+        for m in modelli:
+            if m.lower().startswith(preferito):
+                return m
+    return None
+
+
+def trova_ollama_exe():
+    import shutil
+    exe = shutil.which("ollama")
+    if exe:
+        return exe
+    for cartella in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("ProgramFiles", "")):
+        for sotto in (os.path.join("Programs", "Ollama"), "Ollama"):
+            p = os.path.join(cartella, sotto, "ollama.exe")
+            if cartella and os.path.isfile(p):
+                return p
+    return None
+
+
+def installa_ollama(log=print, modello=OLLAMA_MODELLO):
+    """Scarica e installa Ollama (Windows), lo accende e scarica il modello che vede. -> True se ce la fa."""
+    import subprocess
+    import sys
+    import tempfile
+    if sys.platform != "win32":
+        print("L'installazione automatica di Ollama funziona solo su Windows: vai su ollama.com")
+        return False
+    exe = trova_ollama_exe()
+    if exe is None:
+        setup = os.path.join(tempfile.gettempdir(), "OllamaSetup.exe")
+        print("Scarico Ollama (circa 1 GB, ci vuole qualche minuto)...", flush=True)
+
+        def avanzamento(blocchi, grandezza, totale):
+            if totale > 0 and blocchi % 400 == 0:
+                print("  %d%%" % min(100, blocchi * grandezza * 100 // totale), flush=True)
+        urllib.request.urlretrieve(OLLAMA_INSTALLATORE, setup, avanzamento)
+        print("Installo Ollama (se Windows chiede il permesso, rispondi Si')...", flush=True)
+        subprocess.run([setup, "/SILENT", "/NORESTART"], check=False)
+        exe = trova_ollama_exe()
+        if exe is None:
+            print("Non trovo Ollama dopo l'installazione: riavvia il computer e riprova il menu.")
+            return False
+    if ollama_modelli() is None:
+        print("Accendo Ollama...", flush=True)
+        try:
+            subprocess.Popen([exe, "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except Exception as e:
+            print("Non riesco ad accendere Ollama: %s" % e)
+        for _ in range(60):
+            if ollama_modelli() is not None:
+                break
+            time.sleep(1)
+    if ollama_pronto():
+        return True
+    print("Scarico il modello che guarda (%s, circa 3 GB, una volta sola)..." % modello, flush=True)
+    subprocess.run([exe, "pull", modello], check=False)
+    return ollama_pronto() is not None
 
 
 # ------------------------------------------------------------------ menu "Collega le IA"
@@ -467,12 +560,31 @@ def collega(base, cfg, log=print, foto=None):
     print("Ogni tanto il bot manda una foto piccola dello schermo all'IA e le chiede cosa succede")
     print("(bus, caduta, casse vere, muri, tempesta). ATTENZIONE: le foto vanno al servizio scelto.")
     print("Apri prima il gioco (o Remote Play): le prove usano una foto dello schermo di adesso.\n")
+    # 1) Ollama sul computer: gratis, senza chiave. Se non c'e', la installo (se vuoi)
+    if not ollama_pronto():
+        print("OLLAMA (l'IA gratis SENZA chiave, gira sul tuo computer): non e' ancora pronta.")
+        try:
+            r = input("La installo io? Scarica circa 4 GB una volta sola. Scrivi s e premi INVIO "
+                      "(solo INVIO = no): ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            r = ""
+        if r.startswith("s"):
+            installa_ollama(log)
+    modello_ollama = ollama_pronto()
+    if modello_ollama:
+        modelli["ollama"] = modello_ollama
+    print("\nProvo Ollama (se c'e'), poi le IA online: sono piu' veloci ma vogliono una chiave GRATUITA"
+          " (INVIO = salta).")
     funzionano = []
     for nome in ORDINE:
         if nome == "personale":
             continue
         info = FORNITORI[nome]
-        if info["chiave"]:
+        if nome == "ollama":
+            if not modello_ollama:
+                continue
+            print("OLLAMA (%s): provo... (la prima volta puo' metterci un minuto)" % modello_ollama, flush=True)
+        elif info["chiave"]:
             vecchia = chiavi.get(nome, "")
             try:
                 nuova = input("%s - chiave gratuita da %s\n   incollala e premi INVIO (solo INVIO = %s): " % (
@@ -497,9 +609,6 @@ def collega(base, cfg, log=print, foto=None):
             continue
         ok, messaggio = prova_fornitore(f, foto)
         print("   %s %s" % ("OK" if ok else "NO", messaggio))
-        if not ok and nome == "ollama":
-            print("   (per usarla: installa Ollama da ollama.com, poi nel Prompt dei comandi scrivi:"
-                  " ollama pull moondream)")
         if ok:
             funzionano.append(nome)
     dati["chiavi"] = chiavi

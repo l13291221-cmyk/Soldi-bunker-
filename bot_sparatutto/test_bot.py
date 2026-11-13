@@ -701,11 +701,12 @@ class TestIA(ConCartella):
             if "localhost" in url:
                 raise RuntimeError("troppe richieste (429)")
             return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "right"}'}}]}
-        cfg = {"ia": {"attiva": True, "fornitori": ["ollama", "pollinations"]}}
+        cfg = {"ia": {"attiva": True, "fornitori": ["ollama", "personale"],
+                      "personale": {"url": "https://esempio/v1/chat/completions", "modello": "m"}}}
         cervello_lento = ia.IA(cfg, lambda *_: None, invia)
         img = np.zeros((360, 640, 3), np.uint8)
         c = cervello_lento.chiedi(img, adesso=100.0)
-        self.assertEqual((c.fornitore, c.cassa, c.numero), ("pollinations", "right", 1))
+        self.assertEqual((c.fornitore, c.cassa, c.numero), ("personale", "right", 1))
         c = cervello_lento.chiedi(img, adesso=110.0)        # ollama riposa (429): non la richiama
         self.assertEqual(sum("localhost" in u for u in chiamate), 1)
         self.assertEqual(c.numero, 2)
@@ -725,7 +726,7 @@ class TestIA(ConCartella):
         import builtins
 
         import ia
-        vecchio_input, vecchio_invia = builtins.input, ia.invia_http
+        vecchio_input, vecchio_invia, vecchio_pronto = builtins.input, ia.invia_http, ia.ollama_pronto
         risposte = {"GEMINI": "chiave-gemini"}
 
         def finto_input(domanda=""):
@@ -736,21 +737,53 @@ class TestIA(ConCartella):
 
         def finto_invia(url, intest, corpo, attesa):
             if "localhost" in url:
-                raise RuntimeError("non raggiungibile")
+                return {"message": {"content": '{"phase": "menu", "chest": "none"}'}}
+            if "groq" in url:
+                raise RuntimeError("chiave sbagliata (401)")
             return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "none"}'}}]}
+        risposte["GROQ"] = "chiave-sbagliata"
         try:
             builtins.input = finto_input
             ia.invia_http = finto_invia
+            ia.ollama_pronto = lambda: "qwen2.5vl:3b"          # Ollama c'e' gia' sul computer
             funzionano = ia.collega(self.base, impostazioni.carica(self.base), print,
                                     np.zeros((360, 640, 3), np.uint8))
         finally:
-            builtins.input, ia.invia_http = vecchio_input, vecchio_invia
-        self.assertEqual(funzionano, ["pollinations", "gemini"])
+            builtins.input, ia.invia_http, ia.ollama_pronto = vecchio_input, vecchio_invia, vecchio_pronto
+        self.assertEqual(funzionano, ["ollama", "gemini"])                 # groq no: chiave sbagliata
         cfg = impostazioni.carica(self.base)                       # ia.yaml entra nelle impostazioni
         self.assertTrue(cfg["ia"]["attiva"])
-        self.assertEqual(cfg["ia"]["fornitori"], ["pollinations", "gemini"])
+        self.assertEqual(cfg["ia"]["fornitori"], ["ollama", "gemini"])
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "chiave-gemini")
+        self.assertEqual(cfg["ia"]["modelli"]["ollama"], "qwen2.5vl:3b")
+        cfg["ia"]["auto_ollama"] = False
         self.assertTrue(ia.IA(cfg).attiva)
+
+    def test_collega_ollama_da_sola(self):
+        import ia
+        vecchio = ia.ollama_pronto
+        try:
+            ia.ollama_pronto = lambda: "qwen2.5vl:3b"
+            cervello_lento = ia.IA({"ia": {"attiva": False}}, lambda *_: None)
+            self.assertTrue(cervello_lento.attiva)
+            self.assertEqual(cervello_lento.fornitori[0]["modello"], "qwen2.5vl:3b")
+            ia.ollama_pronto = lambda: None                    # non c'e': resta spenta
+            self.assertFalse(ia.IA({"ia": {"attiva": False}}, lambda *_: None).attiva)
+        finally:
+            ia.ollama_pronto = vecchio
+
+    def test_ollama_sceglie_un_modello_che_vede(self):
+        import ia
+        vecchio = ia.ollama_modelli
+        try:
+            ia.ollama_modelli = lambda attesa=1.5: ["llama3:8b", "gemma3:4b", "qwen2.5vl:3b"]
+            self.assertEqual(ia.ollama_pronto(), "qwen2.5vl:3b")             # il preferito
+            ia.ollama_modelli = lambda attesa=1.5: ["llama3:8b"]
+            self.assertIsNone(ia.ollama_pronto())                            # nessuno che vede
+            ia.ollama_modelli = lambda attesa=1.5: None
+            self.assertIsNone(ia.ollama_pronto())                            # Ollama spenta
+        finally:
+            ia.ollama_modelli = vecchio
 
 
 class FintaIA:
