@@ -52,10 +52,15 @@ import yaml
 FORNITORI = {
     "ollama": {"url": "http://localhost:11434/api/chat", "modello": "qwen2.5vl:3b", "tipo": "ollama",
                "chiave": False, "attesa": 180, "dove": "sul tuo computer (ollama.com)"},
-    "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-               "modello": "gemini-flash-lite-latest", "tipo": "openai", "chiave": True, "attesa": 30,
+    # Google si chiama nel modo ufficiale (generateContent): la via "compatibile OpenAI" con Gemma e
+    # le immagini dava "errore 500", e cosi' funzionano anche le chiavi nuove (AQ....)
+    "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/models/{modello}:generateContent",
+               "modello": "gemini-3.5-flash-lite", "tipo": "google", "chiave": True, "attesa": 60,
                "dove": "aistudio.google.com (chiave gratuita; Google chiede di avere 18 anni)",
-               "candidati": ["gemini-flash-lite-latest", "gemini-flash-latest"]},
+               # provati a novembre 2026: le "Flash-Lite" rispondono in 1-3 secondi; ognuna ha il suo
+               # limite al giorno. Il bot chiede comunque a Google quali ci sono (elenco_google)
+               "candidati": ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest",
+                             "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview"]},
     "github": {"url": "https://models.github.ai/inference/chat/completions", "modello": "openai/gpt-4.1-mini",
                "tipo": "openai", "chiave": True, "attesa": 30,
                "dove": "github.com/settings/tokens (token con il permesso 'models')"},
@@ -71,19 +76,20 @@ FORNITORI = {
             "tipo": "openai", "chiave": True, "attesa": 40, "dove": "z.ai (GLM-4.6V-Flash gratis)"},
     # Gemma 4 di Google: GRATIS con la stessa chiave di Gemini, circa 14.400 richieste al giorno
     # (Gemini ne da' molte meno). Gemma non accetta il messaggio di sistema: la conoscenza va nella domanda.
-    "gemma": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-              "modello": "gemma-4-26b-a4b-it", "tipo": "openai", "chiave": True, "attesa": 40,
+    # Gemma 4 "pensa" prima di rispondere (20-70 secondi) ma ha tante domande al giorno: e' la riserva
+    "gemma": {"url": "https://generativelanguage.googleapis.com/v1beta/models/{modello}:generateContent",
+              "modello": "gemma-4-26b-a4b-it", "tipo": "google", "chiave": True, "attesa": 120,
               "dove": "la stessa chiave di Gemini (aistudio.google.com)", "stessa_chiave": "gemini",
               "sistema": False,
               # ogni modello ha il SUO limite al giorno: con la stessa chiave se ne usano tanti
-              "candidati": ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemma-3-27b-it", "gemma-3-12b-it"]},
+              "candidati": ["gemma-4-26b-a4b-it", "gemma-4-31b-it"]},
     # NVIDIA Build: GRATIS, senza carta di credito, circa 40 richieste al minuto (novembre 2026)
     "nvidia": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "modello": "",
                "tipo": "openai", "chiave": True, "attesa": 45,
                "dove": "build.nvidia.com (gratis, senza carta di credito)"},
 }
 # l'ordine in cui le prova: prima quelle gratis che durano di piu', Ollama sul PC (lenta) dopo
-ORDINE = ["gemma", "nvidia", "gemini", "zai", "github", "openrouter", "groq", "mistral", "ollama", "personale"]
+ORDINE = ["gemini", "nvidia", "gemma", "zai", "github", "openrouter", "groq", "mistral", "ollama", "personale"]
 # NVIDIA: i modelli che guardano le immagini, dal piu' adatto (si prova finche' uno funziona)
 NVIDIA_PREFERITI = ("google/gemma-4-31b-it", "meta/llama-3.2-90b-vision-instruct", "google/gemma-3-12b-it",
                     "nvidia/nemotron-3.5-super-vl-120b-a12b", "meta/muse-glimmer-30b",
@@ -118,7 +124,8 @@ DOMANDA = (
     "enemy who eliminated him): a different character is on screen, with texts like 'Stai osservando' / "
     "'Spectating', the name of the watched player, 'Ritorna alla lobby'; then phase is dead too. "
     "chest = a closed loot chest (golden glowing box) in the 3D world, "
-    "NOT icons of the interface; tell where it is on screen. wall_ahead = a wall, rock or obstacle "
+    "NOT icons of the interface and NOT the glowing golden tip of the pickaxe the player holds; tell where it "
+    "is on screen. wall_ahead = a wall, rock or obstacle "
     "right in front of the character, very close. storm_near = the storm (purple wall or purple sky) "
     "is close or the character is inside it; safe_direction = where to go to get away from it. "
     "low_health = the health or shield bar is low. vehicle = a car or other vehicle in the world "
@@ -234,9 +241,16 @@ def _punto(v):
     return None
 
 
+def togli_pensieri(testo):
+    """Alcune IA scrivono prima il loro ragionamento (<thought>...</thought>): lo tolgo."""
+    testo = re.sub(r"<(thought|think|thinking)>.*?</\1>", " ", str(testo or ""), flags=re.S | re.I)
+    return re.sub(r"<(thought|think|thinking)>.*", " ", testo, flags=re.S | re.I)   # pensiero non finito
+
+
 def leggi_risposta(testo, quando=0.0, fornitore=""):
     """Dal testo dell'IA a un Consiglio (anche se aggiunge parole o ```json intorno). None se non capisce."""
-    if not testo:
+    testo = togli_pensieri(testo)
+    if not testo.strip():
         return None
     m = re.search(r"\{.*\}", str(testo), re.S)
     dati = None
@@ -279,6 +293,21 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA, conoscenza="", lunghezza=
     conoscenza = come funziona il gioco (fortnite.txt): va alle IA online come messaggio di
     sistema. A Ollama sul PC no: senza scheda video un testo lungo la rallenta troppo."""
     intestazioni = {"Content-Type": "application/json", "User-Agent": "BotSparatutto"}
+    if fornitore["tipo"] == "google":
+        # Google (Gemini, Gemma): il modo ufficiale, con la chiave nell'intestazione x-goog-api-key
+        intestazioni["x-goog-api-key"] = fornitore["chiave"]
+        testo = domanda
+        corpo = {"contents": [{"role": "user", "parts": [
+                     {"text": testo}, {"inline_data": {"mime_type": "image/jpeg", "data": jpeg_base64}}]}],
+                 # piu' spazio: alcuni modelli prima "pensano" (anche 1000 parole) e il pensiero conta
+                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": max(3000, lunghezza)}}
+        if conoscenza:
+            sapere = "What you know about the game (from the player, in Italian):\n" + conoscenza
+            if fornitore.get("sistema", True):
+                corpo["systemInstruction"] = {"parts": [{"text": sapere}]}
+            else:
+                corpo["contents"][0]["parts"][0]["text"] = sapere + "\n\n" + testo   # Gemma: tutto nella domanda
+        return fornitore["url"].format(modello=fornitore["modello"]), intestazioni, json.dumps(corpo).encode("utf-8")
     if fornitore["chiave"]:
         intestazioni["Authorization"] = "Bearer " + fornitore["chiave"]
     if fornitore["tipo"] == "ollama":
@@ -303,6 +332,12 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA, conoscenza="", lunghezza=
 def testo_della_risposta(fornitore, dati):
     if fornitore["tipo"] == "ollama":
         return ((dati or {}).get("message") or {}).get("content", "")
+    if fornitore["tipo"] == "google":
+        candidati = (dati or {}).get("candidates") or []
+        if not candidati:
+            return ""
+        parti = ((candidati[0].get("content") or {}).get("parts")) or []
+        return "".join(str(p.get("text", "")) for p in parti if isinstance(p, dict) and not p.get("thought"))
     scelte = (dati or {}).get("choices") or []
     if not scelte:
         return ""
@@ -327,6 +362,10 @@ def invia_http(url, intestazioni, corpo, attesa):
             raise RuntimeError("chiave sbagliata o senza permesso (%d)" % e.code)
         if e.code == 429:
             raise RuntimeError("troppe richieste: ha finito quelle gratis per adesso (429)")
+        dettaglio = " ".join(dettaglio.split())          # una riga sola
+        m = re.search(r'"message":\s*"([^"]*)"', dettaglio)
+        if m:
+            dettaglio = m.group(1)
         if e.code == 404:
             raise RuntimeError("modello o indirizzo non trovato (404): %s" % dettaglio)
         raise RuntimeError("errore %d: %s" % (e.code, dettaglio))
@@ -635,11 +674,14 @@ def scegli_modello_openrouter(chiave, invia_get=None):
 
 # le IA GRATUITE da collegare con una chiave: la pagina dove la crei e come si riconosce la chiave
 GRATIS = {
-    "gemini": {"pagina": PAGINA_CHIAVE_GEMINI, "nome": "GOOGLE (Gemma 4 e Gemini)", "inizio": "AIza",
+    "gemini": {"pagina": PAGINA_CHIAVE_GEMINI, "nome": "GOOGLE (Gemma 4 e Gemini)", "inizio": "AIza o AQ.",
                "passi": ["entra con il tuo account Google (email e password le scrivi a Google, non al bot)",
-                         "premi 'Create API key' (Crea chiave API) e copia la chiave (inizia con AIza...)"],
-               "fornitori": ["gemma", "gemini"],
-               "nota": "Gratis: Gemma 4 circa 14.400 domande al giorno (Google chiede di avere 18 anni)."},
+                         "premi 'Create API key' (Crea chiave API) e copia la chiave (inizia con AIza o AQ.)",
+                         "se 'Crea chiave' e' grigio, prima crea un progetto (gratis) e sceglilo"],
+               "fornitori": ["gemini", "gemma"],
+               "nota": "Gratis: con UNA chiave il bot usa tanti modelli di Google, ognuno col suo limite al giorno:\n"
+                       "prima le Gemini Flash-Lite (veloci, 1-3 secondi), poi Gemma 4 (lenta ma con tante\n"
+                       "domande al giorno). Google chiede di avere 18 anni."},
     "nvidia": {"pagina": PAGINA_CHIAVE_NVIDIA, "nome": "NVIDIA BUILD", "inizio": "nvapi-",
                "passi": ["entra o crea un account NVIDIA gratis (basta l'email, niente carta di credito)",
                          "premi 'Generate API Key' e copia la chiave (inizia con nvapi-...)"],
@@ -688,11 +730,45 @@ def prova_modelli(f, candidati, foto, invia=None, massimo=5):
     return None, ultimo
 
 
-def prova_tutti(f, candidati, foto, invia=None):
+def elenco_google(chiave, invia_get=None):
+    """I modelli che Google da' a questa chiave (solo quelli che rispondono a generateContent).
+    None se non riesco a chiederlo (allora provo quelli che conosco)."""
+    try:
+        if invia_get is None:
+            req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=500",
+                                         headers={"x-goog-api-key": chiave, "User-Agent": "BotSparatutto"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                dati = json.loads(r.read().decode("utf-8", "replace"))
+        else:
+            dati = invia_get()
+        return [str(m.get("name", "")).replace("models/", "") for m in (dati or {}).get("models") or []
+                if "generateContent" in (m.get("supportedGenerationMethods") or [])]
+    except Exception:
+        return None
+
+
+def candidati_google(fornitore, disponibili):
+    """I modelli da provare: quelli che conosco (se Google li da' ancora) e poi gli altri simili nuovi."""
+    noti = FORNITORI[fornitore]["candidati"]
+    if disponibili is None:
+        return list(noti)
+    scarta = ("tts", "image", "audio", "live", "embed", "transcribe", "robotics", "computer-use", "banana")
+    if fornitore == "gemma":
+        simili = [m for m in disponibili if m.startswith("gemma-") and m.endswith("-it")]
+    else:
+        simili = [m for m in disponibili if m.startswith("gemini-") and "flash-lite" in m]
+    simili = [m for m in simili if not any(p in m for p in scarta)]
+    return [m for m in noti if m in disponibili] + [m for m in simili if m not in noti]
+
+
+def prova_tutti(f, candidati, foto, invia=None, dormi=time.sleep):
     """Prova TUTTI i modelli (stessa chiave): -> la lista di quelli che funzionano."""
     buoni = []
     for modello in candidati:
         ok, messaggio = prova_fornitore(dict(f, modello=modello), foto, invia)
+        if not ok and ("500" in messaggio or "503" in messaggio):
+            dormi(2)                                   # errore di Google passeggero: riprovo una volta
+            ok, messaggio = prova_fornitore(dict(f, modello=modello), foto, invia)
         print("   %s %s: %s" % ("OK" if ok else "NO", modello, messaggio), flush=True)
         if ok:
             buoni.append(modello)
@@ -751,13 +827,13 @@ def collega_chiave(nome, base, cfg, log=print, foto=None, apri=None, chiedi=None
             foto = np.full((360, 640, 3), 90, np.uint8)
     modelli = dict(dati.get("modelli") or {})
     funzionano = []
+    disponibili = elenco_google(chiave, modelli_get) if nome == "gemini" else None
     for fornitore in info["fornitori"]:
         f = dict(FORNITORI[fornitore], nome=fornitore, chiave=chiave)
         if fornitore == "nvidia":
             candidati = [modelli["nvidia"]] if modelli.get("nvidia") else modelli_nvidia(modelli_get)
         else:
-            candidati = [modelli.get(fornitore) or f["modello"]] + [
-                m for m in f.get("candidati", []) if m != (modelli.get(fornitore) or f["modello"])]
+            candidati = candidati_google(fornitore, disponibili)
         print("Provo %s..." % fornitore.upper(), flush=True)
         if f.get("candidati"):
             buoni = prova_tutti(f, candidati, foto, invia)
@@ -787,9 +863,9 @@ def collega_chiave(nome, base, cfg, log=print, foto=None, apri=None, chiedi=None
     return True
 
 
-def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None):
-    """Google (Gemma 4 + Gemini) con il tuo account Google."""
-    return collega_chiave("gemini", base, cfg, log, foto, apri, chiedi, invia)
+def collega_gemini(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None, modelli_get=None):
+    """Google (Gemini e Gemma 4) con il tuo account Google."""
+    return collega_chiave("gemini", base, cfg, log, foto, apri, chiedi, invia, modelli_get)
 
 
 def collega_nvidia(base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None, modelli_get=None):
@@ -894,8 +970,7 @@ def collega(base, cfg, log=print, foto=None):
         if nome == "openrouter" and not modelli.get(nome):
             modelli[nome] = scegli_modello_openrouter(chiavi[nome])
         if info.get("candidati"):
-            buoni = prova_tutti(f, [modelli.get(nome) or f["modello"]] + [
-                m for m in info["candidati"] if m != (modelli.get(nome) or f["modello"])], foto)
+            buoni = prova_tutti(f, candidati_google(nome, elenco_google(f["chiave"])), foto)
             if buoni:
                 modelli[nome] = buoni[0]
                 modelli[nome + "_tutti"] = buoni

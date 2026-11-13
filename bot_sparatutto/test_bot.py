@@ -728,7 +728,16 @@ class TestIA(ConCartella):
         self.assertEqual(url, "http://localhost:11434/api/chat")
         self.assertEqual(d["messages"][0]["images"], ["QUJD"])
         self.assertNotIn("Authorization", intest)
-        f = dict(ia.FORNITORI["gemini"], nome="gemini", chiave="segreta")
+        f = dict(ia.FORNITORI["gemini"], nome="gemini", chiave="segreta")       # Google: il modo ufficiale
+        url, intest, corpo = ia.richiesta(f, "QUJD")
+        d = js.loads(corpo)
+        self.assertTrue(url.endswith("/models/gemini-3.5-flash-lite:generateContent"))
+        self.assertEqual(intest["x-goog-api-key"], "segreta")
+        self.assertNotIn("Authorization", intest)
+        self.assertEqual(d["contents"][0]["parts"][1]["inline_data"]["data"], "QUJD")
+        self.assertEqual(ia.testo_della_risposta(f, {"candidates": [{"content": {"parts": [
+            {"text": "penso...", "thought": True}, {"text": "ciao"}]}}]}), "ciao")       # senza il pensiero
+        f = dict(ia.FORNITORI["groq"], nome="groq", chiave="segreta")           # le altre: compatibili OpenAI
         url, intest, corpo = ia.richiesta(f, "QUJD")
         d = js.loads(corpo)
         self.assertEqual(intest["Authorization"], "Bearer segreta")
@@ -737,6 +746,10 @@ class TestIA(ConCartella):
         self.assertEqual(ia.testo_della_risposta(f, {"choices": [{"message": {"content": [{"text": "a"}]}}]}), "a")
         self.assertEqual(ia.testo_della_risposta(dict(ia.FORNITORI["ollama"]), {"message": {"content": "x"}}), "x")
         self.assertTrue(ia.jpeg_base64(np.zeros((720, 1280, 3), np.uint8)))
+        # chi scrive prima il ragionamento (<thought>...): lo salta
+        c = ia.leggi_risposta('<thought>The user wants {"phase": "bus"}...</thought>```json\n{"phase": "dead"}\n```')
+        self.assertEqual(c.fase, "dead")
+        self.assertIsNone(ia.leggi_risposta("<thought>The user wants me to analyze a screenshot and output a JSON"))
 
     def test_quali_ia_sono_pronte(self):
         import ia
@@ -795,21 +808,25 @@ class TestIA(ConCartella):
                 return {"message": {"content": '{"phase": "menu", "chest": "none"}'}}
             if "groq" in url:
                 raise RuntimeError("chiave sbagliata (401)")
-            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "none"}'}}]}
+            return risposta_finta(url, '{"phase": "playing", "chest": "none"}')
         risposte["GROQ"] = "chiave-sbagliata"
+        vecchio_elenco = ia.elenco_google
         try:
             builtins.input = finto_input
             ia.invia_http = finto_invia
             ia.ollama_pronto = lambda: "qwen2.5vl:3b"          # Ollama c'e' gia' sul computer
+            ia.elenco_google = lambda chiave, invia_get=None: None     # niente internet: i modelli che conosce
             funzionano = ia.collega(self.base, impostazioni.carica(self.base), print,
                                     np.zeros((360, 640, 3), np.uint8))
         finally:
             builtins.input, ia.invia_http, ia.ollama_pronto = vecchio_input, vecchio_invia, vecchio_pronto
+            ia.elenco_google = vecchio_elenco
         # groq no (chiave sbagliata); Gemma c'e' con la chiave di Gemini; Ollama (lenta) per ultima
-        self.assertEqual(funzionano, ["gemma", "gemini", "ollama"])
+        self.assertEqual(funzionano, ["gemini", "gemma", "ollama"])
         cfg = impostazioni.carica(self.base)                       # ia.yaml entra nelle impostazioni
         self.assertTrue(cfg["ia"]["attiva"])
-        self.assertEqual(cfg["ia"]["fornitori"], ["gemma", "gemini", "ollama"])
+        self.assertEqual(cfg["ia"]["fornitori"], ["gemini", "gemma", "ollama"])
+        self.assertEqual(cfg["ia"]["modelli"]["gemini"], "gemini-3.5-flash-lite")
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "chiave-gemini")
         self.assertNotIn("gemma", cfg["ia"]["chiavi"])
         self.assertEqual(cfg["ia"]["modelli"]["gemma"], "gemma-4-26b-a4b-it")
@@ -849,6 +866,31 @@ def ia_modulo():
     return ia
 
 
+def risposta_finta(url, testo):
+    """Come risponde l'IA: Google (generateContent) o le altre (compatibili OpenAI)."""
+    if "generativelanguage" in url:
+        return {"candidates": [{"content": {"parts": [{"text": testo}]}}]}
+    return {"choices": [{"message": {"content": testo}}]}
+
+
+def modello_chiesto(url, corpo):
+    import json as js
+    if "generativelanguage" in url:
+        return url.split("/models/")[1].split(":")[0]
+    return js.loads(corpo)["model"]
+
+
+ELENCO_GOOGLE = {"models": [
+    {"name": "models/gemini-3.5-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-3.1-flash-lite", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]},       # nuovo
+    {"name": "models/gemini-3.8-flash-lite-tts", "supportedGenerationMethods": ["generateContent"]},  # voce: no
+    {"name": "models/gemini-embedding-001", "supportedGenerationMethods": ["embedContent"]},
+    {"name": "models/gemma-4-26b-a4b-it", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemma-4-31b-it", "supportedGenerationMethods": ["generateContent"]},
+    {"name": "models/gemma-5-12b-it", "supportedGenerationMethods": ["generateContent"]}]}
+
+
 class TestGeminiEConoscenza(ConCartella):
     """Gemini con l'account Google, fortnite.txt alle IA, l'IA che studia le foto."""
 
@@ -862,6 +904,10 @@ class TestGeminiEConoscenza(ConCartella):
             self.assertIn(parola, conoscenza)
         f = dict(ia.FORNITORI["gemini"], nome="gemini", chiave="k")
         d = js.loads(ia.richiesta(f, "QUJD", conoscenza="sa tutto")[2])
+        self.assertIn("sa tutto", d["systemInstruction"]["parts"][0]["text"])
+        self.assertEqual(d["contents"][0]["parts"][1]["inline_data"]["data"], "QUJD")
+        f = dict(ia.FORNITORI["groq"], nome="groq", chiave="k")
+        d = js.loads(ia.richiesta(f, "QUJD", conoscenza="sa tutto")[2])
         self.assertEqual(d["messages"][0]["role"], "system")
         self.assertIn("sa tutto", d["messages"][0]["content"])
         self.assertEqual(d["messages"][1]["content"][1]["image_url"]["url"], "data:image/jpeg;base64,QUJD")
@@ -871,10 +917,11 @@ class TestGeminiEConoscenza(ConCartella):
 
         def invia(url, intest, corpo, attesa):
             mandati.append(js.loads(corpo))
-            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "left"}'}}]}
+            return risposta_finta(url, '{"phase": "playing", "chest": "left"}')
         cfg = {"ia": {"attiva": True, "fornitori": ["gemini"], "chiavi": {"gemini": "k"}}}
-        ia.IA(cfg, lambda *_: None, invia, conoscenza=conoscenza).chiedi(np.zeros((360, 640, 3), np.uint8))
-        self.assertIn("FURGONE DEL RIAVVIO", mandati[0]["messages"][0]["content"])
+        c = ia.IA(cfg, lambda *_: None, invia, conoscenza=conoscenza).chiedi(np.zeros((360, 640, 3), np.uint8))
+        self.assertEqual(c.cassa, "left")
+        self.assertIn("FURGONE DEL RIAVVIO", mandati[0]["systemInstruction"]["parts"][0]["text"])
 
     def test_collega_gemini_con_l_account_google(self):
         import ia
@@ -882,8 +929,8 @@ class TestGeminiEConoscenza(ConCartella):
         foto = np.zeros((360, 640, 3), np.uint8)
 
         def invia(url, intest, corpo, attesa):
-            self.assertEqual(intest["Authorization"], "Bearer AIza-chiave")
-            return {"choices": [{"message": {"content": '{"phase": "menu", "chest": "none"}'}}]}
+            self.assertEqual(intest["x-goog-api-key"], "AIza-chiave")
+            return risposta_finta(url, '{"phase": "menu", "chest": "none"}')
         cfg = impostazioni.carica(self.base)
         self.assertTrue(ia.serve_chiedere_gemini(cfg))
         # email o password al posto della chiave: non le salva
@@ -895,17 +942,18 @@ class TestGeminiEConoscenza(ConCartella):
         self.assertTrue(ia.serve_chiedere_gemini(impostazioni.carica(self.base)))
         # la chiave giusta: la prova, la salva e accende l'IA con Gemini per prima
         self.assertTrue(ia.collega_gemini(self.base, cfg, print, foto, aperte.append,
-                                          lambda _="": "  AIza-chiave ", invia))
+                                          lambda _="": "  AIza-chiave ", invia, lambda: ELENCO_GOOGLE))
         self.assertEqual(aperte[0], ia.PAGINA_CHIAVE_GEMINI)                   # ha aperto la pagina di Google
         cfg = impostazioni.carica(self.base)
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "AIza-chiave")
-        self.assertEqual(cfg["ia"]["fornitori"], ["gemma", "gemini"])          # Gemma prima: dura di piu'
+        self.assertEqual(cfg["ia"]["fornitori"], ["gemini", "gemma"])          # prima le veloci
         pronte = ia.fornitori_da_cfg(cfg["ia"])
-        # con UNA chiave di Google: tutti i modelli Gemma e Gemini, ognuno col suo limite al giorno
+        # con UNA chiave di Google: i modelli che Google le da' (anche i nuovi), ognuno col suo limite
         self.assertEqual([(f["nome"], f["modello"]) for f in pronte], [
+            ("gemini", "gemini-3.5-flash-lite"), ("gemini/gemini-3.1-flash-lite", "gemini-3.1-flash-lite"),
+            ("gemini/gemini-9-flash-lite", "gemini-9-flash-lite"),
             ("gemma", "gemma-4-26b-a4b-it"), ("gemma/gemma-4-31b-it", "gemma-4-31b-it"),
-            ("gemma/gemma-3-27b-it", "gemma-3-27b-it"), ("gemma/gemma-3-12b-it", "gemma-3-12b-it"),
-            ("gemini", "gemini-flash-lite-latest"), ("gemini/gemini-flash-latest", "gemini-flash-latest")])
+            ("gemma/gemma-5-12b-it", "gemma-5-12b-it")])
         self.assertTrue(all(f["chiave"] == "AIza-chiave" for f in pronte))
         self.assertTrue(cfg["ia"]["attiva"])
         self.assertFalse(ia.serve_chiedere_gemini(cfg))
@@ -949,17 +997,15 @@ class TestGeminiEConoscenza(ConCartella):
 
     def test_finite_le_domande_passa_al_modello_dopo(self):
         """Un modello finisce le domande del giorno (429): si usa il prossimo e quello riposa sempre di piu'."""
-        import json as js
-
         import ia
         usati = []
 
         def invia(url, intest, corpo, attesa):
-            modello = js.loads(corpo)["model"]
+            modello = modello_chiesto(url, corpo)
             usati.append(modello)
             if modello == "gemma-4-26b-a4b-it":
                 raise RuntimeError("troppe richieste: ha finito quelle gratis per adesso (429)")
-            return {"choices": [{"message": {"content": '{"phase": "playing"}'}}]}
+            return risposta_finta(url, '{"phase": "playing"}')
         cfg = {"ia": {"attiva": True, "fornitori": ["gemma"], "chiavi": {"gemini": "k"},
                       "modelli": {"gemma": "gemma-4-26b-a4b-it",
                                   "gemma_tutti": ["gemma-4-26b-a4b-it", "gemma-4-31b-it"]}}}
@@ -977,9 +1023,9 @@ class TestGeminiEConoscenza(ConCartella):
         import ia
         f = dict(ia.FORNITORI["gemma"], nome="gemma", chiave="k")
         d = js.loads(ia.richiesta(f, "QUJD", conoscenza="CTRL = accovacciati")[2])
-        self.assertEqual(len(d["messages"]), 1)                              # Gemma: tutto nella domanda
-        self.assertIn("CTRL = accovacciati", d["messages"][0]["content"][0]["text"])
-        self.assertIn('"phase"', d["messages"][0]["content"][0]["text"])
+        self.assertNotIn("systemInstruction", d)                             # Gemma: tutto nella domanda
+        self.assertIn("CTRL = accovacciati", d["contents"][0]["parts"][0]["text"])
+        self.assertIn('"phase"', d["contents"][0]["parts"][0]["text"])
 
     def test_capisce_i_rettangoli_dell_ia(self):
         import studia_foto
@@ -1012,8 +1058,8 @@ class TestGeminiEConoscenza(ConCartella):
         mandati = []
 
         def invia(url, intest, corpo, attesa):
-            mandati.append(js.loads(corpo))
-            return {"choices": [{"message": {"content": risposte.pop(0)}}]}
+            mandati.append((url, js.loads(corpo)))
+            return risposta_finta(url, risposte.pop(0))
         cfg = impostazioni.carica(self.base)
         self.assertEqual(studia_foto.studia(self.base, cfg, print, invia), 0)    # nessuna IA collegata
         cfg["ia"]["chiavi"] = {"gemini": "k"}
@@ -1023,9 +1069,9 @@ class TestGeminiEConoscenza(ConCartella):
             self.assertTrue(f.read().startswith("0 0.720000 0.325000"))
         self.assertFalse(os.path.isfile(os.path.join(cartella, "labels", "b.txt")))
         self.assertEqual(studia_foto.leggi_studiate(cartella), {"a.jpg", "c.jpg"})
-        self.assertEqual(mandati[0]["model"], ia_modulo().FORNITORI["gemini"]["modello"])  # i rettangoli: Gemini
-        self.assertIn("FURGONE DEL RIAVVIO", js.dumps(mandati[0]))           # sa come funziona il gioco
-        self.assertIn("box_2d", js.dumps(mandati[0]))
+        self.assertIn(ia_modulo().FORNITORI["gemini"]["modello"], mandati[0][0])    # i rettangoli: Gemini
+        self.assertIn("FURGONE DEL RIAVVIO", js.dumps(mandati[0][1]))        # sa come funziona il gioco
+        self.assertIn("box_2d", js.dumps(mandati[0][1]))
 
 
 class FintaIA:

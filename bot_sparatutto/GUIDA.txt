@@ -379,12 +379,13 @@ LE IA GRATIS PER GIOCARE GIORNI INTERI (menu 15, e all'avvio se mancano):
   Hanno solo un limite di velocita'; insieme bastano per giocare giorno e notte.
   1. GOOGLE (Gemma 4 + Gemini): pagina aistudio.google.com/apikey. Entri col tuo
      account Google (email e password le scrivi a GOOGLE, mai al bot), premi
-     "Create API key" e copi la chiave (inizia con AIza). Se il pulsante "Crea
-     chiave" e' grigio ("No Cloud Projects Available") prima crea un progetto
+     "Create API key" e copi la chiave (inizia con AIza oppure AQ.). Se il pulsante
+     "Crea chiave" e' grigio ("No Cloud Projects Available") prima crea un progetto
      (gratis): "Crea progetto" nella tendina o nella pagina "Progetti". Con la stessa
-     chiave il bot usa TUTTI i modelli gratis di Google (Gemma 4 26B e 31B, Gemma 3,
-     Gemini): ognuno ha il suo limite al giorno (Gemma: circa 14.400), quindi da sola
-     basta per un giorno intero (Google chiede 18 anni). I limiti ripartono ogni
+     chiave il bot chiede a Google quali modelli ti da' e li prova tutti: prima le
+     Gemini Flash-Lite (rispondono in 1-3 secondi), poi Gemma 4 (lenta, 20-60
+     secondi, ma con tante domande al giorno). Ognuno ha il suo limite al giorno:
+     insieme bastano per un giorno intero (Google chiede 18 anni). I limiti ripartono ogni
      giorno verso le 9 di mattina (mezzanotte in California).
   2. NVIDIA BUILD: pagina build.nvidia.com/settings/api-keys. Crei un account
      NVIDIA gratis (basta l'email), premi "Generate API Key" e copi la chiave (inizia

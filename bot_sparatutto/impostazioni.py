@@ -39,7 +39,7 @@ PREDEFINITE = {
         "validita_secondi": 8,           # casse, muri, tempesta: dopo questo tempo il consiglio e' vecchio
         "validita_fase_secondi": 45,     # bus, caduta, menu: cambiano piu' piano
         "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte
-        "fornitori": ["gemma", "nvidia", "gemini", "zai", "github", "openrouter", "groq", "mistral", "ollama",
+        "fornitori": ["gemini", "nvidia", "gemma", "zai", "github", "openrouter", "groq", "mistral", "ollama",
                       "personale"],
         "auto_ollama": True,             # se Ollama e' sul computer con un modello che vede, la collega da sola
         "usa_conoscenza": True,          # manda alle IA online anche fortnite.txt (come funziona il gioco)

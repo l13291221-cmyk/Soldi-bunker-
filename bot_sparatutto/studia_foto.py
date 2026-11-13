@@ -32,10 +32,11 @@ NOMI = {
 
 DOMANDA_FOTO = (
     "This is a screenshot of Fortnite (third-person battle royale). Find ONLY these things in the 3D world:\n"
-    "- enemy: an OPPONENT player (a character of another team). NOT the player's own character "
-    "(the one in the lower middle of the screen, usually seen from behind), NOT teammates (they have a "
-    "colored name tag above the head), NOT animals or pets following the player, NOT characters in "
-    "menus, lobby, reward or end-of-match screens.\n"
+    "- enemy: EVERY character (person, humanoid) of OTHER players in the 3D world, near or far, even "
+    "small, standing, running, jumping or gliding: mark each one with its own box. NOT the player's own "
+    "character (the one in the lower middle of the screen, usually seen from behind), NOT teammates with a "
+    "colored name tag above the head, NOT animals or pets, NOT characters in menus, lobby, reward or "
+    "end-of-match screens.\n"
     "- chest: a loot chest (wooden chest with gold trim, glowing gold and sparkling when closed). "
     "NOT the glowing tip of the player's pickaxe, NOT yellow icons or markers of the interface "
     "(icons with a distance in meters), NOT lamps, lights or yellow leaves.\n"
@@ -55,7 +56,7 @@ def leggi_oggetti(testo):
     None se la risposta non si capisce (cosi' la foto si riprova la volta dopo)."""
     if testo is None:
         return None
-    testo = str(testo)
+    testo = modulo_ia.togli_pensieri(testo)
     dati = None
     for pezzo in (re.search(r"\{.*\}", testo, re.S), re.search(r"\[.*\]", testo, re.S)):
         if pezzo is None:
@@ -124,8 +125,14 @@ def scegli_fornitori(cfg):
     """Le IA collegate, prima quelle online (Gemini...). Ollama solo se c'e' davvero sul PC, e per
     ultima: e' lenta e trova male i rettangoli."""
     fornitori = modulo_ia.fornitori_da_cfg(cfg.get("ia", {}) or {})
-    # per i rettangoli Gemini e' la piu' brava (e' allenata a trovarli): la metto per prima
-    fornitori.sort(key=lambda f: 0 if f["nome"] == "gemini" else 1)
+    # per i rettangoli Gemini e' la piu' brava (e' allenata a trovarli). Provato a novembre 2026:
+    # Gemini Flash (non "lite") trova anche i giocatori piccoli e lontani, le "lite" ne perdono
+    def bravura(f):
+        m = str(f.get("modello", ""))
+        if m.startswith("gemini") and "lite" not in m:
+            return 0
+        return 1 if m.startswith("gemini") else 2
+    fornitori.sort(key=bravura)
     online = [f for f in fornitori if f["tipo"] != "ollama"]
     ollama = [f for f in fornitori if f["tipo"] == "ollama"]
     modello = modulo_ia.ollama_pronto() if ollama else None
