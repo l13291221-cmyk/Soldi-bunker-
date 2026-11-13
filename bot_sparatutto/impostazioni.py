@@ -75,6 +75,7 @@ PREDEFINITE = {
     },
     "combattimento": {
         "attivo": True,
+        "prendi_arma": True,             # quando vede un nemico prende l'arma (tasto arma_1), non il piccone
         "spara": "tieni",
         "raffica_secondi": 0.25,
         "pausa_raffica_secondi": 0.12,
@@ -93,6 +94,8 @@ PREDEFINITE = {
         "casse_materiali": True,
         "armi": True,
         "conferma_fotogrammi": 3,
+        "raccogli_dopo_cassa": True,
+        "raccogli_volte": 4,
         "tentativi_per_cassa": 2,
         "priorita_casse": 2.0,
         "priorita_materiali": 1.6,

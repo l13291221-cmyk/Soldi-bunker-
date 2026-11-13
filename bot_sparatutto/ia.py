@@ -258,6 +258,14 @@ def invia_http(url, intestazioni, corpo, attesa):
         raise RuntimeError("non raggiungibile (%s)" % getattr(e, "reason", e))
 
 
+def miniatura(img):
+    """Lo schermo piccolissimo in grigio: serve a capire se e' cambiato dalla foto mandata all'IA."""
+    import cv2
+    import numpy as np
+    grigio = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    return cv2.resize(grigio, (32, 18), interpolation=cv2.INTER_AREA).astype(np.float32)
+
+
 def jpeg_base64(img, larghezza=512, qualita=70):
     import cv2
     h, w = img.shape[:2]
@@ -398,6 +406,7 @@ class IA:
                     raise RuntimeError("risposta che non capisco: %r" % str(testo)[:80])
                 self.numero += 1
                 c.numero = self.numero
+                c.miniatura = miniatura(img)    # com'era lo schermo nella foto
                 self.ultimo = c
                 return c
             except Exception as e:

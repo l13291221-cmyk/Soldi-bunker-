@@ -628,6 +628,24 @@ class TestCasseVere(ConCartella):
         self.assertFalse(scritte[0].startswith("vado verso cassa"), scritte)
         self.assertTrue(scritte[2].startswith("vado verso cassa"), scritte)
 
+    def test_dopo_la_cassa_raccoglie_e_prende_l_arma(self):
+        cfg = cfg_test(raccolta={"tempo_apertura_cassa": 0.06}, mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        mondo.oggetti.append((300, 250, 60, 60, ORO))
+        mondo_foto = mondo.foto
+
+        def foto_senza_cassa():          # dopo aver premuto E la cassa e' aperta (sparita)
+            if mani.storia.count("giu tasto 0x%02X" % CODICI["e"]):
+                mondo.oggetti.clear()
+            return mondo_foto()
+        mondo.foto = foto_senza_cassa
+        esec.foto_fresca = foto_senza_cassa
+        img = mondo_foto()
+        self.assertEqual(cerv.passo(occhi.analizza(img), img), "apro cassa")
+        self.assertEqual(cerv.statistiche["casse"], 1)
+        self.assertGreaterEqual(mani.storia.count("giu tasto 0x%02X" % CODICI["e"]), 4)   # raccoglie il bottino
+        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)                      # prende l'arma
+
     def test_cassa_che_non_si_apre_la_lascia_stare(self):
         cfg = cfg_test(raccolta={"tempo_apertura_cassa": 0.06, "tentativi_per_cassa": 2},
                        mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
@@ -809,6 +827,7 @@ class TestLogicaFortnite(ConCartella):
         mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
         c = ia.Consiglio(**consiglio)
         c.numero = 1
+        c.quando = time.monotonic()
         cerv.ia = FintaIA(c)
         cerv.prossimo_guardarsi = time.monotonic() + 999
         return mani, mondo, occhi, cerv
@@ -905,6 +924,18 @@ class TestLogicaFortnite(ConCartella):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", poca_vita=True)
         self.assertEqual(self._passo(mondo, occhi, cerv), "mi curo")
         self.assertIn("giu tasto 0x%02X" % CODICI["6"], mani.storia)          # cura = arma_5 = tasto 6
+
+    def test_non_resta_fermo_se_l_ia_e_lenta(self):
+        """L'IA lenta aveva detto 'menu' un minuto fa, ma ora si gioca: il bot non deve restare fermo."""
+        import ia
+        mani, mondo, occhi, cerv = self._cervello(fase="menu")
+        c = cerv.ia.c
+        c.quando = time.monotonic() - 60
+        c.miniatura = ia.miniatura(np.full((360, 640, 3), 255, np.uint8))     # la foto era tutta diversa
+        self.assertFalse(self._passo(mondo, occhi, cerv).startswith("aspetto"))
+        # ...ma se lo schermo e' ancora quello del menu (fermo), il consiglio vale anche se vecchio
+        c.miniatura = ia.miniatura(mondo.foto())
+        self.assertTrue(self._passo(mondo, occhi, cerv).startswith(("aspetto", "clicco", "porto")))
 
     def test_i_nemici_vengono_prima(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)

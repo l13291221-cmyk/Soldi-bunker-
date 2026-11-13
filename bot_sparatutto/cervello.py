@@ -135,6 +135,7 @@ class Cervello:
         self.prossimo_muro = 0.0
         self.prossima_cura = 0.0
         self.ultimo_colpo = 0.0           # quando mi hanno colpito l'ultima volta
+        self.prossimo_cambio_arma = 0.0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
         self.errore_mira = (0.0, 0.0)     # stile: di quanto sbaglia la mira adesso
         self.prossimo_errore = 0.0
@@ -336,6 +337,9 @@ class Cervello:
         c = self.ia.consiglio(t, self.ia.validita_fase)
         if c is None:
             return None
+        if c.fase != "playing" and not self._ancora_valido(c, img, t):
+            # l'IA (lenta) parlava di uno schermo che ormai e' cambiato: non le credo e gioco
+            return None
         if c.fase in ("bus", "falling", "playing"):
             self.in_partita = True
         if c.fase == "bus":
@@ -362,6 +366,17 @@ class Cervello:
                 self.esecutore._fine_partita()
             return self._prossima_partita(c, img)
         return None
+
+    def _ancora_valido(self, c, img, t):
+        """Un consiglio vale se e' fresco, oppure se lo schermo e' quasi uguale a quello della foto
+        (i menu stanno fermi: anche se l'IA ci ha messo un minuto a rispondere va bene)."""
+        if t - c.quando <= 6.0:
+            return True
+        prima = getattr(c, "miniatura", None)
+        if prima is None or img is None:
+            return False
+        from ia import miniatura
+        return float(np.mean(np.abs(miniatura(img) - prima))) < 10.0
 
     def _prossima_partita(self, c, img):
         """Nei menu e da eliminato: preme il tasto o clicca il pulsante che porta alla partita dopo.
@@ -589,6 +604,11 @@ class Cervello:
         if self.bersaglio is None:
             # nemico appena visto: con lo stile Normale/Tranquillo ci mette un attimo a reagire
             self.reazione_fino = t + self.stile.reazione
+            # in mano un'arma, non il piccone (se ce l'ha)
+            if self.comb.get("prendi_arma", True) and t >= self.prossimo_cambio_arma and \
+                    self.mani.esiste("arma_1"):
+                self.prossimo_cambio_arma = t + 8.0
+                self.mani.premi("arma_1")
         self.bersaglio = (ax, ay)
         self.mosso_px = (0.0, 0.0)
         anticipo = float(self.mira.get("anticipo", 0.05) or 0.0)
@@ -800,6 +820,8 @@ class Cervello:
                 self.statistiche.get("armi", 0)))
             self.ignora_raccolta_fino = t + 0.8
             self.fallite_di_fila = 0
+            if tipo in ("cassa", "materiali") and self.racc.get("raccogli_dopo_cassa", True):
+                self._raccogli_bottino()
         else:
             self.statistiche["casse_fallite"] = self.statistiche.get("casse_fallite", 0) + 1
             self.fallite_di_fila += 1
@@ -824,6 +846,21 @@ class Cervello:
             self._cammina()
         self.inseguo_da = None
         return "apro %s" % tipo
+
+    def _raccogli_bottino(self):
+        """Come in Fortnite: la cassa butta le armi per terra davanti. Guardo un po' in giu',
+        premo 'interagisci' qualche volta facendo un passettino, poi prendo l'arma in mano."""
+        giu = self.passi_per_giro * 15.0 / 360.0
+        self._muovi(0, giu)
+        for _ in range(int(self.racc.get("raccogli_volte", 4) or 4)):
+            self.mani.premi("interagisci", 0.08)
+            self._cammina(avanti=True)
+            self.esecutore.dormi(0.15)
+            self._cammina()
+            self.esecutore.dormi(0.1)
+        self._muovi(0, -giu)
+        if self.mani.esiste("arma_1"):
+            self.mani.premi("arma_1")
 
     @staticmethod
     def occhi_dimensioni(img):
