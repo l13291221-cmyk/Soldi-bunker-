@@ -15,6 +15,13 @@ PREDEFINITE = {
     "comandi": {"modo": "schedina", "porta": "auto", "scrivi_comandi_in_prova": False},
     "tasti_bot": {"pausa": "f8", "esci": "f9"},
     "telecomando": {"sensibilita_mouse": 1.0},
+    # cose da Fortnite che fa con l'IA che guarda
+    "fortnite": {
+        "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
+        "usa_veicoli": True,             # sale in macchina se e' vicina (per girare la mappa e la tempesta)
+        "guida_secondi_massimi": 25,     # poi scende (o prima, se vede una cassa o un nemico)
+        "cura_con_ia": True,             # se l'IA vede poca vita (e nessun nemico) si cura
+    },
     # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
     "ia": {
         "attiva": False,

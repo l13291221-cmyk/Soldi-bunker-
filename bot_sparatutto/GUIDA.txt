@@ -332,6 +332,16 @@ ogni tanto il bot le manda una foto piccola dello schermo e lei dice cosa succed
     se ne vede una a destra o sinistra, si gira verso di lei
   - MURO davanti   -> gira
   - TEMPESTA vicina -> si gira verso la zona sicura e corre
+  - POCA VITA (e nessun nemico) -> si cura
+  - MACCHINA vicina -> sale e guida (verso la zona sicura se c'e' la tempesta);
+    scende dopo 25 secondi, o prima se vede una cassa o un nemico
+  - PARTITE IN LOOP: finita la partita (eliminato o nei menu) preme il tasto che
+    dice lo schermo (es. SPAZIO) oppure porta il cursore sul pulsante giusto
+    ("Torna alla lobby", "Gioca", "Pronto") e clicca, finche' non riparte. Conta
+    le partite e a ogni partita l'allenamento scrive il riepilogo.
+    Impara da solo di quanto si muove il cursore nei menu della Play.
+Senza l'IA il loop funziona solo con le immagini dei pulsanti (menu 6 + istruzioni.txt).
+Si regola in impostazioni.yaml -> fortnite.
 Il bot non aspetta mai l'IA: usa l'ultima risposta. I nemici vengono sempre prima.
 
 Menu 14: prova da solo quelle SENZA chiave e per le altre ti chiede la chiave

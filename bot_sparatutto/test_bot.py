@@ -780,9 +780,9 @@ class TestLogicaFortnite(ConCartella):
         cerv.prossimo_guardarsi = time.monotonic() + 999
         return mani, mondo, occhi, cerv
 
-    def _passo(self, mondo, occhi, cerv):
+    def _passo(self, mondo, occhi, cerv, t=None):
         img = mondo.foto()
-        return cerv.passo(occhi.analizza(img), img)
+        return cerv.passo(occhi.analizza(img), img, t)
 
     def test_bus_caduta_menu(self):
         mani, mondo, occhi, cerv = self._cervello(fase="bus")
@@ -813,6 +813,65 @@ class TestLogicaFortnite(ConCartella):
         self.assertNotEqual(self._passo(mondo, occhi, cerv), "scappo dalla tempesta")   # una volta sola
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
         self.assertEqual(self._passo(mondo, occhi, cerv), "evito il muro")
+
+    def test_partite_in_loop(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing")
+        c = cerv.ia.c
+        self._passo(mondo, occhi, cerv)
+        # eliminato: la schermata dice "premi SPAZIO"
+        c.fase, c.numero, c.tasto = "dead", 2, "space"
+        self.assertEqual(self._passo(mondo, occhi, cerv), "premo spazio per continuare")
+        self.assertEqual(cerv.statistiche["partite"], 1)                      # partita contata
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "aspetto (eliminato)")   # stessa risposta: aspetta
+        # nella lobby: il cursore e' lontano dal pulsante "Gioca" -> lo sposta
+        c.fase, c.numero, c.tasto, c.pulsante, c.cursore = "menu", 3, "none", (0.5, 0.9), (0.2, 0.2)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "porto il cursore sul pulsante")
+        self.assertGreater(mani.mosso_x, 0)
+        self.assertGreater(mani.mosso_y, 0)
+        # ora ci e' sopra -> clicca
+        c.numero, c.cursore = 4, (0.5, 0.89)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "clicco per la partita dopo")
+        self.assertIn("giu mouse 1", mani.storia)
+        self.assertEqual(cerv.statistiche["partite"], 1)                      # non la conta due volte
+        # comincia la partita nuova e poi finisce di nuovo: la conta
+        c.fase, c.numero, c.pulsante, c.cursore = "bus", 5, None, None
+        self.assertEqual(self._passo(mondo, occhi, cerv), "sul bus")
+        c.fase, c.numero = "dead", 6
+        self._passo(mondo, occhi, cerv)
+        self.assertEqual(cerv.statistiche["partite"], 2)
+
+    def test_impara_quanto_si_muove_il_cursore(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="menu", pulsante=(0.8, 0.5), cursore=(0.2, 0.5))
+        cerv.esecutore.passi_per_pixel_menu = 1.0
+        self._passo(mondo, occhi, cerv)                       # chiede di spostarsi di 384 pixel
+        c = cerv.ia.c
+        c.numero, c.cursore = 2, (0.5, 0.5)                   # ma il cursore si e' mosso solo di 192
+        self._passo(mondo, occhi, cerv)
+        self.assertAlmostEqual(cerv.esecutore.passi_per_pixel_menu, 1.5, places=2)
+
+    def test_clicca_anche_senza_vedere_il_cursore(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="menu", pulsante=(0.5, 0.5))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "clicco per la partita dopo")
+        self.assertIn("giu mouse 1", mani.storia)
+
+    def test_macchina(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", in_veicolo=True)
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "guido")
+        self.assertTrue(mani.e_premuto("avanti"))
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 30), "scendo dalla macchina")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        c = cerv.ia.c
+        c.in_veicolo, c.veicolo, c.numero = False, "close", 2
+        self.assertNotEqual(self._passo(mondo, occhi, cerv, t + 31), "salgo in macchina")   # appena sceso: no
+        c.numero = 3
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 100), "salgo in macchina")
+
+    def test_si_cura_se_l_ia_vede_poca_vita(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", poca_vita=True)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "mi curo")
+        self.assertIn("giu tasto 0x%02X" % CODICI["6"], mani.storia)          # cura = arma_5 = tasto 6
 
     def test_i_nemici_vengono_prima(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)

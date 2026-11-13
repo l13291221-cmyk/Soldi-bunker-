@@ -28,6 +28,16 @@ comandi:
 
 
 # ---------------------------------------------------------------------
+# COSE DA FORTNITE (servono l'IA che guarda: menu 14)
+# ---------------------------------------------------------------------
+fortnite:
+  partite_in_loop: true       # finita la partita preme/clicca da solo per la prossima, e cosi' via
+  usa_veicoli: true           # sale in macchina se ce n'e' una vicina
+  guida_secondi_massimi: 25   # poi scende (o prima, se vede una cassa o un nemico)
+  cura_con_ia: true           # se l'IA vede poca vita e non ci sono nemici, si cura
+
+
+# ---------------------------------------------------------------------
 # GIOCARE TU SULLA PLAY DAL PORTATILE (menu 4 "Impara guardando me" -> 2)
 # ---------------------------------------------------------------------
 telecomando:

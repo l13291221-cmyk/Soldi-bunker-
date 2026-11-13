@@ -87,7 +87,13 @@ class Cervello:
         self.cfg = cfg
         self.ia = ia                      # il cervello lento che guarda (ia.py), se collegato
         self.ultimo_consiglio = 0
+        self.ultimo_consiglio_menu = 0
         self.prossimo_salto_bus = 0.0
+        self.fort = _cfg(cfg, "fortnite")
+        self.in_partita = False           # per contare le partite (l'IA dice quando finiscono)
+        self.in_auto_da = None            # da quando sto guidando
+        self.niente_auto_fino = 0.0       # appena sceso non risalgo subito
+        self.cursore_atteso = None        # nei menu: dov'era il cursore e quanto l'ho spostato
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
         self.stile = stile if stile is not None else STILI["pro"]     # come gioca (stile.py)
         self.mani = mani
@@ -330,6 +336,8 @@ class Cervello:
         c = self.ia.consiglio(t, self.ia.validita_fase)
         if c is None:
             return None
+        if c.fase in ("bus", "falling", "playing"):
+            self.in_partita = True
         if c.fase == "bus":
             self._spara(False)
             self._cammina()
@@ -345,8 +353,61 @@ class Cervello:
         if c.fase in ("menu", "dead"):
             self._spara(False)
             self._cammina()
-            return "aspetto (%s)" % ("menu" if c.fase == "menu" else "eliminato")
+            if self.in_partita:
+                # la partita e' finita: la conto (e l'allenamento scrive il riepilogo)
+                self.in_partita = False
+                self.in_auto_da = None
+                self.statistiche["partite"] = self.statistiche.get("partite", 0) + 1
+                self.log("Partita finita (%d). Passo alla prossima." % self.statistiche["partite"])
+                self.esecutore._fine_partita()
+            return self._prossima_partita(c, img)
         return None
+
+    def _prossima_partita(self, c, img):
+        """Nei menu e da eliminato: preme il tasto o clicca il pulsante che porta alla partita dopo.
+        Un'azione per ogni risposta dell'IA, poi guarda di nuovo (cosi' si corregge)."""
+        aspetto = "aspetto (%s)" % ("menu" if c.fase == "menu" else "eliminato")
+        if not self.fort.get("partite_in_loop", True) or c.numero == self.ultimo_consiglio_menu:
+            return aspetto
+        self.ultimo_consiglio_menu = c.numero
+        if c.tasto != "none":
+            from ia import NOMI_TASTI
+            nome = NOMI_TASTI.get(c.tasto, c.tasto)
+            if self.mani.esiste(nome):
+                self.log("IA: la schermata dice di premere %s" % nome.upper())
+                self.mani.premi(nome, 0.1)
+                return "premo %s per continuare" % nome
+        if c.pulsante is None or img is None:
+            return aspetto
+        H, W = img.shape[:2]
+        bx, by = c.pulsante[0] * W, c.pulsante[1] * H
+        ppm = float(getattr(self.esecutore, "passi_per_pixel_menu", 1.0) or 1.0)
+        if c.cursore is None:
+            # non vedo il cursore: ci vado "alla cieca" (o con la freccia del PC se il gioco e' qui)
+            ox, oy = self.schermo.origine if self.schermo is not None else (0, 0)
+            self.log("IA: clicco il pulsante per la partita dopo")
+            self.esecutore.porta_cursore(ox + bx, oy + by)
+            self.mani.premi("mouse_sinistro", 0.08)
+            self.cursore_atteso = None
+            return "clicco per la partita dopo"
+        cx, cy = c.cursore[0] * W, c.cursore[1] * H
+        if self.cursore_atteso is not None:
+            # l'ultima volta l'ho spostato io: imparo di quanto si muove davvero il cursore
+            (px, py), (dx0, dy0) = self.cursore_atteso
+            mosso = math.hypot(cx - px, cy - py)
+            voluto = math.hypot(dx0, dy0)
+            if voluto > 20 and mosso > 3:
+                ppm = min(5.0, max(0.2, 0.5 * ppm + 0.5 * ppm * voluto / mosso))
+                self.esecutore.passi_per_pixel_menu = ppm
+        dx, dy = bx - cx, by - cy
+        if math.hypot(dx, dy) <= 0.025 * W:
+            self.log("IA: il cursore e' sul pulsante -> clicco")
+            self.mani.premi("mouse_sinistro", 0.08)
+            self.cursore_atteso = None
+            return "clicco per la partita dopo"
+        self.mani.muovi(dx * ppm, dy * ppm)
+        self.cursore_atteso = ((cx, cy), (dx, dy))
+        return "porto il cursore sul pulsante"
 
     def _tattica_ia(self, vis, t):
         """In partita: l'IA dice se le casse sono vere, se c'e' un muro, dov'e' la tempesta."""
@@ -355,12 +416,27 @@ class Cervello:
         c = self.ia.consiglio(t)
         if c is None or c.fase not in ("playing", "unknown"):
             return None
+        scritta = self._auto(c, vis, t)
+        if scritta:
+            return scritta
         if c.cassa == "none" and self.ia.fidati_casse and vis.casse:
             vis.oggetti["cassa"] = []            # l'IA non vede casse: quelle trovate col colore sono finte
         nuovo = c.numero != self.ultimo_consiglio
         self.ultimo_consiglio = c.numero
         if not nuovo or vis.nemici:
             return None                          # ogni consiglio si usa una volta, e i nemici vengono prima
+        if c.poca_vita and self.fort.get("cura_con_ia", True) and t >= self.prossima_cura:
+            self.prossima_cura = t + 10.0
+            self._cammina()
+            if self._esegui_macro(self.vita_cfg.get("macro_cura", "cura"), "IA: ho poca vita"):
+                return "mi curo"
+        if (c.veicolo == "close" and self.fort.get("usa_veicoli", True) and t >= self.niente_auto_fino
+                and not vis.casse and self.mani.esiste("interagisci")):
+            self.log("IA: c'e' una macchina vicina -> salgo")
+            self._cammina()
+            self.mani.premi("interagisci", 0.1)
+            self.niente_auto_fino = t + 5.0
+            return "salgo in macchina"
         if c.tempesta and c.direzione in ("left", "right", "behind"):
             gradi = {"left": -90, "right": 90, "behind": 180}[c.direzione]
             self.log("IA: la tempesta e' vicina -> vado verso la zona sicura")
@@ -379,6 +455,32 @@ class Cervello:
             self.esecutore.gira(-35 if c.cassa == "left" else 35)
             return "giro verso la cassa che vede l'IA"
         return None
+
+    def _auto(self, c, vis, t):
+        """In macchina: guida (verso la zona sicura se c'e' la tempesta) e scende quando serve."""
+        if not c.in_veicolo or not self.fort.get("usa_veicoli", True):
+            self.in_auto_da = None
+            return None
+        if self.in_auto_da is None:
+            self.in_auto_da = t
+            self.log("IA: sono in macchina, guido")
+        troppo = t - self.in_auto_da > float(self.fort.get("guida_secondi_massimi", 25) or 25)
+        if troppo or vis.nemici or c.cassa != "none":
+            motivo = "c'e' un nemico" if vis.nemici else ("vedo una cassa" if c.cassa != "none" else "basta guidare")
+            self.log("IA: scendo dalla macchina (%s)" % motivo)
+            self._cammina()
+            if self.mani.esiste("interagisci"):
+                self.mani.premi("interagisci", 0.1)
+            self.in_auto_da = None
+            self.niente_auto_fino = t + 60.0
+            return "scendo dalla macchina"
+        sinistra = destra = False
+        if c.tempesta and c.direzione in ("left", "right"):
+            sinistra, destra = c.direzione == "left", c.direzione == "right"
+        elif c.muro:
+            sinistra = True
+        self._cammina(avanti=True, sinistra=sinistra, destra=destra)    # con un muro davanti sterza
+        return "guido"
 
     def _solo_nemici_vicini(self):
         """Con l'obiettivo delle casse (o sopravvivere, o lo stile Tranquillo) i nemici lontani si ignorano."""

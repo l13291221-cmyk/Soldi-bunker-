@@ -65,16 +65,28 @@ DOMANDA = (
     '{"phase": "bus|falling|playing|menu|dead|unknown", '
     '"chest": "none|left|center|right", "wall_ahead": true|false, '
     '"storm_near": true|false, "safe_direction": "left|right|ahead|behind|unknown", '
-    '"enemy": true|false}\n'
+    '"enemy": true|false, "low_health": true|false, '
+    '"vehicle": "none|left|center|right|close", "in_vehicle": true|false, '
+    '"button": {"x": 0.5, "y": 0.9} or null, "cursor": {"x": 0.5, "y": 0.5} or null, '
+    '"key": "none|space|enter|esc|e|f"}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = eliminated or spectating. chest = a closed loot chest (golden glowing box) in the 3D world, "
     "NOT icons of the interface; tell where it is on screen. wall_ahead = a wall, rock or obstacle "
     "right in front of the character, very close. storm_near = the storm (purple wall or purple sky) "
-    "is close or the character is inside it; safe_direction = where to go to get away from it."
+    "is close or the character is inside it; safe_direction = where to go to get away from it. "
+    "low_health = the health or shield bar is low. vehicle = a car or other vehicle in the world "
+    "(close = right next to the character); in_vehicle = the character is driving or riding one. "
+    "button = ONLY in lobby, menus or after being eliminated: the one button to press to get to the "
+    "NEXT MATCH (Return to Lobby, Play, Ready, Continue, Skip...), as fractions of screen width and "
+    "height; never Quit or Exit game. cursor = where the mouse pointer is, if you see it. "
+    "key = a key the screen says to press to continue (for example 'Press SPACE'), else none."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
 LATI = ("none", "left", "center", "right")
+VEICOLO = ("none", "left", "center", "right", "close")
+TASTI = ("none", "space", "enter", "esc", "e", "f")
+NOMI_TASTI = {"space": "spazio", "enter": "invio", "esc": "esc", "e": "e", "f": "f"}
 DIREZIONI = ("left", "right", "ahead", "behind", "unknown")
 
 
@@ -82,8 +94,15 @@ class Consiglio:
     """Quello che l'IA ha visto in una foto."""
 
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
-                 nemico=False, quando=0.0, fornitore=""):
+                 nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
+                 pulsante=None, cursore=None, tasto="none"):
         self.fase = fase
+        self.poca_vita = poca_vita
+        self.veicolo = veicolo
+        self.in_veicolo = in_veicolo
+        self.pulsante = pulsante          # (x, y) in frazioni dello schermo, oppure None
+        self.cursore = cursore            # (x, y) in frazioni dello schermo, oppure None
+        self.tasto = tasto
         self.cassa = cassa
         self.muro = muro
         self.tempesta = tempesta
@@ -106,6 +125,13 @@ class Consiglio:
             parti += ", muro davanti"
         if self.tempesta:
             parti += ", tempesta vicina"
+        if self.in_veicolo:
+            parti += ", in macchina"
+        elif self.veicolo != "none":
+            parti += ", macchina " + {"left": "a sinistra", "center": "davanti", "right": "a destra",
+                                      "close": "vicina"}[self.veicolo]
+        if self.pulsante is not None:
+            parti += ", pulsante per continuare in %.2f,%.2f" % self.pulsante
         return parti
 
 
@@ -121,6 +147,22 @@ def _scegli(v, ammessi, predefinito):
         if t == a or t.startswith(a):
             return a
     return predefinito
+
+
+def _punto(v):
+    """{"x": 0.5, "y": 0.9} oppure [0.5, 0.9] -> (0.5, 0.9); None se non e' un punto dello schermo."""
+    try:
+        if isinstance(v, dict):
+            x, y = float(v["x"]), float(v["y"])
+        elif isinstance(v, (list, tuple)) and len(v) == 2:
+            x, y = float(v[0]), float(v[1])
+        else:
+            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
+        return (x, y)
+    return None
 
 
 def leggi_risposta(testo, quando=0.0, fornitore=""):
@@ -149,7 +191,13 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         tempesta=_si(dati.get("storm_near", False)),
         direzione=_scegli(dati.get("safe_direction"), DIREZIONI, "unknown"),
         nemico=_si(dati.get("enemy", False)),
-        quando=quando, fornitore=fornitore)
+        quando=quando, fornitore=fornitore,
+        poca_vita=_si(dati.get("low_health", False)),
+        veicolo=_scegli(dati.get("vehicle"), VEICOLO, "none"),
+        in_veicolo=_si(dati.get("in_vehicle", False)),
+        pulsante=_punto(dati.get("button")),
+        cursore=_punto(dati.get("cursor")),
+        tasto=_scegli(dati.get("key"), TASTI, "none"))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA
@@ -160,10 +208,10 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA):
         intestazioni["Authorization"] = "Bearer " + fornitore["chiave"]
     if fornitore["tipo"] == "ollama":
         corpo = {"model": fornitore["modello"], "stream": False,
-                 "options": {"temperature": 0.1, "num_predict": 160},
+                 "options": {"temperature": 0.1, "num_predict": 260},
                  "messages": [{"role": "user", "content": domanda, "images": [jpeg_base64]}]}
     else:
-        corpo = {"model": fornitore["modello"], "temperature": 0.1, "max_tokens": 160,
+        corpo = {"model": fornitore["modello"], "temperature": 0.1, "max_tokens": 260,
                  "messages": [{"role": "user", "content": [
                      {"type": "text", "text": domanda},
                      {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + jpeg_base64}}]}]}
