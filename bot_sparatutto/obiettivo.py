@@ -113,18 +113,41 @@ def scrivi(base, testo):
         f.write(testo.strip() + "\n")
 
 
+SCELTE = [
+    ("1", "vincere e aprire piu' casse possibili"),
+    ("2", "aprire un tot di casse a partita (es. 50), poi giocare per vincere"),
+    ("3", "aprire piu' casse possibili"),
+    ("4", "eliminare piu' nemici possibili"),
+    ("5", "sopravvivere"),
+]
+
+
 def chiedi(base, log=print):
-    """Chiede l'obiettivo nella finestra nera e lo salva. Restituisce l'Obiettivo."""
+    """Chiede l'obiettivo nella finestra nera (con i numeri o con parole tue) e lo salva.
+    Restituisce l'Obiettivo. INVIO = lascia quello di prima."""
     attuale = leggi(base, lambda *_: None)
     print("\nOBIETTIVO attuale: %s" % attuale.testo)
-    print("Esempi: " + " | ".join(ESEMPI))
+    for numero, testo in SCELTE:
+        print("  %s) %s" % (numero, testo))
+    print("  (oppure scrivilo con parole tue)")
     while True:
         try:
-            testo = input("Obiettivo (INVIO = lascia quello attuale): ").strip()
+            testo = input("Scrivi il numero e premi INVIO (solo INVIO = lascia quello attuale): ").strip()
         except (EOFError, KeyboardInterrupt):
             return attuale
         if not testo:
             return attuale
+        if testo == "2":
+            try:
+                quante = input("Quante casse a partita? (es. 50): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                return attuale
+            if not quante.isdigit() or int(quante) <= 0:
+                print("Scrivi solo un numero, es. 50.")
+                continue
+            testo = "aprire %d casse a partita" % int(quante)
+        elif testo in ("1", "3", "4", "5"):
+            testo = {"1": ESEMPI[0], "3": ESEMPI[2], "4": ESEMPI[3], "5": ESEMPI[4]}[testo]
         ob = capisci(testo)
         if ob is None:
             print("Non l'ho capito. Prova a scriverlo come uno degli esempi.")

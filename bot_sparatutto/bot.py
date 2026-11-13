@@ -218,7 +218,8 @@ def avvia(modo=None):
         apprendimento.mira_adattiva = False
         apprendimento.impara_attaccati = False
     esecutore.passi_per_giro = apprendimento.passi_per_giro
-    obiettivo = modulo_obiettivo.leggi(BASE, log)
+    # l'obiettivo: si sceglie ogni volta (INVIO = quello di prima); in prova usa quello salvato
+    obiettivo = modulo_obiettivo.leggi(BASE, log) if modo == "prova" else modulo_obiettivo.chiedi(BASE)
     allenamento = Allenamento(cfg, BASE, statistiche, log)
     if modo == "prova":
         allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni

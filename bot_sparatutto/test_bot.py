@@ -719,6 +719,28 @@ class TestTelecomando(unittest.TestCase):
         self.assertIn("cavo staccato", str(tele.errore))
 
 
+class TestSceltaObiettivo(ConCartella):
+    def test_numeri(self):
+        import builtins
+
+        import obiettivo
+        vecchio = builtins.input
+        try:
+            risposte = iter(["2", "boh", "2", "50"])         # 2, numero sbagliato, di nuovo 2, 50
+            builtins.input = lambda *_: next(risposte)
+            ob = obiettivo.chiedi(self.base)
+            self.assertEqual((ob.tipo, ob.casse), ("casse_n", 50))
+            self.assertEqual(obiettivo.leggi(self.base).casse, 50)          # salvato
+            builtins.input = lambda *_: ""
+            self.assertEqual(obiettivo.chiedi(self.base).casse, 50)         # INVIO = quello di prima
+            builtins.input = lambda *_: "4"
+            self.assertEqual(obiettivo.chiedi(self.base).tipo, "nemici")
+            builtins.input = lambda *_: "sopravvivere"
+            self.assertEqual(obiettivo.chiedi(self.base).tipo, "sopravvivere")
+        finally:
+            builtins.input = vecchio
+
+
 class TestAggiorna(ConCartella):
     """Menu 13: il programma si aggiorna da solo senza toccare le tue impostazioni."""
 
