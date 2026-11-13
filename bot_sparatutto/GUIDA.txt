@@ -371,17 +371,27 @@ computer (le IA online senza chiave provate a novembre 2026 non accettano immagi
     una volta sola: Ollama + il modello qwen2.5vl:3b).
   - Senza scheda video e' lenta (anche 30-60 secondi a foto): va bene soprattutto
     per bus, menu e partita successiva; per casse e muri arriva tardi.
+PER GIOCARE GIORNI INTERI il PC non deve addormentarsi: Impostazioni di Windows ->
+Sistema -> Alimentazione -> Schermo e sospensione: "Mai" (con il caricatore attaccato).
+
 LE IA GRATIS PER GIOCARE GIORNI INTERI (menu 15, e all'avvio se mancano):
   Sono COMPLETAMENTE GRATUITE: non si paga niente e non serve la carta di credito.
   Hanno solo un limite di velocita'; insieme bastano per giocare giorno e notte.
   1. GOOGLE (Gemma 4 + Gemini): pagina aistudio.google.com/apikey. Entri col tuo
      account Google (email e password le scrivi a GOOGLE, mai al bot), premi
-     "Create API key" e copi la chiave (inizia con AIza). Con la stessa chiave il
-     bot usa Gemma 4: circa 14.400 domande al giorno (Google chiede 18 anni).
+     "Create API key" e copi la chiave (inizia con AIza). Se il pulsante "Crea
+     chiave" e' grigio ("No Cloud Projects Available") prima crea un progetto
+     (gratis): "Crea progetto" nella tendina o nella pagina "Progetti". Con la stessa
+     chiave il bot usa TUTTI i modelli gratis di Google (Gemma 4 26B e 31B, Gemma 3,
+     Gemini): ognuno ha il suo limite al giorno (Gemma: circa 14.400), quindi da sola
+     basta per un giorno intero (Google chiede 18 anni). I limiti ripartono ogni
+     giorno verso le 9 di mattina (mezzanotte in California).
   2. NVIDIA BUILD: pagina build.nvidia.com/settings/api-keys. Crei un account
      NVIDIA gratis (basta l'email), premi "Generate API Key" e copi la chiave (inizia
      con nvapi-). Circa 40 domande al minuto, senza limite al giorno (novembre 2026).
-     Il bot sceglie da solo un modello NVIDIA che guarda le immagini.
+     Il bot sceglie da solo un modello NVIDIA che guarda le immagini. FACOLTATIVA:
+     se NVIDIA dice "API Access Unavailable" lascia stare e quando il bot chiede la
+     chiave NVIDIA scrivi  mai  (basta Google).
   Il bot apre da solo le pagine: tu incolli la chiave nella finestra nera e premi
   INVIO, lui la prova e la salva. Si fa una volta sola. INVIO senza niente = non
   adesso; "mai" = non chiederlo piu'. Se un'IA finisce le domande, passa all'altra.

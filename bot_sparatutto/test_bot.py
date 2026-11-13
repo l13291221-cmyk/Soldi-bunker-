@@ -901,8 +901,12 @@ class TestGeminiEConoscenza(ConCartella):
         self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "AIza-chiave")
         self.assertEqual(cfg["ia"]["fornitori"], ["gemma", "gemini"])          # Gemma prima: dura di piu'
         pronte = ia.fornitori_da_cfg(cfg["ia"])
-        self.assertEqual([(f["nome"], f["chiave"]) for f in pronte][:2],
-                         [("gemma", "AIza-chiave"), ("gemini", "AIza-chiave")])   # stessa chiave
+        # con UNA chiave di Google: tutti i modelli Gemma e Gemini, ognuno col suo limite al giorno
+        self.assertEqual([(f["nome"], f["modello"]) for f in pronte], [
+            ("gemma", "gemma-4-26b-a4b-it"), ("gemma/gemma-4-31b-it", "gemma-4-31b-it"),
+            ("gemma/gemma-3-27b-it", "gemma-3-27b-it"), ("gemma/gemma-3-12b-it", "gemma-3-12b-it"),
+            ("gemini", "gemini-flash-lite-latest"), ("gemini/gemini-flash-latest", "gemini-flash-latest")])
+        self.assertTrue(all(f["chiave"] == "AIza-chiave" for f in pronte))
         self.assertTrue(cfg["ia"]["attiva"])
         self.assertFalse(ia.serve_chiedere_gemini(cfg))
         # "mai": non lo chiede piu'
@@ -942,6 +946,30 @@ class TestGeminiEConoscenza(ConCartella):
         self.assertEqual(cfg["ia"]["fornitori"], ["nvidia"])
         self.assertFalse(ia.serve_chiedere("nvidia", cfg))
         self.assertTrue(ia.serve_chiedere("gemini", cfg))                 # Google: ancora da collegare
+
+    def test_finite_le_domande_passa_al_modello_dopo(self):
+        """Un modello finisce le domande del giorno (429): si usa il prossimo e quello riposa sempre di piu'."""
+        import json as js
+
+        import ia
+        usati = []
+
+        def invia(url, intest, corpo, attesa):
+            modello = js.loads(corpo)["model"]
+            usati.append(modello)
+            if modello == "gemma-4-26b-a4b-it":
+                raise RuntimeError("troppe richieste: ha finito quelle gratis per adesso (429)")
+            return {"choices": [{"message": {"content": '{"phase": "playing"}'}}]}
+        cfg = {"ia": {"attiva": True, "fornitori": ["gemma"], "chiavi": {"gemini": "k"},
+                      "modelli": {"gemma": "gemma-4-26b-a4b-it",
+                                  "gemma_tutti": ["gemma-4-26b-a4b-it", "gemma-4-31b-it"]}}}
+        cervello_lento = ia.IA(cfg, lambda *_: None, invia)
+        img = np.zeros((360, 640, 3), np.uint8)
+        self.assertEqual(cervello_lento.chiedi(img, adesso=0.0).fornitore, "gemma/gemma-4-31b-it")
+        self.assertEqual(cervello_lento.errori["gemma"], 60.0)
+        cervello_lento.chiedi(img, adesso=61.0)                               # riprova: ancora finite
+        self.assertEqual(cervello_lento.errori["gemma"], 61.0 + 120.0)       # riposa il doppio
+        self.assertEqual(usati.count("gemma-4-26b-a4b-it"), 2)
 
     def test_gemma_senza_messaggio_di_sistema(self):
         import json as js

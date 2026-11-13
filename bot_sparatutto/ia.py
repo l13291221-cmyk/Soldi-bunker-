@@ -54,7 +54,8 @@ FORNITORI = {
                "chiave": False, "attesa": 180, "dove": "sul tuo computer (ollama.com)"},
     "gemini": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
                "modello": "gemini-flash-lite-latest", "tipo": "openai", "chiave": True, "attesa": 30,
-               "dove": "aistudio.google.com (chiave gratuita; Google chiede di avere 18 anni)"},
+               "dove": "aistudio.google.com (chiave gratuita; Google chiede di avere 18 anni)",
+               "candidati": ["gemini-flash-lite-latest", "gemini-flash-latest"]},
     "github": {"url": "https://models.github.ai/inference/chat/completions", "modello": "openai/gpt-4.1-mini",
                "tipo": "openai", "chiave": True, "attesa": 30,
                "dove": "github.com/settings/tokens (token con il permesso 'models')"},
@@ -73,7 +74,9 @@ FORNITORI = {
     "gemma": {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
               "modello": "gemma-4-26b-a4b-it", "tipo": "openai", "chiave": True, "attesa": 40,
               "dove": "la stessa chiave di Gemini (aistudio.google.com)", "stessa_chiave": "gemini",
-              "sistema": False, "candidati": ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemma-3-27b-it"]},
+              "sistema": False,
+              # ogni modello ha il SUO limite al giorno: con la stessa chiave se ne usano tanti
+              "candidati": ["gemma-4-26b-a4b-it", "gemma-4-31b-it", "gemma-3-27b-it", "gemma-3-12b-it"]},
     # NVIDIA Build: GRATIS, senza carta di credito, circa 40 richieste al minuto (novembre 2026)
     "nvidia": {"url": "https://integrate.api.nvidia.com/v1/chat/completions", "modello": "",
                "tipo": "openai", "chiave": True, "attesa": 45,
@@ -410,6 +413,10 @@ def fornitori_da_cfg(cfg_ia):
             continue
         f["nome"] = nome
         risultato.append(f)
+        # con la stessa chiave anche gli altri modelli che funzionano: ognuno ha il suo limite al giorno
+        for altro in modelli.get(nome + "_tutti") or []:
+            if str(altro) != f["modello"]:
+                risultato.append(dict(f, modello=str(altro), nome="%s/%s" % (nome, altro)))
     return risultato
 
 
@@ -429,6 +436,7 @@ class IA:
         self.ultimo = None
         self.numero = 0
         self.errori = {}               # fornitore -> fino a quando lo lascio riposare
+        self.finite = {}               # fornitore -> quante volte di fila ha detto "finite le domande" (429)
         self._foto = None
         self._lock = threading.Lock()
         self._vivo = False
@@ -491,12 +499,19 @@ class IA:
                 if c is None:
                     raise RuntimeError("risposta che non capisco: %r" % str(testo)[:80])
                 self.numero += 1
+                self.finite.pop(f["nome"], None)
                 c.numero = self.numero
                 c.miniatura = miniatura(img)    # com'era lo schermo nella foto
                 self.ultimo = c
                 return c
             except Exception as e:
-                riposo = 60.0 if "429" in str(e) else 20.0
+                if "429" in str(e):
+                    # finite le domande gratis: aspetto sempre di piu' (fino a 30 minuti) se continua
+                    volte = self.finite.get(f["nome"], 0) + 1
+                    self.finite[f["nome"]] = volte
+                    riposo = min(1800.0, 60.0 * 2 ** (volte - 1))
+                else:
+                    riposo = 20.0
                 self.errori[f["nome"]] = adesso + riposo
                 self.log("IA %s: %s (riprovo tra %d s, intanto uso le altre)" % (f["nome"], e, riposo))
         return None
@@ -673,6 +688,17 @@ def prova_modelli(f, candidati, foto, invia=None, massimo=5):
     return None, ultimo
 
 
+def prova_tutti(f, candidati, foto, invia=None):
+    """Prova TUTTI i modelli (stessa chiave): -> la lista di quelli che funzionano."""
+    buoni = []
+    for modello in candidati:
+        ok, messaggio = prova_fornitore(dict(f, modello=modello), foto, invia)
+        print("   %s %s: %s" % ("OK" if ok else "NO", modello, messaggio), flush=True)
+        if ok:
+            buoni.append(modello)
+    return buoni
+
+
 def collega_chiave(nome, base, cfg, log=print, foto=None, apri=None, chiedi=None, invia=None, modelli_get=None):
     """Collega un'IA GRATUITA con la sua chiave: apre la pagina dove la crei, tu la incolli qui.
     La prova con una foto e la salva in ia.yaml. -> True se funziona."""
@@ -733,6 +759,13 @@ def collega_chiave(nome, base, cfg, log=print, foto=None, apri=None, chiedi=None
             candidati = [modelli.get(fornitore) or f["modello"]] + [
                 m for m in f.get("candidati", []) if m != (modelli.get(fornitore) or f["modello"])]
         print("Provo %s..." % fornitore.upper(), flush=True)
+        if f.get("candidati"):
+            buoni = prova_tutti(f, candidati, foto, invia)
+            if buoni:
+                modelli[fornitore] = buoni[0]
+                modelli[fornitore + "_tutti"] = buoni
+                funzionano.append(fornitore)
+            continue
         modello, _ = prova_modelli(f, candidati, foto, invia)
         if modello:
             modelli[fornitore] = modello
@@ -860,10 +893,17 @@ def collega(base, cfg, log=print, foto=None):
             f["chiave"] = chiavi[nome]
         if nome == "openrouter" and not modelli.get(nome):
             modelli[nome] = scegli_modello_openrouter(chiavi[nome])
-        if nome in ("nvidia", "gemma"):
+        if info.get("candidati"):
+            buoni = prova_tutti(f, [modelli.get(nome) or f["modello"]] + [
+                m for m in info["candidati"] if m != (modelli.get(nome) or f["modello"])], foto)
+            if buoni:
+                modelli[nome] = buoni[0]
+                modelli[nome + "_tutti"] = buoni
+                funzionano.append(nome)
+            continue
+        if nome == "nvidia":
             candidati = ([modelli[nome]] if modelli.get(nome) else []) + [
-                m for m in (modelli_nvidia() if nome == "nvidia" else info.get("candidati", []))
-                if m != modelli.get(nome)]
+                m for m in modelli_nvidia() if m != modelli.get(nome)]
             modello, _ = prova_modelli(f, candidati, foto)
             if modello:
                 modelli[nome] = modello
