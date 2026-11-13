@@ -1,10 +1,17 @@
 # code.py - Raspberry Pi Pico (CircuitPython 10) - BOT SPARATUTTO
 #
-# La schedina fa da TASTIERA + MOUSE per il PC. Non decide niente da sola:
-# il programma BotSparatutto sul PC guarda lo schermo, decide cosa fare e
-# manda qui i comandi; la schedina li preme come una tastiera vera.
+# La schedina fa da TASTIERA + MOUSE. Non decide niente da sola: il programma
+# BotSparatutto sul PC guarda lo schermo, decide cosa fare e manda qui i
+# comandi; la schedina li preme come una tastiera vera.
 #
-# Serve anche boot.py (accende la porta USB "dati").
+# I comandi possono arrivare da DUE strade (va bene una qualsiasi):
+#   1. USB "dati" (serve boot.py): la schedina e' attaccata al PC.
+#   2. FILI su GP0/GP1: la schedina e' attaccata alla PLAY e i comandi
+#      arrivano dal PC tramite un "ponte" (Arduino UNO o adattatore
+#      USB-seriale). Collegamenti nella guida, parte G.
+#        GP0 (piedino 1) = la schedina PARLA  -> verso il ponte
+#        GP1 (piedino 2) = la schedina ASCOLTA <- dal ponte (MAX 3,3 V!)
+#        GND (piedino 3) = massa in comune col ponte
 #
 # Sicurezza: se il PC non manda niente per 1 secondo (programma chiuso, cavo
 # staccato, PC bloccato) la schedina rilascia da sola tutti i tasti.
@@ -12,8 +19,8 @@
 # LA LUCINA VERDE:
 #   spenta            = aspetta il programma sul PC
 #   accesa fissa      = il programma sul PC e' collegato
-#   lampeggia veloce  = manca boot.py, oppure non hai staccato e riattaccato
-#                       la schedina dopo averlo copiato
+#   lampeggia veloce  = non c'e' nessuna strada per i comandi (manca boot.py
+#                       e non vanno neanche i fili GP0/GP1)
 #
 # Comandi (una riga ciascuno):
 #   P          -> risponde "OK BOT"          H         -> "ci sono ancora"
@@ -28,9 +35,12 @@ import usb_hid
 
 try:
     import board
-    import digitalio
 except ImportError:
     board = None
+try:
+    import digitalio
+except ImportError:
+    digitalio = None
 
 try:
     import supervisor
@@ -39,11 +49,12 @@ except Exception:
     pass
 
 ATTESA_SICUREZZA = 1.0   # secondi senza comandi prima di rilasciare tutto
+VELOCITA_FILI = 115200   # deve essere uguale a quella del programma sul PC
 
 
 # ------------------------------------------------------------------ lucina
 led = None
-if board is not None and hasattr(board, "LED"):
+if board is not None and digitalio is not None and hasattr(board, "LED"):
     led = digitalio.DigitalInOut(board.LED)
     led.direction = digitalio.Direction.OUTPUT
 
@@ -70,16 +81,32 @@ def trova_dispositivo(usage):
     return None
 
 
+def apri_fili():
+    """La strada dei fili (GP0 parla, GP1 ascolta) per quando la schedina e' sulla Play."""
+    if board is None:
+        return None
+    try:
+        import busio
+        return busio.UART(board.GP0, board.GP1, baudrate=VELOCITA_FILI, timeout=0,
+                          receiver_buffer_size=1024)
+    except Exception as e:
+        print("Fili GP0/GP1 non disponibili:", e)
+        return None
+
+
 tastiera = trova_dispositivo(0x06)
 mouse = trova_dispositivo(0x02)
-seriale = usb_cdc.data
-
 if tastiera is None or mouse is None:
     lampeggia_errore("Tastiera o mouse USB non disponibili")
-if seriale is None:
-    lampeggia_errore("Manca la porta dati: copia boot.py, poi stacca e riattacca la schedina")
 
-seriale.timeout = 0
+usb_dati = usb_cdc.data
+if usb_dati is not None:
+    usb_dati.timeout = 0
+fili = apri_fili()
+canali = [c for c in (usb_dati, fili) if c is not None]
+if not canali:
+    lampeggia_errore("Nessuna strada per i comandi: copia boot.py (poi stacca e riattacca "
+                     "la schedina) oppure controlla i fili GP0/GP1")
 
 tasti = []          # tasti normali premuti (massimo 6, come una tastiera vera)
 modificatori = 0    # ctrl, shift, alt...
@@ -161,17 +188,18 @@ def qualcosa_premuto():
 
 
 # ------------------------------------------------------------------ comandi dal PC
-def esegui(riga):
+def esegui(riga, canale):
+    """Esegue un comando. True se era un comando vero (non spazzatura sui fili)."""
     parti = riga.split()
     if not parti:
-        return
+        return False
     cmd = parti[0]
     try:
         numeri = [int(p) for p in parti[1:]]
     except ValueError:
-        return
+        return False
     if cmd == "P":
-        seriale.write(b"OK BOT 1\n")
+        canale.write(b"OK BOT 1\n")      # risponde sulla stessa strada da cui e' arrivato
     elif cmd == "H":
         pass
     elif cmd == "M" and len(numeri) == 2:
@@ -192,41 +220,59 @@ def esegui(riga):
             n -= p
     elif cmd == "R":
         rilascia_tutto()
+    else:
+        return False
+    return True
+
+
+def leggi(canale):
+    n = canale.in_waiting
+    if not n:
+        return b""
+    return canale.read(n) or b""      # i fili rispondono None se non c'e' niente
 
 
 def main():
-    buffer = b""
+    buffer = [b""] * len(canali)
     ultimo = -100.0
     collegato = False
     luce(False)
     print("Bot sparatutto: aspetto il programma sul PC...")
     while True:
-        n = seriale.in_waiting
-        if n:
-            buffer += seriale.read(n)
+        arrivato = False
+        for i, canale in enumerate(canali):
+            dati = leggi(canale)
+            if not dati:
+                continue
+            arrivato = True
+            buffer[i] += dati
             while True:
-                fine = buffer.find(b"\n")
+                fine = buffer[i].find(b"\n")
                 if fine < 0:
                     break
-                riga = buffer[:fine]
-                buffer = buffer[fine + 1:]
+                riga = buffer[i][:fine]
+                buffer[i] = buffer[i][fine + 1:]
                 try:
-                    esegui(riga.decode().strip())
+                    valido = esegui(riga.decode().strip(), canale)
                 except Exception as e:
                     print("Comando sbagliato:", riga, e)
-            if len(buffer) > 256:      # riga troppo lunga: spazzatura
-                buffer = b""
-            ultimo = time.monotonic()
-            if not collegato:
-                collegato = True
-                luce(True)
-        else:
-            if collegato and time.monotonic() - ultimo > ATTESA_SICUREZZA:
-                # il PC non parla piu': per sicurezza rilascio tutto
-                collegato = False
-                if qualcosa_premuto():
-                    rilascia_tutto()
-                luce(False)
+                    valido = False
+                if valido:
+                    # conta solo un comando vero: se un filo si stacca, i disturbi
+                    # sul filo non tengono la schedina "collegata" con i tasti premuti
+                    ultimo = time.monotonic()
+                    if not collegato:
+                        collegato = True
+                        luce(True)
+            if len(buffer[i]) > 256:      # riga troppo lunga: spazzatura
+                buffer[i] = b""
+        if collegato and time.monotonic() - ultimo > ATTESA_SICUREZZA:
+            # il PC non parla piu': per sicurezza rilascio tutto
+            collegato = False
+            if qualcosa_premuto():
+                rilascia_tutto()
+            luce(False)
+        if not arrivato:
             time.sleep(0.0005)
 
 

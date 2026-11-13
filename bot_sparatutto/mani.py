@@ -293,8 +293,12 @@ class SchedinaNonTrovata(RuntimeError):
 
 class ManiSchedina(Mani):
     """
-    Parla con code.py sulla Pico tramite la seconda porta seriale USB
-    (quella "dati", attivata da boot.py). Protocollo a righe di testo:
+    Parla con code.py sulla Pico. Due strade, le cerca tutte e due:
+      - la seconda porta seriale USB della Pico (quella "dati", attivata da
+        boot.py): la schedina e' attaccata a QUESTO PC;
+      - un "ponte" (Arduino UNO tenuto in reset, o adattatore USB-seriale)
+        collegato coi fili a GP0/GP1: la schedina e' attaccata alla PLAY.
+    Protocollo a righe di testo (uguale per le due strade):
         P            -> la schedina risponde "OK BOT"
         H            -> "ci sono ancora" (se non arriva niente per 1 secondo,
                         la schedina rilascia tutti i tasti da sola)
@@ -306,7 +310,9 @@ class ManiSchedina(Mani):
     """
 
     nome_modo = "schedina"
-    VID_CONOSCIUTI = (0x239A, 0x2E8A)   # Adafruit/CircuitPython, Raspberry Pi
+    VID_SCHEDINA = (0x239A, 0x2E8A)     # Adafruit/CircuitPython, Raspberry Pi: schedina sul PC
+    # Ponti verso la schedina attaccata alla Play: Arduino (e cloni), CH340, CP210x, FTDI
+    VID_PONTE = (0x2341, 0x2A03, 0x1A86, 0x10C4, 0x0403)
 
     def __init__(self, tasti_gioco=None, log=print, porta="auto"):
         super().__init__(tasti_gioco, log)
@@ -357,10 +363,11 @@ class ManiSchedina(Mani):
             return s
         from serial.tools import list_ports
         porte = list(list_ports.comports())
-        candidate = [p for p in porte if p.vid in self.VID_CONOSCIUTI]
+        schedina = [p for p in porte if p.vid in self.VID_SCHEDINA]
         # prima le porte "dati" (di solito hanno il numero di interfaccia piu' alto)
-        candidate.sort(key=lambda p: (str(p.location or ""), p.device), reverse=True)
-        for p in candidate:
+        schedina.sort(key=lambda p: (str(p.location or ""), p.device), reverse=True)
+        ponti = sorted((p for p in porte if p.vid in self.VID_PONTE), key=lambda p: p.device)
+        for p in schedina + ponti:
             s = self._prova_porta(p.device)
             if s is not None:
                 self.log("Schedina trovata sulla porta %s" % p.device)
@@ -368,8 +375,10 @@ class ManiSchedina(Mani):
         elenco = ", ".join("%s (%s)" % (p.device, p.description) for p in porte) or "nessuna"
         raise SchedinaNonTrovata(
             "schedina non trovata. Porte viste: %s.\n"
-            "Controlla che su CIRCUITPY ci siano boot.py e code.py del bot, poi stacca e "
-            "riattacca la schedina (boot.py vale solo dopo averla staccata)." % elenco)
+            "Schedina sul PC: controlla che su CIRCUITPY ci siano boot.py e code.py del bot, "
+            "poi stacca e riattacca la schedina (boot.py vale solo dopo averla staccata).\n"
+            "Schedina sulla Play (guida, parte G): controlla i 3 fili e, se il ponte e' "
+            "l'Arduino, il filo tra RESET e GND." % elenco)
 
     def _manda(self, testo):
         with self.lock:

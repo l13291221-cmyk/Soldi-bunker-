@@ -11,8 +11,8 @@ COME FUNZIONA
 - La schedina Raspberry Pi Pico fa da TASTIERA + MOUSE: preme i tasti che il
   programma le dice. Per il gioco sono una tastiera e un mouse veri.
 - La schedina da sola non vede lo schermo: serve sempre il programma sul PC.
-- Il gioco deve girare su QUESTO PC (la schedina ha una sola presa USB:
-  sta attaccata al PC dove giochi).
+- Di solito il gioco gira su QUESTO PC e la schedina sta attaccata al PC.
+  Per giocare sulla PLAY vedi la parte G (serve un "ponte", es. Arduino UNO).
 - I comandi sono quelli di Fortnite per tastiera e mouse (si cambiano in
   impostazioni.yaml se il tuo gioco ne usa altri).
 
@@ -202,3 +202,75 @@ del TUO gioco riconosce molto meglio nemici, casse, casse dei materiali e armi.
    cartella modelli e in impostazioni.yaml scrivi:
        modello_ia:
          file: modelli/best.onnx
+
+
+G) GIOCARE SULLA PLAY (PS Remote Play + Arduino UNO come ponte)
+-----------------------------------------------------------------
+La schedina ha UNA sola presa USB: se la attacchi alla Play, il PC non puo'
+piu' parlarle da li'. Allora i comandi le arrivano con 3 fili, tramite un
+"ponte" attaccato al PC: va bene l'Arduino UNO del kit.
+
+   PLAY --rete di casa--> PC (finestra PS Remote Play: il bot GUARDA qui)
+                           |  il bot decide
+                           v  USB
+                       ARDUINO UNO (ponte)
+                           |  3 fili
+                           v
+                       SCHEDINA PICO --USB--> PLAY (tastiera + mouse)
+
+Il gioco deve accettare tastiera e mouse sulla Play (Fortnite si').
+Come sempre: solo nelle modalita' senza persone vere.
+
+COSA SERVE
+- l'Arduino UNO con il suo cavo USB (blu)
+- la schedina Pico con i piedini SALDATI (almeno i primi 3: GP0, GP1, GND)
+- la breadboard e i cavetti del kit
+- 3 resistenze UGUALI da 10 kOhm (sul cartoncino delle resistenze c'e'
+  scritto il valore). Vanno bene anche 1 da 1 kOhm + 1 da 2 kOhm.
+
+PERCHE' LE RESISTENZE: l'Arduino lavora a 5 V, la Pico SOPPORTA SOLO 3,3 V.
+Senza resistenze il piedino GP1 della Pico si puo' rompere.
+
+1. L'ARDUINO DIVENTA UN PONTE
+   Un cavetto tra RESET e GND dell'Arduino (sono vicini, nella fila dove c'e'
+   scritto POWER). Cosi' il suo cervellino resta spento e la presa USB
+   dell'Arduino passa tutto quello che arriva direttamente ai piedini 0 e 1.
+   Non serve caricare nessun programma sull'Arduino.
+
+2. I 3 FILI (Arduino -> Pico). Attenzione: NON si incrociano, perche'
+   l'Arduino in reset fa solo da passaggio.
+     Arduino pin 0 (RX) --[10k]--+--> Pico GP1 (piedino 2)
+                                 |
+                              [10k]
+                              [10k]   (le altre 2 resistenze, una dopo l'altra)
+                                 |
+                                GND
+     Arduino pin 1 (TX) <---------- Pico GP0 (piedino 1)
+     Arduino GND        ----------- Pico GND (piedino 3)
+   (con 1k + 2k: la 1k al posto della prima 10k, la 2k al posto delle altre due)
+   Il 5V e il 3V3 NON si collegano: la Pico prende la corrente dalla Play.
+   Sotto la Pico c'e' scritto il nome di ogni piedino (GP0, GP1, GND).
+
+3. LA PLAY
+   - Impostazioni -> Sistema -> Riproduzione remota -> attivala.
+   - Attacca la schedina Pico a una presa USB della Play.
+   - Nel gioco scegli tastiera e mouse come comandi.
+
+4. IL PC
+   - Installa l'app gratuita "PS Remote Play" di Sony ed entra col tuo
+     account PlayStation. Mettila a SCHERMO INTERO (il bot guarda lo schermo
+     e il mirino deve stare al centro).
+   - In impostazioni.yaml scrivi:   titolo_finestra_gioco: "PS Remote Play"
+   - Attacca l'Arduino al PC e avvia il bot (menu 1): trova da solo il ponte
+     ("Schedina trovata sulla porta COM...").
+     La lucina verde della Pico si accende quando il programma la raggiunge.
+
+COSA CAMBIA RISPETTO AL PC
+- Remote Play arriva con un po' di ritardo: la mira e' meno precisa.
+  Va meglio con la Play attaccata al router col cavo di rete.
+- "Impara guardando me" (menu 4) qui non funziona: il PC non vede i tasti
+  che premi sulla Play. Fallo col gioco sul PC, oppure usa i menu 5 e 6.
+- Se non trova la schedina: controlla il cavetto RESET-GND, i 3 fili, e che
+  pin 0 vada a GP1 (con le resistenze) e pin 1 a GP0. Puoi anche scrivere la
+  porta dell'Arduino in impostazioni.yaml (es. porta: COM4: la vedi in
+  Gestione dispositivi -> Porte COM e LPT).

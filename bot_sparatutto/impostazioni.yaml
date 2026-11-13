@@ -22,7 +22,8 @@ comandi:
   # software = senza schedina, preme Windows (per provare; alcuni giochi lo ignorano)
   # prova    = non preme niente, scrive solo cosa farebbe
   modo: schedina
-  # auto = la trova da sola. Se non la trova scrivi la porta, es: COM5
+  # auto = la trova da sola (anche sulla Play, tramite il ponte Arduino: guida parte G).
+  # Se non la trova scrivi la porta, es: COM5
   porta: auto
 
 
@@ -133,6 +134,7 @@ schermo:
   scala_analisi: 0.5          # 0.5 = cerca i colori a meta' risoluzione (piu' veloce). 1 = piu' preciso
   # Il bot gioca SOLO se in primo piano c'e' una finestra con questo nel titolo.
   # Scrivi il nome del gioco: cosi' se vai su un'altra finestra si ferma da solo.
+  # Se giochi sulla Play guardandola con PS Remote Play scrivi: "PS Remote Play"
   titolo_finestra_gioco: ""
   mirino: [0.5, 0.5]          # dov'e' il mirino: [0.5, 0.5] = centro dello schermo
   # Zone da ignorare [x, y, larghezza, altezza] in frazioni (0 = sinistra/alto, 1 = destra/basso).

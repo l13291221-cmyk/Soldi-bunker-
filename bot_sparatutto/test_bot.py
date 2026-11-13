@@ -720,7 +720,9 @@ class FineProva(BaseException):
 class TestSchedinaPico(unittest.TestCase):
     """Fa girare il vero code.py della schedina con tastiera, mouse e USB finti."""
 
-    def esegui_code_py(self, comandi, secondi_dopo=0.0):
+    def esegui_code_py(self, comandi, secondi_dopo=0.0, dai_fili=False, byte_per_lettura=None):
+        """dai_fili=True: i comandi arrivano dai fili GP0/GP1 (schedina sulla Play), senza USB dati.
+        byte_per_lettura: i dati arrivano a pezzetti, 0.01 s l'uno (un filo che continua a ricevere)."""
         rapporti = []
 
         class Dispositivo:
@@ -730,8 +732,18 @@ class TestSchedinaPico(unittest.TestCase):
             def send_report(self, r):
                 rapporti.append((self.usage, bytes(r)))
 
-        seriale = FintoSeriale(comandi)
         orologio = {"t": 100.0, "fine": None}
+        seriale = FintoSeriale(comandi)
+        if byte_per_lettura:
+            class FiloLento(FintoSeriale):
+                @property
+                def in_waiting(self):
+                    return min(byte_per_lettura, len(self.dati))
+
+                def read(self, n):
+                    orologio["t"] += 0.01
+                    return FintoSeriale.read(self, n)
+            seriale = FiloLento(comandi)
         finto_time = types.ModuleType("time")
         finto_time.monotonic = lambda: orologio["t"]
 
@@ -746,8 +758,16 @@ class TestSchedinaPico(unittest.TestCase):
         moduli = {
             "time": finto_time,
             "usb_hid": types.SimpleNamespace(devices=[Dispositivo(0x06), Dispositivo(0x02)]),
-            "usb_cdc": types.SimpleNamespace(data=seriale),
+            "usb_cdc": types.SimpleNamespace(data=None if dai_fili else seriale),
         }
+        if dai_fili:
+            aperti = []
+
+            def uart(tx, rx, baudrate=9600, **kw):
+                aperti.append((tx, rx, baudrate))
+                return seriale
+            moduli["board"] = types.SimpleNamespace(GP0="GP0", GP1="GP1")
+            moduli["busio"] = types.SimpleNamespace(UART=uart)
         vecchi = {k: sys.modules.get(k) for k in moduli}
         sys.modules.update(moduli)
         try:
@@ -760,6 +780,8 @@ class TestSchedinaPico(unittest.TestCase):
                     sys.modules.pop(k, None)
                 else:
                     sys.modules[k] = v
+        if dai_fili:
+            self.assertEqual(aperti, [("GP0", "GP1", 115200)])     # GP0 parla, GP1 ascolta
         return rapporti, seriale.scritto
 
     def test_comandi(self):
@@ -774,6 +796,24 @@ class TestSchedinaPico(unittest.TestCase):
         self.assertEqual(tastiera[2], bytes([2, 0, 0, 0, 0, 0, 0, 0]))          # A su
         self.assertEqual(tastiera[-1], bytes(8))                                 # R: tutto rilasciato
         self.assertEqual(mouse[-1], bytes(4))
+
+    def test_comandi_dai_fili(self):
+        """Schedina sulla Play: i comandi arrivano dal ponte sui fili, la risposta torna sui fili."""
+        rapporti, risposta = self.esegui_code_py(b"P\nKD 4\nM 5 -5\nR\n", dai_fili=True)
+        self.assertIn(b"OK BOT", risposta)
+        tastiera = [r for u, r in rapporti if u == 0x06]
+        mouse = [r for u, r in rapporti if u == 0x02]
+        self.assertEqual(tastiera[0], bytes([0, 0, 4, 0, 0, 0, 0, 0]))
+        self.assertEqual(mouse[0], bytes([0, 5, 251, 0]))
+        self.assertEqual(tastiera[-1], bytes(8))
+
+    def test_disturbi_sui_fili_non_tengono_premuto(self):
+        """Se il ponte si stacca, la spazzatura sul filo non deve tenere i tasti premuti."""
+        spazzatura = b"\x00\xff?\n" * 100        # 100 righe, circa 1.2 secondi di disturbi
+        rapporti, _ = self.esegui_code_py(b"KD 26\n" + spazzatura, dai_fili=True, byte_per_lettura=4)
+        tastiera = [r for u, r in rapporti if u == 0x06]
+        self.assertEqual(tastiera[0], bytes([0, 0, 26, 0, 0, 0, 0, 0]))       # W premuto
+        self.assertEqual(tastiera[-1], bytes(8))      # rilasciato mentre arrivavano ancora i disturbi
 
     def test_sicurezza_rilascia_se_il_pc_tace(self):
         rapporti, _ = self.esegui_code_py(b"KD 26\nBD 1\n", secondi_dopo=1.5)

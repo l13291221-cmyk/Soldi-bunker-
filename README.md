@@ -66,7 +66,9 @@ la schedina rilascia da sola tutti i tasti.
 e aprire più casse possibili (casse delle armi e casse dei materiali).
 
 - Il programma sul PC **guarda lo schermo** e decide; la schedina **Raspberry Pi Pico** fa da
-  tastiera + mouse e preme i tasti. Il gioco deve girare sullo stesso PC.
+  tastiera + mouse e preme i tasti. Il gioco gira sullo stesso PC, oppure sulla **Play**:
+  il PC la guarda con PS Remote Play e un Arduino UNO fa da ponte verso la schedina
+  attaccata alla Play (guida, parte G).
 - **Si adatta a ogni gioco:** un "occhio universale" (rete neurale YOLOX) riconosce i personaggi
   in qualsiasi gioco; a inizio partita impara da solo sensibilità del mouse e giro completo,
   mentre spara impara la forza giusta della mira, e capisce da solo che il tuo personaggio
