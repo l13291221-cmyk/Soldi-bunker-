@@ -10,7 +10,7 @@ echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0installa.ps1"
 if errorlevel 1 (
   echo.
-  echo  Qualcosa e' andato storto: controlla la connessione a internet e riprova.
+  echo  Qualcosa e' andato storto: leggi le scritte qui sopra (fai una foto e mandala).
   echo.
   pause
 )

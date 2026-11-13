@@ -58,6 +58,10 @@ La lucina verde sulla schedina:  spenta = aspetta il programma sul PC
 Sicurezza: se chiudi il programma o stacchi il cavo, la schedina rilascia da
 sola tutti i tasti entro 1 secondo.
 
+(Se Windows non lascia scrivere in Documenti, per esempio con "Accesso alle
+cartelle controllato", il programma va in C:\Users\<il tuo nome>\BotSparatutto:
+te lo scrive la finestra nera, e il collegamento sul desktop porta li'.)
+
 Cosa c'e' in Documenti\BotSparatutto:
 - BotSparatutto.exe     -> il programma (si apre anche dal desktop)
 - impostazioni.yaml     -> tasti e regolazioni (si apre con Blocco note)
