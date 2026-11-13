@@ -959,6 +959,8 @@ class Cervello:
         # se perdo tanta vita in fretta: muro!
         persa = self._vita_persa()
         soglia = float(self.comb.get("vita_persa_per_costruire", 15) or 0)
+        if self.fort.get("zero_costruzioni", True):
+            soglia = 0.0                      # in "Zero Costruzioni" non si costruisce: niente muri
         if self.obiettivo.tipo == "sopravvivere" and soglia > 0:
             soglia = min(soglia, 10.0)
         if soglia > 0 and persa >= soglia and t >= self.prossimo_muro:

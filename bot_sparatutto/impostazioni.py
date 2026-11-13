@@ -17,6 +17,7 @@ PREDEFINITE = {
     "telecomando": {"sensibilita_mouse": 1.0},
     # cose da Fortnite che fa con l'IA che guarda
     "fortnite": {
+        "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
         "aspetta_riavvio_secondi": 90,   # eliminato in squadra: aspetta che lo riportino col furgone, poi esce
         "pulsante_giallo": True,         # clicca il pulsante grande e giallo "Gioca di nuovo" (senza IA)

@@ -82,6 +82,11 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   Fortnite per tastiera e mouse (muro F1, pavimento F2, scale F3, tetto F4,
   E per aprire, 1 piccone, 2-6 armi...). Se nel tuo gioco un tasto e' diverso,
   cambialo. Esempio: se costruisci con X scrivi   muro: x
+- Sezione "fortnite" -> zero_costruzioni: il bot sa fare solo un muro quando lo
+  colpiscono: gioca meglio nella modalita' "ZERO COSTRUZIONI" (consigliata,
+  zero_costruzioni: true). Se giochi con le costruzioni scrivi false.
+- Usa un piccone SENZA parti dorate o gialle luminose: il bot cerca le casse anche
+  dal colore oro, e la punta dorata del piccone lo confonde.
 - titolo_finestra_gioco: scrivi il nome del gioco (come appare nella barra
   della finestra). Cosi' se passi a un'altra finestra il bot si ferma da solo.
   CONSIGLIATO.

@@ -1168,6 +1168,24 @@ class TestLogicaFortnite(ConCartella):
         cerv.ia.c.quando = t + 130
         self.assertNotEqual(self._passo(mondo, occhi, cerv, t + 130), "cado verso terra")
 
+    def test_zero_costruzioni_niente_muri(self):
+        """Colpito forte: con le costruzioni fa un muro, in Zero Costruzioni no."""
+        for zero, muro in ((False, True), (True, False)):
+            cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800},
+                           fortnite={"zero_costruzioni": zero})
+            mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+            mondo.oggetti.append((300, 100, 60, 200, ROSSO))                # un nemico vicino
+            t = time.monotonic()
+            img = mondo.foto()
+            vis = occhi.analizza(img)
+            vis.vita = 100
+            cerv.passo(vis, img, t)
+            vis = occhi.analizza(img)
+            vis.vita = 70                                                 # -30 vita in un attimo
+            scritta = cerv.passo(vis, img, t + 0.1)
+            self.assertEqual(scritta == "costruisco", muro, scritta)
+            self.assertEqual("giu tasto 0x%02X" % CODICI["f1"] in mani.storia, muro)
+
     def test_casse_finte_e_vere(self):
         cassa = (500, 260, 50, 40, ORO)
         mani, mondo, occhi, cerv = self._cervello(fase="playing", cassa="none")

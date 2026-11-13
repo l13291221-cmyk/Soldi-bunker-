@@ -31,6 +31,10 @@ comandi:
 # COSE DA FORTNITE (servono l'IA che guarda: menu 14)
 # ---------------------------------------------------------------------
 fortnite:
+  # Il bot sa fare solo un muro (o 4 muri intorno) quando lo colpiscono forte: nelle partite con
+  # le costruzioni gli altri costruiscono molto meglio. CONSIGLIATO: modalita' "Zero Costruzioni".
+  # true = giochi in Zero Costruzioni (niente muri). false = partite con le costruzioni.
+  zero_costruzioni: true
   partite_in_loop: true       # finita la partita preme/clicca da solo per la prossima, e cosi' via
   aspetta_riavvio_secondi: 90 # eliminato in squadra (guarda un compagno): aspetta il furgone del
                               # riavvio, poi torna alla lobby e rigioca. 0 = esce subito
