@@ -1,0 +1,8 @@
+# Dataset per addestrare l'IA del tuo gioco (vedi LEGGIMI_GUIDA.txt, parte F)
+train: images
+val: images
+names:
+  0: nemico
+  1: cassa
+  2: materiali
+  3: arma
