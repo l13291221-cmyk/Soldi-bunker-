@@ -319,3 +319,36 @@ COSA CAMBIA RISPETTO AL PC
   pin 0 vada a GP1 (con le resistenze) e pin 1 a GP0. Puoi anche scrivere la
   porta dell'Arduino in impostazioni.yaml (es. porta: COM4: la vedi in
   Gestione dispositivi -> Porte COM e LPT).
+
+
+H) L'IA CHE GUARDA (menu 14 "Collega le IA") - facoltativa
+-----------------------------------------------------------
+Il bot veloce mira, spara e si muove. In piu' puoi collegare un'IA che GUARDA:
+ogni tanto il bot le manda una foto piccola dello schermo e lei dice cosa succede:
+  - sul BUS        -> il bot salta giu'
+  - in CADUTA      -> va avanti (il deltaplano si apre da solo)
+  - nei MENU / ELIMINATO -> aspetta (i pulsanti li clicca con le istruzioni)
+  - CASSE: se l'IA non vede casse, quelle trovate col colore sono finte e le ignora;
+    se ne vede una a destra o sinistra, si gira verso di lei
+  - MURO davanti   -> gira
+  - TEMPESTA vicina -> si gira verso la zona sicura e corre
+Il bot non aspetta mai l'IA: usa l'ultima risposta. I nemici vengono sempre prima.
+
+Menu 14: prova da solo quelle SENZA chiave e per le altre ti chiede la chiave
+(INVIO = salta). Tiene quelle che funzionano; se una non risponde o finisce le
+richieste gratis, passa alla prossima.
+  ollama       sul TUO computer: gratis, senza chiave e senza account.
+               Installa Ollama (ollama.com), poi nel Prompt dei comandi scrivi:
+                   ollama pull moondream
+               Senza scheda video e' lenta (anche 20-30 secondi a foto): va bene
+               per bus/caduta/menu, meno per muri e casse.
+  pollinations online, senza chiave: gratis ma limitata, a volte non risponde.
+  gemini       chiave gratuita su aistudio.google.com (Google chiede 18 anni:
+               se sei minorenne la crea un adulto).
+  github       token gratuito su github.com/settings/tokens (permesso "models").
+  openrouter   chiave gratuita su openrouter.ai/keys (sceglie da solo un modello ":free").
+  groq, mistral, zai: chiave gratuita sui loro siti.
+Le chiavi restano nel file ia.yaml accanto al programma: non mandarlo a nessuno.
+Le foto del gioco vengono mandate al servizio che scegli.
+Per spegnerla: in ia.yaml scrivi  attiva: false
+
