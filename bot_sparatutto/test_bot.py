@@ -556,6 +556,49 @@ class TestObiettivo(ConCartella):
         self.assertEqual(cerv.statistiche["partite"], 1)
 
 
+class TestVisualeFluida(unittest.TestCase):
+    """Il mouse non salta: il movimento arriva a passettini."""
+
+    def test_passettini_e_sostituzione(self):
+        mani = ManiFinte({})
+        mani.usa_fluido = True
+        mani.mira_fluida(200, -40, 0.2)
+        time.sleep(0.05)
+        meta = mani.mosso_x
+        self.assertGreater(meta, 0)
+        self.assertLess(meta, 150)                               # non tutto subito
+        n_pezzi = sum(1 for r in mani.storia if r.startswith("muovi"))
+        self.assertGreater(n_pezzi, 3)                           # tanti pezzetti, non un salto
+        time.sleep(0.3)
+        self.assertEqual((mani.mosso_x, mani.mosso_y), (200, -40))   # alla fine arriva giusto
+        # un nuovo ordine sostituisce quello vecchio (il cervello ricalcola ogni fotogramma)
+        mani.mira_fluida(1000, 0, 0.5)
+        time.sleep(0.02)
+        mani.mira_fluida(-30, 0, 0.02)
+        time.sleep(0.2)
+        self.assertLess(mani.mosso_x - 200, 200)
+        # rilascia tutto ferma anche il movimento
+        mani.mira_fluida(5000, 0, 1.0)
+        time.sleep(0.02)
+        mani.rilascia_tutto()
+        prima = mani.mosso_x
+        time.sleep(0.1)
+        self.assertEqual(mani.mosso_x, prima)
+
+    def test_il_cervello_non_supera_la_velocita_massima(self):
+        base = tempfile.mkdtemp()
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 3600, "velocita_massima_gradi": 360})
+        mani, mondo, occhi, esec, app, cerv = crea(base, cfg, {"ppp": 0.5}, apprendimento=False)
+        chiamate = []
+        mani.mira_fluida = lambda dx, dy, durata: chiamate.append((dx, dy, durata))
+        mondo.oggetti.append((620, 120, 24, 60, ROSSO))            # nemico lontano dal mirino
+        img = mondo.foto()
+        cerv.passo(occhi.analizza(img), img)
+        dx, dy, durata = chiamate[-1]
+        self.assertLessEqual(abs(dx), 3600 * durata + 1e-6)      # max 360 gradi/s
+        self.assertGreater(dx, 0)
+
+
 class TestStile(ConCartella):
     """Le 3 modalita': Normale (sbaglia un po'), Pro player (preciso), Tranquillo (evita gli scontri)."""
 

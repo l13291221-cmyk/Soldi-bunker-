@@ -162,6 +162,7 @@ mira:
   passi_per_giro: 3600        # imparato da solo (o menu "Calibra il giro completo")
   forza: 0.6                  # di partenza: poi la regola da solo (0.3 morbida ... 0.9 scattante)
   massimo_passi: 400          # spostamento massimo del mouse per fotogramma
+  velocita_massima_gradi: 540 # la visuale non gira mai piu' veloce di cosi' (gradi al secondo)
   altezza_mira_universale: 0.15   # dove mira sui personaggi: 0 = cima della testa, 0.5 = pancia
   altezza_mira: 0.2           # lo stesso, per i nemici trovati coi colori
   spostamento_y: 0            # pixel in piu' verso il basso (se il colore e' la barra SOPRA il nemico)
@@ -220,7 +221,7 @@ raccolta:
 esplorazione:
   corri: true
   guarda_intorno_ogni: 12     # secondi tra un "giro su se stesso" e l'altro (0 = mai)
-  passi_giro_intorno: 8       # in quanti scatti fa il giro
+  velocita_giro_gradi: 120    # quanto gira veloce quando si guarda intorno (gradi al secondo)
   sensibilita_blocco: 2.5     # piu' alto = si accorge prima di essere bloccato contro un muro
   rimetti_visuale_dritta: true
 

@@ -92,8 +92,8 @@ class Cervello:
         self.ignora_raccolta_fino = 0.0
         # esplorazione
         self.prossimo_guardarsi = adesso + float(self.espl.get("guarda_intorno_ogni", 12) or 12)
-        self.giro_passi_rimasti = 0
-        self.giro_prossimo = 0.0
+        self.giro_fino = 0.0              # fino a quando si sta guardando intorno (giro fluido)
+        self.dt_medio = 1.0 / 30          # quanto dura in media un fotogramma (per la visuale fluida)
         self.deriva = 0.0
         self.prossima_deriva = adesso
         self.pitch = 0.0                  # quanto ho alzato/abbassato la visuale (passi)
@@ -120,8 +120,14 @@ class Cervello:
         return float(self.mira.get("passi_per_giro", 3600) or 3600)
 
     # ------------------------------------------------------------------ utilita'
-    def _muovi(self, dx, dy):
+    def _muovi(self, dx, dy, fluido=False):
+        """Muove la visuale. fluido=True: a passettini fino al prossimo fotogramma (niente scatti)
+        e mai piu' veloce di mira -> velocita_massima_gradi."""
         massimo = float(self.mira.get("massimo_passi", 400) or 400)
+        durata = min(0.12, max(0.02, self.dt_medio))
+        if fluido:
+            gradi_al_secondo = float(self.mira.get("velocita_massima_gradi", 540) or 540)
+            massimo = min(massimo, self.passi_per_giro * gradi_al_secondo / 360.0 * durata)
         dx = max(-massimo, min(massimo, dx))
         dy = max(-massimo, min(massimo, dy))
         limite = self.passi_per_giro / 4
@@ -129,7 +135,10 @@ class Cervello:
             dy = limite - self.pitch
         elif self.pitch + dy < -limite:
             dy = -limite - self.pitch
-        self.mani.muovi(dx, dy)
+        if fluido:
+            self.mani.mira_fluida(dx, dy, durata)
+        else:
+            self.mani.muovi(dx, dy)
         self.pitch += dy
         self.mosso_px = (self.mosso_px[0] + dx * self.ppp, self.mosso_px[1] + dy * self.ppp)
 
@@ -150,7 +159,7 @@ class Cervello:
         self.bersaglio = None
         self.errore_prec = None
         self.inseguo_da = None
-        self.giro_passi_rimasti = 0
+        self.giro_fino = 0.0
 
     def _mirino(self, vis):
         return (self.mirino_frazione[0] * vis.larghezza, self.mirino_frazione[1] * vis.altezza)
@@ -178,6 +187,7 @@ class Cervello:
         t = time.monotonic() if t is None else t
         dt = max(1e-3, min(0.2, t - self.t_prec))
         self.t_prec = t
+        self.dt_medio = 0.8 * self.dt_medio + 0.2 * dt
         if vis.nemici:
             self.stato["ultimo_nemico"] = t
         self.stato["casse"] = self.statistiche.get("casse", 0) + self.statistiche.get("materiali", 0)
@@ -336,7 +346,7 @@ class Cervello:
         self.ultimo_mosso = t
         self.stato["fermo_da"] = 0.0
         self.inseguo_da = None
-        self.giro_passi_rimasti = 0
+        self.giro_fino = 0.0
 
         # velocita' del nemico sullo schermo (senza il mio movimento) -> anticipo
         if self.bersaglio is not None and not nuovo:
@@ -374,7 +384,7 @@ class Cervello:
 
         # muovi la visuale verso il bersaglio (lo stile Normale e' piu' lento)
         forza = self.forza * self.stile.forza
-        self._muovi(ex / self.ppp * forza, ey / self.ppp * forza)
+        self._muovi(ex / self.ppp * forza, ey / self.ppp * forza, fluido=True)
 
         # spara se il mirino e' sopra il nemico
         tol_min = float(self.mira.get("tolleranza_minima_px", 4))
@@ -506,7 +516,7 @@ class Cervello:
         ex = b.cx - mx
         ey = b.cy - my
         forza = float(self.racc.get("forza_giro", 0.35))
-        self._muovi(ex / self.ppp * forza, ey / self.ppp * forza * 0.5)
+        self._muovi(ex / self.ppp * forza, ey / self.ppp * forza * 0.5, fluido=True)
 
         vicino = (interazione or b.h >= float(self.racc.get("vicino_altezza", 0.12)) * H
                   or b.fondo >= float(self.racc.get("vicino_fondo", 0.85)) * H)
@@ -609,20 +619,16 @@ class Cervello:
         return True
 
     def _esplora(self, vis, t, dt, img):
-        # giro intorno a se': un passo alla volta, cosi' guarda in ogni direzione (cerca casse e nemici)
-        if self.giro_passi_rimasti > 0:
+        # giro intorno a se', lento e fluido, cosi' guarda in ogni direzione (cerca casse e nemici)
+        velocita_giro = float(self.espl.get("velocita_giro_gradi", 120) or 120)
+        if t < self.giro_fino:
             self._cammina()
-            if t >= self.giro_prossimo:
-                passi = int(self.espl.get("passi_giro_intorno", 8) or 8)
-                self.esecutore.gira(360.0 / passi, durata=0.12)
-                self.giro_passi_rimasti -= 1
-                self.giro_prossimo = time.monotonic() + 0.15
+            self._muovi(self.passi_per_giro * velocita_giro / 360.0 * dt, 0, fluido=True)
             return "mi guardo intorno"
         ogni = float(self.espl.get("guarda_intorno_ogni", 12) or 0)
         if ogni > 0 and t >= self.prossimo_guardarsi:
             self.prossimo_guardarsi = t + ogni
-            self.giro_passi_rimasti = int(self.espl.get("passi_giro_intorno", 8) or 8)
-            self.giro_prossimo = t
+            self.giro_fino = t + 360.0 / velocita_giro
             return "mi guardo intorno"
 
         # corre con una leggera curva che cambia ogni tanto (cosi' scopre posti nuovi)
@@ -632,7 +638,7 @@ class Cervello:
         dy = 0.0
         if self.espl.get("rimetti_visuale_dritta", True) and abs(self.pitch) > 3:
             dy = -self.pitch * 0.15
-        self._muovi(self.deriva * dt, dy)
+        self._muovi(self.deriva * dt, dy, fluido=True)
         self._cammina(avanti=True, corri=bool(self.espl.get("corri", True)))
         self._controlla_blocco(img, t)
         return "esploro"

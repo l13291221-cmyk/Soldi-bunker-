@@ -82,6 +82,12 @@ for _c in "abcdefghijklmnopqrstuvwxyz":
     _SHIFT_PER[_c.upper()] = _c
 
 
+def _intero(v):
+    """La parte intera, ma 199.99999 (errore dei numeri con la virgola) conta come 200."""
+    r = round(v)
+    return int(r) if abs(v - r) < 1e-6 else int(v)
+
+
 def normalizza(nome):
     return str(nome).strip().lower().replace(" ", "_")
 
@@ -123,6 +129,12 @@ class Mani:
         self._resto_y = 0.0
         self.passi_totali_y = 0      # quanto ha alzato/abbassato la visuale (per rimetterla dritta)
         self.lock = threading.RLock()
+        # movimento fluido: invece di un salto, tanti passettini (circa 200 al secondo)
+        self.usa_fluido = True
+        self.passo_fluido = 0.005
+        self._fluido = None          # [dx che manca, dy che manca, quando deve aver finito]
+        self._lock_fluido = threading.Lock()
+        self._thread_fluido = None
 
     # ---- risoluzione nomi ----
     def risolvi(self, nome):
@@ -217,8 +229,8 @@ class Mani:
         with self.lock:
             self._resto_x += dx
             self._resto_y += dy
-            ix = int(self._resto_x)
-            iy = int(self._resto_y)
+            ix = _intero(self._resto_x)
+            iy = _intero(self._resto_y)
             self._resto_x -= ix
             self._resto_y -= iy
             if ix or iy:
@@ -226,10 +238,64 @@ class Mani:
                 self._mouse_muovi(ix, iy)
 
     def rilascia_tutto(self):
+        self.ferma_fluido()
         with self.lock:
             self.tenuti.clear()
             self.pulsanti = 0
             self._rilascia_tutto()
+
+    # ---- movimento fluido (la visuale non va a scatti) ----
+    def mira_fluida(self, dx, dy, durata):
+        """Muove il mouse di (dx, dy) in 'durata' secondi a passettini, AL POSTO di quello
+        che restava da fare (ogni fotogramma il cervello ricalcola dove andare)."""
+        if not self.usa_fluido:
+            self.muovi(dx, dy)
+            return
+        with self._lock_fluido:
+            self._fluido = [float(dx), float(dy), time.monotonic() + max(self.passo_fluido, float(durata))]
+            if self._thread_fluido is None or not self._thread_fluido.is_alive():
+                self._thread_fluido = threading.Thread(target=self._ciclo_fluido, daemon=True)
+                self._thread_fluido.start()
+
+    def ferma_fluido(self):
+        with self._lock_fluido:
+            self._fluido = None
+
+    def _passo_fluido(self, adesso):
+        """Quanto muovere adesso (velocita' costante fino alla fine). None = niente da fare."""
+        with self._lock_fluido:
+            f = self._fluido
+            if f is None:
+                return None
+            resto = f[2] - adesso
+            if resto <= self.passo_fluido:
+                dx, dy = f[0], f[1]
+                self._fluido = None
+            else:
+                frazione = self.passo_fluido / resto
+                dx, dy = f[0] * frazione, f[1] * frazione
+                f[0] -= dx
+                f[1] -= dy
+            return dx, dy
+
+    def _ciclo_fluido(self):
+        fermo_da = time.monotonic()
+        while True:
+            time.sleep(self.passo_fluido)
+            adesso = time.monotonic()
+            passo = self._passo_fluido(adesso)
+            if passo is None:
+                if adesso - fermo_da > 1.0:
+                    with self._lock_fluido:          # niente da fare da un po': il thread si ferma
+                        if self._fluido is None:
+                            self._thread_fluido = None
+                            return
+                continue
+            fermo_da = adesso
+            try:
+                self.muovi(*passo)
+            except Exception:
+                self.ferma_fluido()                  # schedina staccata: se ne accorge il bot
 
     def scrivi(self, testo):
         """Scrive un testo (lettere, numeri, spazi)."""
@@ -256,6 +322,7 @@ class ManiFinte(Mani):
 
     def __init__(self, tasti_gioco=None, log=print, parla=False):
         super().__init__(tasti_gioco, log)
+        self.usa_fluido = False       # nelle prove i movimenti si vedono subito
         self.parla = parla
         self.storia = []              # per i test: tutti i comandi mandati
         self.mosso_x = 0

@@ -417,6 +417,7 @@ class Esecutore:
 
     # ---- singole azioni ----
     def gira(self, gradi, durata=0.25):
+        durata = max(durata, abs(gradi) / 360.0)       # al massimo un giro al secondo: niente frustate
         passi = gradi / 360.0 * self.passi_per_giro
         pezzi = max(1, int(durata / 0.01))
         for _ in range(pezzi):
