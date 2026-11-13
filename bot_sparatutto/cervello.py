@@ -278,7 +278,7 @@ class Cervello:
                 return "istruzione riga %d" % regola.riga
 
         # 1b. l'IA che guarda: sul bus, in caduta, nei menu (logica Fortnite)
-        scritta = self._fase_ia(img, t)
+        scritta = self._fase_ia(img, t, vis)
         if scritta:
             return scritta
 
@@ -344,7 +344,7 @@ class Cervello:
         return scritta
 
     # ------------------------------------------------------------------ l'IA che guarda
-    def _fase_ia(self, img, t):
+    def _fase_ia(self, img, t, vis=None):
         """Logica Fortnite con l'IA: sul bus salta, in caduta va avanti, nei menu aspetta."""
         if self.ia is None:
             return None
@@ -373,6 +373,9 @@ class Cervello:
         if c.fase in ("menu", "dead"):
             self._spara(False)
             self._cammina()
+            if c.fase == "dead" and vis is not None and img is not None and self.apprendimento is not None:
+                # da eliminato guardo i compagni che giocano: le foto servono ad addestrare gli occhi
+                self.apprendimento.forse_salva_foto(img, vis, t)
             if self.in_partita:
                 # la partita e' finita: la conto (e l'allenamento scrive il riepilogo)
                 self.in_partita = False
