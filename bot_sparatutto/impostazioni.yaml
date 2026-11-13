@@ -32,6 +32,7 @@ comandi:
 # ---------------------------------------------------------------------
 fortnite:
   partite_in_loop: true       # finita la partita preme/clicca da solo per la prossima, e cosi' via
+  pulsante_giallo: true       # clicca da solo il pulsante grande e giallo "Gioca di nuovo" (anche senza IA)
   usa_veicoli: true           # sale in macchina se ce n'e' una vicina
   guida_secondi_massimi: 25   # poi scende (o prima, se vede una cassa o un nemico)
   cura_con_ia: true           # se l'IA vede poca vita e non ci sono nemici, si cura

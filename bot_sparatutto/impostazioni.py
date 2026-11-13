@@ -18,6 +18,7 @@ PREDEFINITE = {
     # cose da Fortnite che fa con l'IA che guarda
     "fortnite": {
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
+        "pulsante_giallo": True,         # clicca il pulsante grande e giallo "Gioca di nuovo" (senza IA)
         "usa_veicoli": True,             # sale in macchina se e' vicina (per girare la mappa e la tempesta)
         "guida_secondi_massimi": 25,     # poi scende (o prima, se vede una cassa o un nemico)
         "cura_con_ia": True,             # se l'IA vede poca vita (e nessun nemico) si cura

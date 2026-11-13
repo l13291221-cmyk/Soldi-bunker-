@@ -1000,6 +1000,113 @@ class TestTempesta(ConCartella):
         self.assertFalse(app.serve_calibrare(time.monotonic() + 1000))   # basta: gioca con la stima
 
 
+GIALLO = (0, 230, 255)       # il pulsante "Gioca di nuovo" (BGR)
+
+
+class MenuFinto:
+    """Schermata di fine partita: un pulsante giallo e un cursore che si muove col mouse della
+    schedina, ma con una 'velocita'' che il bot non conosce (come sulla Play)."""
+
+    def __init__(self, mani, passi_per_pixel_vero, pulsante=(430, 280, 170, 50)):
+        self.mani = mani
+        self.vero = passi_per_pixel_vero
+        self.pulsante = pulsante
+        self.cx, self.cy = 320.0, 180.0
+        self.letti = 0
+        self.cliccato = False
+        self.origine = (0, 0)
+
+    def _aggiorna(self):
+        for riga in self.mani.storia[self.letti:]:
+            if riga.startswith("muovi "):
+                dx, dy = (int(v) for v in riga.split()[1:3])
+                self.cx = min(639.0, max(0.0, self.cx + dx / self.vero))
+                self.cy = min(359.0, max(0.0, self.cy + dy / self.vero))
+            elif riga == "giu mouse 1":
+                x, y, w, h = self.pulsante
+                if x <= self.cx <= x + w and y <= self.cy <= y + h:
+                    self.cliccato = True
+        self.letti = len(self.mani.storia)
+
+    def foto(self):
+        self._aggiorna()
+        img = np.full((360, 640, 3), 45, np.uint8)
+        if not self.cliccato:
+            x, y, w, h = self.pulsante
+            cv2.rectangle(img, (x, y), (x + w, y + h), GIALLO, -1)
+            cv2.putText(img, "GIOCA DI NUOVO", (x + 12, y + 32), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (20, 20, 20), 2)
+        return img
+
+    def chiudi(self):
+        pass
+
+
+class TestPulsanteGiallo(ConCartella):
+    def test_lo_riconosce(self):
+        from cervello import trova_pulsante_giallo
+        menu = MenuFinto(ManiFinte({}), 1.0)
+        trovato = trova_pulsante_giallo(menu.foto())
+        self.assertIsNotNone(trovato)
+        self.assertAlmostEqual(trovato[0], 515, delta=8)
+        self.assertAlmostEqual(trovato[1], 305, delta=8)
+        img = np.full((360, 640, 3), 45, np.uint8)
+        cv2.rectangle(img, (300, 250), (340, 290), GIALLO, -1)          # quadrato piccolo (una cassa): no
+        self.assertIsNone(trova_pulsante_giallo(img))
+        img = np.full((360, 640, 3), 45, np.uint8)
+        cv2.rectangle(img, (430, 40), (600, 90), GIALLO, -1)            # in alto: no
+        self.assertIsNone(trova_pulsante_giallo(img))
+        self.assertIsNone(trova_pulsante_giallo(np.full((360, 640, 3), GIALLO, np.uint8)))   # tutto giallo: no
+
+    def _gioca(self, passi_per_pixel_vero):
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})
+        app.ppp_noto = app.giro_noto = True
+        menu = MenuFinto(mani, passi_per_pixel_vero)
+        esec.schermo = menu
+        cerv.schermo = menu
+        cerv.prossimo_guardarsi = time.monotonic() + 9999
+        t = time.monotonic()
+        scritte = []
+        for i in range(40):
+            img = menu.foto()
+            scritte.append(cerv.passo(occhi.analizza(img), img, t + i * 1.0))
+            if menu.cliccato and trova_pulsante_giallo_none(menu):
+                img = menu.foto()
+                cerv.passo(occhi.analizza(img), img, t + (i + 1) * 1.0)
+                break
+        return menu, cerv, scritte
+
+    def test_clicca_gioca_di_nuovo(self):
+        menu, cerv, scritte = self._gioca(1.0)
+        self.assertTrue(menu.cliccato)
+        self.assertIn("clicco Gioca di nuovo", scritte)
+        self.assertEqual(cerv.statistiche["partite"], 1)
+
+    def test_si_corregge_se_il_cursore_e_piu_veloce(self):
+        menu, cerv, scritte = self._gioca(2.0)          # sulla Play il cursore va il doppio
+        self.assertTrue(menu.cliccato)
+        self.assertGreater(scritte.count("clicco Gioca di nuovo"), 1)   # al primo colpo l'ha mancato
+        self.assertEqual(cerv.statistiche["partite"], 1)                # ma la partita e' una
+        cal = impostazioni.leggi_calibrazione(self.base)
+        self.assertIn("passi_per_pixel", cal.get("menu", {}))           # si ricorda come fare
+
+    def test_in_partita_non_clicca(self):
+        """Uno schermo che si muove (si gioca) con qualcosa di giallo: non clicca."""
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        mondo.oggetti.append((430, 280, 170, 50, GIALLO))
+        t = time.monotonic()
+        for i in range(10):
+            img = mondo.foto()
+            cerv.passo(occhi.analizza(img), img, t + i * 1.0)
+        self.assertNotIn("giu mouse 1", mani.storia)
+
+
+def trova_pulsante_giallo_none(menu):
+    from cervello import trova_pulsante_giallo
+    return trova_pulsante_giallo(menu.foto()) is None
+
+
 class TestVisualeFluida(unittest.TestCase):
     """Il mouse non salta: il movimento arriva a passettini."""
 

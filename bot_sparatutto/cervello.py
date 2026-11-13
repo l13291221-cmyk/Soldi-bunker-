@@ -24,6 +24,7 @@ import time
 import cv2
 import numpy as np
 
+import impostazioni
 from obiettivo import Obiettivo
 from stile import STILI
 
@@ -45,6 +46,42 @@ def viola(img):
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
     m = (h >= 125) & (h <= 165) & (s >= 60) & (v >= 40)
     return float(np.count_nonzero(m)) / m.size
+
+
+def trova_pulsante_giallo(img):
+    """Il pulsante grande e giallo ("Gioca di nuovo", "Gioca"): un rettangolo giallo pieno,
+    largo, nella meta' bassa dello schermo. -> (cx, cy, w, h) in pixel, oppure None."""
+    H, W = img.shape[:2]
+    lw = 320
+    lh = max(1, int(round(H * lw / float(W))))
+    piccola = cv2.resize(img, (lw, lh), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(piccola, cv2.COLOR_BGR2HSV)
+    m = cv2.inRange(hsv, (20, 150, 170), (36, 255, 255))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)))  # via le lettere
+    n, _, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    migliore = None
+    for i in range(1, n):
+        x, y, w, h, area = stats[i]
+        frazione = (w * h) / float(lw * lh)
+        if not (0.006 <= frazione <= 0.2) or not (1.6 <= w / max(1.0, h) <= 9.0):
+            continue
+        if area / float(max(1, w * h)) < 0.6 or (y + h / 2.0) / lh < 0.5:
+            continue
+        # un pulsante ha la SCRITTA sopra (lettere scure): un muro o un oggetto giallo no
+        k = W / float(lw)
+        x1, y1 = int(x * k), int(y * k)
+        x2, y2 = int((x + w) * k), int((y + h) * k)
+        grigio = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+        scuro = float(np.count_nonzero(grigio < 90)) / max(1, grigio.size)
+        if not (0.02 <= scuro <= 0.45):
+            continue
+        if migliore is None or w * h > migliore[2] * migliore[3]:
+            migliore = (x, y, w, h)
+    if migliore is None:
+        return None
+    k = W / float(lw)
+    x, y, w, h = migliore
+    return ((x + w / 2.0) * k, (y + h / 2.0) * k, w * k, h * k)
 
 
 class Conferma:
@@ -104,6 +141,11 @@ class Cervello:
         self.niente_auto_fino = 0.0       # appena sceso non risalgo subito
         self.cursore_atteso = None        # nei menu: dov'era il cursore e quanto l'ho spostato
         self.scappo_fino = 0.0            # tempesta: fino a quando corro verso la zona sicura
+        self.prossimo_giallo = 0.0        # pulsante giallo "Gioca di nuovo"
+        self.giallo_visto = None          # (cx, cy, miniatura) dell'ultima volta che l'ho visto
+        self.giallo_tentativo = None      # (quando ho cliccato, passi per pixel usati)
+        self.giallo_indice = 0
+        self.ultima_partita_contata = -1000.0
         self.prossimo_controllo_tempesta = 0.0
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
         self.stile = stile if stile is not None else STILI["pro"]     # come gioca (stile.py)
@@ -277,6 +319,11 @@ class Cervello:
                     self._dopo_pausa()
                 return "istruzione riga %d" % regola.riga
 
+        # 1a. finita la partita: il pulsante giallo "Gioca di nuovo" (senza bisogno dell'IA)
+        scritta = self._pulsante_giallo(vis, img, t)
+        if scritta:
+            return scritta
+
         # 1b. l'IA che guarda: sul bus, in caduta, nei menu (logica Fortnite)
         scritta = self._fase_ia(img, t, vis)
         if scritta:
@@ -377,14 +424,77 @@ class Cervello:
                 # da eliminato guardo i compagni che giocano: le foto servono ad addestrare gli occhi
                 self.apprendimento.forse_salva_foto(img, vis, t)
             if self.in_partita:
-                # la partita e' finita: la conto (e l'allenamento scrive il riepilogo)
-                self.in_partita = False
-                self.in_auto_da = None
-                self.statistiche["partite"] = self.statistiche.get("partite", 0) + 1
-                self.log("Partita finita (%d). Passo alla prossima." % self.statistiche["partite"])
-                self.esecutore._fine_partita()
+                self._partita_finita(t, sicuro=True)
             return self._prossima_partita(c, img)
         return None
+
+    def _partita_finita(self, t, sicuro=False):
+        """Conta la partita (una volta sola) e fa scrivere il riepilogo all'allenamento.
+        sicuro=True: l'IA ha visto una partita cominciare e finire. Senza IA (pulsante giallo)
+        conto solo se e' passato un po' dall'ultima, cosi' non la conto due volte."""
+        giocata = self.in_partita
+        self.in_partita = False
+        self.in_auto_da = None
+        if not (sicuro or giocata) and t - self.ultima_partita_contata < 90.0:
+            return
+        self.ultima_partita_contata = t
+        self.statistiche["partite"] = self.statistiche.get("partite", 0) + 1
+        self.log("Partita finita (%d). Passo alla prossima." % self.statistiche["partite"])
+        self.esecutore._fine_partita()
+
+    def _pulsante_giallo(self, vis, img, t):
+        """Finita la partita (tutta la squadra eliminata) c'e' il pulsante grande e giallo
+        "Gioca di nuovo" (e nella lobby "Gioca"): lo clicco. Lo schermo deve essere fermo e il
+        pulsante visto due volte nello stesso posto (cosi' in partita non clicca a caso).
+        Sulla Play non so dove sia il cursore: se dopo il click il pulsante c'e' ancora, riprovo
+        con un'altra 'velocita' del cursore' finche' non lo prendo, e me la ricordo."""
+        if (img is None or vis.nemici or not self.fort.get("pulsante_giallo", True)
+                or t < self.prossimo_giallo):
+            return None
+        self.prossimo_giallo = t + 1.0
+        from ia import miniatura
+        trovato = trova_pulsante_giallo(img)
+        if trovato is None:
+            if self.giallo_tentativo is not None:
+                # dopo il click e' sparito: ha funzionato. Mi ricordo come muovere il cursore
+                ppm = self.giallo_tentativo[1]
+                self.esecutore.passi_per_pixel_menu = ppm
+                if self.apprendimento is not None:
+                    impostazioni.salva_calibrazione(self.apprendimento.base, ["menu", "passi_per_pixel"],
+                                                    round(ppm, 3))
+                self.log("Gioca di nuovo: cliccato! (cursore: %.2f passi per pixel)" % ppm)
+                self.giallo_tentativo = None
+                self.giallo_indice = 0
+            self.giallo_visto = None
+            return None
+        cx, cy, w, h = trovato
+        mini = miniatura(img)
+        prima = self.giallo_visto
+        fermo = prima is not None and math.hypot(cx - prima[0], cy - prima[1]) < 0.05 * img.shape[1] and \
+            float(np.mean(np.abs(mini - prima[2]))) < 8.0
+        volte = prima[3] + 1 if fermo else 1
+        self.giallo_visto = (cx, cy, mini, volte)
+        if volte < 3:
+            return None                      # lo devo vedere 3 volte di fila, a schermo fermo
+        if self.giallo_tentativo is not None:
+            if t - self.giallo_tentativo[0] < 2.5:
+                return "aspetto che riparta"
+            self.giallo_indice += 1          # c'e' ancora: il cursore non ci era arrivato. Riprovo
+        attuale = float(getattr(self.esecutore, "passi_per_pixel_menu", 1.0) or 1.0)
+        candidati = [attuale] + [v for v in (1.0, 0.5, 1.5, 0.75, 2.0, 3.0, 0.35, 4.0) if abs(v - attuale) > 0.01]
+        ppm = candidati[self.giallo_indice % len(candidati)]
+        self.esecutore.passi_per_pixel_menu = ppm
+        self._spara(False)
+        self._cammina()
+        if self.giallo_indice == 0:
+            self.log("Vedo il pulsante giallo (Gioca di nuovo): clicco")
+            self._partita_finita(t)
+        ox, oy = self.schermo.origine if self.schermo is not None else (0, 0)
+        self.esecutore.porta_cursore(ox + cx, oy + cy)
+        self.esecutore.dormi(0.1)
+        self.mani.premi("mouse_sinistro", 0.08)
+        self.giallo_tentativo = (t, ppm)
+        return "clicco Gioca di nuovo"
 
     def _ancora_valido(self, c, img, t):
         """Un consiglio vale se e' fresco, oppure se lo schermo e' quasi uguale a quello della foto
