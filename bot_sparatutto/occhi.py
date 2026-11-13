@@ -470,6 +470,17 @@ def in_zona(box, zona, larghezza, altezza):
     return (x * larghezza <= box.cx <= (x + zw) * larghezza) and (y * altezza <= box.cy <= (y + zh) * altezza)
 
 
+# Le parti dello schermo dove i giochi stile Fortnite mettono l'interfaccia (minimappa,
+# vita e scudo, inventario, squadra): li' non ci sono mai casse o nemici veri.
+ZONE_INTERFACCIA_FORTNITE = [
+    [0.80, 0.00, 0.20, 0.33],     # minimappa (in alto a destra)
+    [0.00, 0.86, 0.40, 0.14],     # vita e scudo (in basso a sinistra)
+    [0.60, 0.86, 0.40, 0.14],     # inventario (in basso a destra)
+    [0.00, 0.00, 0.22, 0.25],     # squadra e informazioni (in alto a sinistra)
+]
+CATEGORIE_OGGETTI = ("cassa", "materiali", "arma")
+
+
 # ------------------------------------------------------------------ gli occhi
 class Occhi:
     def __init__(self, cfg, cartella_base, log=print, universale=True):
@@ -479,6 +490,11 @@ class Occhi:
         ril = cfg.get("rilevamento", {}) or {}
         self.scala = float(sch.get("scala_analisi", 0.5) or 0.5)
         self.zone_ignorate = [z for z in (sch.get("zone_ignorate") or []) if z and len(z) == 4]
+        if sch.get("zone_interfaccia_fortnite", True):
+            self.zone_ignorate += [list(z) for z in ZONE_INTERFACCIA_FORTNITE]
+        # oggetti trovati col colore troppo grandi o troppo strani: non sono casse (sabbia, cielo...)
+        self.oggetto_larghezza_max = float(ril.get("oggetto_larghezza_massima", 0.25) or 1.0)
+        self.oggetto_altezza_max = float(ril.get("oggetto_altezza_massima", 0.35) or 1.0)
         # zone imparate dal bot (es. il tuo personaggio in terza persona): le aggiorna apprendimento.py
         self.zone_apprese = [z for z in (sch.get("zone_apprese") or []) if z and len(z) == 4]
         self.zone_temporanee = []     # (zona, fino_a_quando)
@@ -547,6 +563,9 @@ class Occhi:
             vis.oggetti["nemico"].extend(self.universale.rileva(img))
         if self.colori["alleato"]:
             vis.oggetti["nemico"] = [b for b in vis.oggetti["nemico"] if not self._e_alleato(b, hsv, w, h)]
+        # via le "casse" trovate col colore che hanno una forma impossibile
+        for cat in CATEGORIE_OGGETTI:
+            vis.oggetti[cat] = [b for b in vis.oggetti[cat] if b.fonte != "colore" or self._forma_giusta(b, w, h)]
         # via le cose nelle zone da ignorare (minimappa, il tuo personaggio, icone...)
         zone = self.zone_da_saltare()
         for cat in CATEGORIE:
@@ -560,6 +579,12 @@ class Occhi:
         self.ultima_piccola = None
         self._img = img
         return vis
+
+    def _forma_giusta(self, b, larghezza, altezza):
+        if b.w > self.oggetto_larghezza_max * larghezza or b.h > self.oggetto_altezza_max * altezza:
+            return False
+        rapporto = b.w / max(1.0, b.h)
+        return 0.2 <= rapporto <= 5.0
 
     def pixel_colore(self, img, categoria, x, y, w, h):
         """Quanti pixel del colore di una categoria ci sono in un rettangolo (per controllare le casse aperte)."""

@@ -38,6 +38,49 @@ def _cfg(cfg, sezione):
     return cfg.get(sezione, {}) or {}
 
 
+class Conferma:
+    """Una cassa (o un'arma) conta solo se la vedo in piu' fotogrammi di fila nello stesso
+    posto (tenendo conto di quanto ho girato la visuale): cosi' un riflesso giallo di un
+    attimo non diventa una cassa."""
+
+    def __init__(self, volte=3, raggio=0.08, memoria=0.5):
+        self.volte = max(1, int(volte))
+        self.raggio = raggio
+        self.memoria = memoria
+        self.tracce = []              # [x, y, volte viste, ultima volta]
+
+    def filtra(self, oggetti, t, spostamento, larghezza):
+        if self.volte <= 1:
+            return list(oggetti)
+        self.tracce = [tr for tr in self.tracce if t - tr[3] <= self.memoria]
+        raggio = self.raggio * larghezza
+        usate = set()
+        confermati = []
+        for b in oggetti:
+            migliore, dmin = None, raggio
+            for i, tr in enumerate(self.tracce):
+                if i in usate:
+                    continue
+                # se ho girato la visuale a destra, le cose sullo schermo vanno a sinistra
+                d = math.hypot(b.cx - (tr[0] - spostamento[0]), b.cy - (tr[1] - spostamento[1]))
+                if d < dmin:
+                    migliore, dmin = i, d
+            if migliore is None:
+                self.tracce.append([b.cx, b.cy, 1, t])
+                usate.add(len(self.tracce) - 1)
+                volte = 1
+            else:
+                tr = self.tracce[migliore]
+                if t > tr[3]:
+                    tr[2] += 1
+                tr[0], tr[1], tr[3] = b.cx, b.cy, t
+                usate.add(migliore)
+                volte = tr[2]
+            if volte >= self.volte:
+                confermati.append(b)
+        return confermati
+
+
 class Cervello:
     def __init__(self, cfg, mani, occhi, esecutore, istruzioni, log=print, apprendimento=None, schermo=None,
                  obiettivo=None, stile=None):
@@ -90,6 +133,9 @@ class Cervello:
         # raccolta
         self.inseguo_da = None
         self.ignora_raccolta_fino = 0.0
+        volte = int(self.racc.get("conferma_fotogrammi", 3) or 1)
+        self.conferma = {cat: Conferma(volte) for cat in ("cassa", "materiali", "arma")}
+        self.fallite_di_fila = 0          # casse che "non si aprono" una dopo l'altra
         # esplorazione
         self.prossimo_guardarsi = adesso + float(self.espl.get("guarda_intorno_ogni", 12) or 12)
         self.giro_fino = 0.0              # fino a quando si sta guardando intorno (giro fluido)
@@ -226,6 +272,10 @@ class Cervello:
         if vis.nemici and self._solo_nemici_vicini() and t - self.ultimo_colpo > 3.0:
             vicino = float(self.comb.get("nemico_vicino", 0.22)) * vis.altezza
             vis.oggetti["nemico"] = [b for b in vis.nemici if b.h >= vicino]
+
+        # le casse e le armi contano solo se le vedo per qualche fotogramma di fila
+        for cat, conferma in self.conferma.items():
+            vis.oggetti[cat] = conferma.filtra(vis.oggetti.get(cat, []), t, self.mosso_px, vis.larghezza)
 
         # 3. combattimento
         if self.comb.get("attivo", True):
@@ -572,14 +622,37 @@ class Cervello:
                 nome, self.statistiche.get("casse", 0), self.statistiche.get("materiali", 0),
                 self.statistiche.get("armi", 0)))
             self.ignora_raccolta_fino = t + 0.8
+            self.fallite_di_fila = 0
         else:
             self.statistiche["casse_fallite"] = self.statistiche.get("casse_fallite", 0) + 1
+            self.fallite_di_fila += 1
+            if self.fallite_di_fila >= int(self.racc.get("tentativi_per_cassa", 2) or 2):
+                # non si apre mai: non e' una cassa vera (o non ci arrivo). La lascio stare e giro
+                self.log("%s: non si apre, forse non e' vera. La lascio stare e vado altrove" % nome)
+                self.fallite_di_fila = 0
+                if box is not None:
+                    W, H = self.occhi_dimensioni(img)
+                    margine = 0.03
+                    zona = [box.x / W - margine, box.y / H - margine, box.w / W + 2 * margine,
+                            box.h / H + 2 * margine]
+                    self.occhi.zone_temporanee.append((zona, time.monotonic() + 3.0))
+                self.ignora_raccolta_fino = t + 2.0
+                self.inseguo_da = None
+                self._cammina()
+                self.esecutore.gira(random.choice((-1, 1)) * random.uniform(90, 150))
+                return "lascio stare %s" % tipo
             self.log("%s: non si e' aperta, mi avvicino di piu'" % nome)
             self._cammina(avanti=True)
             self.esecutore.dormi(0.25)
             self._cammina()
         self.inseguo_da = None
         return "apro %s" % tipo
+
+    @staticmethod
+    def occhi_dimensioni(img):
+        if img is None:
+            return 1.0, 1.0
+        return float(img.shape[1]), float(img.shape[0])
 
     # ------------------------------------------------------------------ esplorazione
     def _controlla_blocco(self, img, t, sto_camminando=True):

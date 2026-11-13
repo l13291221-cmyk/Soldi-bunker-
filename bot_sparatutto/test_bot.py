@@ -39,6 +39,11 @@ ORO = (0, 200, 255)
 def cfg_test(**sopra):
     cfg = impostazioni.unisci(impostazioni.PREDEFINITE, sopra)
     cfg["rilevatore_universale"]["attivo"] = False
+    # le prove vecchie guardano un fotogramma alla volta e usano tutto lo schermo
+    if "raccolta" not in sopra or "conferma_fotogrammi" not in sopra["raccolta"]:
+        cfg["raccolta"]["conferma_fotogrammi"] = 1
+    if "schermo" not in sopra or "zone_interfaccia_fortnite" not in sopra["schermo"]:
+        cfg["schermo"]["zone_interfaccia_fortnite"] = False
     cfg["colori"]["nemico"] = [{"tinta": [170, 8], "saturazione": [170, 255], "luminosita": [150, 255]}]
     return cfg
 
@@ -554,6 +559,65 @@ class TestObiettivo(ConCartella):
         cerv.esecutore.esegui(leggi_azioni("conta partita", mani.esiste, {}))
         self.assertEqual(cerv.statistiche["casse_partita"], 0)
         self.assertEqual(cerv.statistiche["partite"], 1)
+
+
+class TestCasseVere(ConCartella):
+    """Niente casse inventate: piu' fotogrammi, forma giusta, fuori dall'interfaccia."""
+
+    def test_conferma_in_piu_fotogrammi(self):
+        from cervello import Conferma
+        c = Conferma(volte=3)
+        b = Box(300, 200, 30, 20, categoria="cassa")
+        self.assertEqual(c.filtra([b], 1.0, (0, 0), 640), [])          # vista una volta: no
+        self.assertEqual(c.filtra([b], 1.05, (0, 0), 640), [])         # due volte: no
+        self.assertEqual(len(c.filtra([b], 1.10, (0, 0), 640)), 1)     # tre volte: si'
+        # un riflesso che compare un attimo in un altro posto non conta
+        self.assertEqual(c.filtra([Box(50, 50, 30, 20)], 1.15, (0, 0), 640), [])
+        # se giro la visuale a destra di 40 pixel la cassa sullo schermo va a sinistra: e' la stessa
+        c2 = Conferma(volte=3)
+        for i in range(3):
+            visti = c2.filtra([Box(300 - 40 * i, 200, 30, 20)], 2.0 + i * 0.05, (40 if i else 0, 0), 640)
+        self.assertEqual(len(visti), 1)
+        # dopo un po' che non la vedo si ricomincia a contare
+        self.assertEqual(c.filtra([b], 5.0, (0, 0), 640), [])
+
+    def test_forma_e_interfaccia(self):
+        cfg = cfg_test(schermo={"zone_interfaccia_fortnite": True})
+        occhi = Occhi(cfg, self.base, print, universale=False)
+        img = np.full((360, 640, 3), 40, np.uint8)
+        cv2.rectangle(img, (300, 200), (340, 230), ORO, -1)              # cassa vera
+        cv2.rectangle(img, (0, 290), (640, 300), ORO, -1)                # striscia lunghissima (sabbia)
+        cv2.rectangle(img, (560, 40), (590, 60), ORO, -1)                # nella minimappa
+        cv2.rectangle(img, (100, 60), (330, 180), ORO, -1)               # enorme (cielo dorato)
+        casse = occhi.analizza(img).casse
+        self.assertEqual(len(casse), 1)
+        self.assertAlmostEqual(casse[0].cx, 320, delta=4)
+
+    def test_il_cervello_aspetta_la_conferma(self):
+        cfg = cfg_test(raccolta={"conferma_fotogrammi": 3}, mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        mondo.oggetti.append((500, 260, 50, 40, ORO))
+        t = time.monotonic()
+        scritte = []
+        for i in range(3):
+            img = mondo.foto()
+            scritte.append(cerv.passo(occhi.analizza(img), img, t + i * 0.05))
+        self.assertFalse(scritte[0].startswith("vado verso cassa"), scritte)
+        self.assertTrue(scritte[2].startswith("vado verso cassa"), scritte)
+
+    def test_cassa_che_non_si_apre_la_lascia_stare(self):
+        cfg = cfg_test(raccolta={"tempo_apertura_cassa": 0.06, "tentativi_per_cassa": 2},
+                       mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        mondo.oggetti.append((300, 250, 60, 60, ORO))     # davanti e vicina, ma non si apre mai
+        scritte = []
+        for i in range(2):
+            img = mondo.foto()
+            scritte.append(cerv.passo(occhi.analizza(img), img))
+        self.assertEqual(scritte[0], "apro cassa")
+        self.assertEqual(scritte[1], "lascio stare cassa")
+        self.assertEqual(cerv.statistiche["casse"], 0)
+        self.assertEqual(len(occhi.zone_temporanee), 1)              # per un po' quel punto si ignora
 
 
 class TestVisualeFluida(unittest.TestCase):

@@ -141,6 +141,9 @@ schermo:
   monitor: 1                  # 1 = schermo principale, 2 = il secondo...
   fps_massimi: 60             # quante volte al secondo guarda lo schermo
   scala_analisi: 0.5          # 0.5 = cerca i colori a meta' risoluzione (piu' veloce). 1 = piu' preciso
+  # true = ignora le parti dello schermo dove i giochi stile Fortnite mettono l'interfaccia
+  # (minimappa, vita, inventario, squadra): li' non cerca casse ne' nemici
+  zone_interfaccia_fortnite: true
   # Il bot gioca SOLO se in primo piano c'e' una finestra con questo nel titolo.
   # Scrivi il nome del gioco: cosi' se vai su un'altra finestra si ferma da solo.
   # Se giochi sulla Play guardandola con PS Remote Play scrivi: "PS Remote Play"
@@ -213,6 +216,10 @@ raccolta:
   vicino_altezza: 0.12        # e' "vicino" se l'oggetto e' alto almeno questa parte dello schermo
   vicino_fondo: 0.85          # ...oppure se arriva in basso fino a questa parte dello schermo
   tempo_massimo_avvicinamento: 10   # secondi: se non ci arriva lascia perdere
+  # Una cassa conta solo se la vede in questi fotogrammi di fila (niente casse "inventate")
+  conferma_fotogrammi: 3
+  # Se una "cassa" non si apre per questo numero di volte di fila, la lascia stare e va altrove
+  tentativi_per_cassa: 2
 
 
 # ---------------------------------------------------------------------
@@ -271,6 +278,8 @@ modello_ia:
 # ---------------------------------------------------------------------
 rilevamento:
   area_minima: 0.00015        # oggetti piu' piccoli di cosi' (parte dello schermo) vengono ignorati
+  oggetto_larghezza_massima: 0.25   # una "cassa" piu' larga di cosi' (parte dello schermo) non e' una cassa
+  oggetto_altezza_massima: 0.35     # ...o piu' alta di cosi'
   somiglianza_immagini: 0.8   # 0.8 = l'immagine deve somigliare all'80%. Abbassa se non la trova
 regole:
   attesa_tra_ripetizioni: 3   # secondi prima che la stessa istruzione possa ripartire
