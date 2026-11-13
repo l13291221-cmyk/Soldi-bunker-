@@ -606,6 +606,22 @@ class TestCasseVere(ConCartella):
         # dopo un po' che non la vedo si ricomincia a contare
         self.assertEqual(c.filtra([b], 5.0, (0, 0), 640), [])
 
+    def test_occhio_del_gioco_si_carica_da_solo(self):
+        import occhi as modulo
+        vecchio = modulo.RilevatoreIA
+        caricati = []
+        modulo.RilevatoreIA = lambda percorso, *a, **k: caricati.append(percorso) or "ia"
+        try:
+            os.makedirs(os.path.join(self.base, "modelli"), exist_ok=True)
+            Occhi(cfg_test(), self.base, print, universale=False)
+            self.assertEqual(caricati, [])                                   # non c'e': niente
+            open(os.path.join(self.base, "modelli", "gioco.onnx"), "wb").close()
+            o = Occhi(cfg_test(), self.base, print, universale=False)
+            self.assertEqual(o.ia, "ia")
+            self.assertTrue(caricati[0].endswith(os.path.join("modelli", "gioco.onnx")))
+        finally:
+            modulo.RilevatoreIA = vecchio
+
     def test_forma_e_interfaccia(self):
         cfg = cfg_test(schermo={"zone_interfaccia_fortnite": True})
         occhi = Occhi(cfg, self.base, print, universale=False)

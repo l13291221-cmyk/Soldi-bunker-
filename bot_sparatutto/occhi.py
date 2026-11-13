@@ -510,6 +510,9 @@ class Occhi:
         self.ia = None
         ia = cfg.get("modello_ia", {}) or {}
         file_ia = str(ia.get("file") or "").strip()
+        if not file_ia and os.path.isfile(os.path.join(cartella_base, "modelli", "gioco.onnx")):
+            # l'occhio addestrato sul TUO gioco (arriva con l'aggiornamento): si usa da solo
+            file_ia = os.path.join("modelli", "gioco.onnx")
         if file_ia:
             percorso = file_ia if os.path.isabs(file_ia) else os.path.join(cartella_base, file_ia)
             if os.path.isfile(percorso):
