@@ -643,6 +643,183 @@ class TestCasseVere(ConCartella):
         self.assertEqual(len(occhi.zone_temporanee), 1)              # per un po' quel punto si ignora
 
 
+class TestIA(ConCartella):
+    """L'IA che guarda: risposte, richieste, cambio di IA se una non va, menu 'Collega le IA'."""
+
+    def test_capisce_le_risposte(self):
+        import ia
+        c = ia.leggi_risposta('{"phase": "bus", "chest": "left", "wall_ahead": true, "storm_near": false,'
+                              ' "safe_direction": "unknown", "enemy": false}')
+        self.assertEqual((c.fase, c.cassa, c.muro, c.tempesta), ("bus", "left", True, False))
+        c = ia.leggi_risposta('Ecco:\n```json\n{"phase": "playing", "chest": "none", "storm_near": "true",'
+                              ' "safe_direction": "right"}\n```')
+        self.assertEqual((c.fase, c.cassa, c.tempesta, c.direzione), ("playing", "none", True, "right"))
+        c = ia.leggi_risposta("{'phase': 'falling', 'chest': 'center'}")             # apici singoli
+        self.assertEqual((c.fase, c.cassa), ("falling", "center"))
+        c = ia.leggi_risposta("phase: menu, chest: none, wall_ahead: false")         # IA piccole
+        self.assertEqual(c.fase, "menu")
+        c = ia.leggi_risposta('{"phase": "boh", "chest": "sopra"}')                   # valori strani
+        self.assertEqual((c.fase, c.cassa), ("unknown", "none"))
+        self.assertIsNone(ia.leggi_risposta("non so cosa dire"))
+        self.assertIsNone(ia.leggi_risposta(""))
+
+    def test_richieste(self):
+        import json as js
+
+        import ia
+        f = dict(ia.FORNITORI["ollama"], nome="ollama")
+        url, intest, corpo = ia.richiesta(f, "QUJD")
+        d = js.loads(corpo)
+        self.assertEqual(url, "http://localhost:11434/api/chat")
+        self.assertEqual(d["messages"][0]["images"], ["QUJD"])
+        self.assertNotIn("Authorization", intest)
+        f = dict(ia.FORNITORI["gemini"], nome="gemini", chiave="segreta")
+        url, intest, corpo = ia.richiesta(f, "QUJD")
+        d = js.loads(corpo)
+        self.assertEqual(intest["Authorization"], "Bearer segreta")
+        self.assertEqual(d["messages"][0]["content"][1]["image_url"]["url"], "data:image/jpeg;base64,QUJD")
+        self.assertEqual(ia.testo_della_risposta(f, {"choices": [{"message": {"content": "ciao"}}]}), "ciao")
+        self.assertEqual(ia.testo_della_risposta(f, {"choices": [{"message": {"content": [{"text": "a"}]}}]}), "a")
+        self.assertEqual(ia.testo_della_risposta(dict(ia.FORNITORI["ollama"]), {"message": {"content": "x"}}), "x")
+        self.assertTrue(ia.jpeg_base64(np.zeros((720, 1280, 3), np.uint8)))
+
+    def test_quali_ia_sono_pronte(self):
+        import ia
+        pronte = ia.fornitori_da_cfg({"fornitori": ["ollama", "gemini", "groq", "personale"],
+                                      "chiavi": {"groq": "k"}, "modelli": {"ollama": "llava"},
+                                      "personale": {"url": "http://x/v1/chat/completions", "modello": "m"}})
+        self.assertEqual([f["nome"] for f in pronte], ["ollama", "groq", "personale"])   # gemini senza chiave: no
+        self.assertEqual(pronte[0]["modello"], "llava")
+        self.assertEqual(pronte[1]["chiave"], "k")
+
+    def test_se_una_ia_non_va_passa_alla_prossima(self):
+        import ia
+        chiamate = []
+
+        def invia(url, intest, corpo, attesa):
+            chiamate.append(url)
+            if "localhost" in url:
+                raise RuntimeError("troppe richieste (429)")
+            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "right"}'}}]}
+        cfg = {"ia": {"attiva": True, "fornitori": ["ollama", "pollinations"]}}
+        cervello_lento = ia.IA(cfg, lambda *_: None, invia)
+        img = np.zeros((360, 640, 3), np.uint8)
+        c = cervello_lento.chiedi(img, adesso=100.0)
+        self.assertEqual((c.fornitore, c.cassa, c.numero), ("pollinations", "right", 1))
+        c = cervello_lento.chiedi(img, adesso=110.0)        # ollama riposa (429): non la richiama
+        self.assertEqual(sum("localhost" in u for u in chiamate), 1)
+        self.assertEqual(c.numero, 2)
+        self.assertIsNotNone(cervello_lento.consiglio(adesso=110.0))
+        self.assertIsNone(cervello_lento.consiglio(adesso=110.0 + 60))               # troppo vecchio
+
+    def test_openrouter_sceglie_un_modello_gratis_che_vede(self):
+        import ia
+        dati = {"data": [
+            {"id": "a/testo:free", "architecture": {"input_modalities": ["text"]}},
+            {"id": "b/vede-a-pagamento", "architecture": {"input_modalities": ["text", "image"]},
+             "pricing": {"prompt": "0.001", "completion": "0.002"}},
+            {"id": "c/vede:free", "architecture": {"input_modalities": ["text", "image"]}}]}
+        self.assertEqual(ia.scegli_modello_openrouter("k", lambda: dati), "c/vede:free")
+
+    def test_menu_collega_e_ia_yaml(self):
+        import builtins
+
+        import ia
+        vecchio_input, vecchio_invia = builtins.input, ia.invia_http
+        risposte = {"GEMINI": "chiave-gemini"}
+
+        def finto_input(domanda=""):
+            for nome, valore in risposte.items():
+                if domanda.startswith(nome):
+                    return valore
+            return ""
+
+        def finto_invia(url, intest, corpo, attesa):
+            if "localhost" in url:
+                raise RuntimeError("non raggiungibile")
+            return {"choices": [{"message": {"content": '{"phase": "playing", "chest": "none"}'}}]}
+        try:
+            builtins.input = finto_input
+            ia.invia_http = finto_invia
+            funzionano = ia.collega(self.base, impostazioni.carica(self.base), print,
+                                    np.zeros((360, 640, 3), np.uint8))
+        finally:
+            builtins.input, ia.invia_http = vecchio_input, vecchio_invia
+        self.assertEqual(funzionano, ["pollinations", "gemini"])
+        cfg = impostazioni.carica(self.base)                       # ia.yaml entra nelle impostazioni
+        self.assertTrue(cfg["ia"]["attiva"])
+        self.assertEqual(cfg["ia"]["fornitori"], ["pollinations", "gemini"])
+        self.assertEqual(cfg["ia"]["chiavi"]["gemini"], "chiave-gemini")
+        self.assertTrue(ia.IA(cfg).attiva)
+
+
+class FintaIA:
+    def __init__(self, consiglio):
+        self.c = consiglio
+        self.validita_fase = 45
+        self.fidati_casse = True
+        self.foto = 0
+
+    def guarda(self, img):
+        self.foto += 1
+
+    def consiglio(self, adesso=None, validita=None):
+        return self.c
+
+
+class TestLogicaFortnite(ConCartella):
+    """Con l'IA che guarda: bus, caduta, menu, casse finte, muri, tempesta."""
+
+    def _cervello(self, **consiglio):
+        import ia
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        c = ia.Consiglio(**consiglio)
+        c.numero = 1
+        cerv.ia = FintaIA(c)
+        cerv.prossimo_guardarsi = time.monotonic() + 999
+        return mani, mondo, occhi, cerv
+
+    def _passo(self, mondo, occhi, cerv):
+        img = mondo.foto()
+        return cerv.passo(occhi.analizza(img), img)
+
+    def test_bus_caduta_menu(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="bus")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "sul bus")
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)      # salta giu' dal bus
+        self.assertEqual(cerv.ia.foto, 1)                                        # le passa la foto
+        mani, mondo, occhi, cerv = self._cervello(fase="falling")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "cado verso terra")
+        self.assertTrue(mani.e_premuto("avanti"))
+        mani, mondo, occhi, cerv = self._cervello(fase="menu")
+        mondo.oggetti.append((330, 120, 20, 60, ROSSO))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "aspetto (menu)")
+        self.assertFalse(mani.e_premuto("spara"))
+
+    def test_casse_finte_e_vere(self):
+        cassa = (500, 260, 50, 40, ORO)
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", cassa="none")
+        mondo.oggetti.append(cassa)
+        self.assertFalse(self._passo(mondo, occhi, cerv).startswith("vado verso cassa"))   # l'IA: e' finta
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", cassa="right")
+        mondo.oggetti.append(cassa)
+        self.assertTrue(self._passo(mondo, occhi, cerv).startswith("vado verso cassa"))
+
+    def test_tempesta_e_muro(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True, direzione="right")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "scappo dalla tempesta")
+        self.assertGreater(mani.mosso_x, 0)                                       # gira a destra
+        self.assertNotEqual(self._passo(mondo, occhi, cerv), "scappo dalla tempesta")   # una volta sola
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "evito il muro")
+
+    def test_i_nemici_vengono_prima(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
+        mondo.oggetti.append((330, 120, 20, 60, ROSSO))
+        self.assertTrue(self._passo(mondo, occhi, cerv).startswith("combatto"))
+
+
 class TestVisualeFluida(unittest.TestCase):
     """Il mouse non salta: il movimento arriva a passettini."""
 

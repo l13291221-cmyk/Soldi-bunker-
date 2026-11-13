@@ -83,8 +83,11 @@ class Conferma:
 
 class Cervello:
     def __init__(self, cfg, mani, occhi, esecutore, istruzioni, log=print, apprendimento=None, schermo=None,
-                 obiettivo=None, stile=None):
+                 obiettivo=None, stile=None, ia=None):
         self.cfg = cfg
+        self.ia = ia                      # il cervello lento che guarda (ia.py), se collegato
+        self.ultimo_consiglio = 0
+        self.prossimo_salto_bus = 0.0
         self.obiettivo = obiettivo if obiettivo is not None else Obiettivo()
         self.stile = stile if stile is not None else STILI["pro"]     # come gioca (stile.py)
         self.mani = mani
@@ -256,6 +259,11 @@ class Cervello:
                     self._dopo_pausa()
                 return "istruzione riga %d" % regola.riga
 
+        # 1b. l'IA che guarda: sul bus, in caduta, nei menu (logica Fortnite)
+        scritta = self._fase_ia(img, t)
+        if scritta:
+            return scritta
+
         # 2. impara come si muove la visuale in questo gioco
         if self.apprendimento is not None and self.schermo is not None and self.apprendimento.serve_calibrare(t):
             self.ferma_tutto()
@@ -278,6 +286,11 @@ class Cervello:
         # le casse e le armi contano solo se le vedo per qualche fotogramma di fila
         for cat, conferma in self.conferma.items():
             vis.oggetti[cat] = conferma.filtra(vis.oggetti.get(cat, []), t, self.mosso_px, vis.larghezza)
+
+        # l'IA che guarda: casse finte, muri, tempesta
+        scritta = self._tattica_ia(vis, t)
+        if scritta:
+            return scritta
 
         # 3. combattimento
         if self.comb.get("attivo", True):
@@ -306,6 +319,66 @@ class Cervello:
         scritta = self._esplora(vis, t, dt, img)
         self.mosso_px = (0.0, 0.0)
         return scritta
+
+    # ------------------------------------------------------------------ l'IA che guarda
+    def _fase_ia(self, img, t):
+        """Logica Fortnite con l'IA: sul bus salta, in caduta va avanti, nei menu aspetta."""
+        if self.ia is None:
+            return None
+        if img is not None:
+            self.ia.guarda(img)
+        c = self.ia.consiglio(t, self.ia.validita_fase)
+        if c is None:
+            return None
+        if c.fase == "bus":
+            self._spara(False)
+            self._cammina()
+            if t >= self.prossimo_salto_bus and self.mani.esiste("salta"):
+                self.prossimo_salto_bus = t + 3.0
+                self.log("IA: sono sul bus -> salto giu'")
+                self.mani.premi("salta")
+            return "sul bus"
+        if c.fase == "falling":
+            self._spara(False)
+            self._cammina(avanti=True)           # in caduta: avanti (il deltaplano si apre da solo)
+            return "cado verso terra"
+        if c.fase in ("menu", "dead"):
+            self._spara(False)
+            self._cammina()
+            return "aspetto (%s)" % ("menu" if c.fase == "menu" else "eliminato")
+        return None
+
+    def _tattica_ia(self, vis, t):
+        """In partita: l'IA dice se le casse sono vere, se c'e' un muro, dov'e' la tempesta."""
+        if self.ia is None:
+            return None
+        c = self.ia.consiglio(t)
+        if c is None or c.fase not in ("playing", "unknown"):
+            return None
+        if c.cassa == "none" and self.ia.fidati_casse and vis.casse:
+            vis.oggetti["cassa"] = []            # l'IA non vede casse: quelle trovate col colore sono finte
+        nuovo = c.numero != self.ultimo_consiglio
+        self.ultimo_consiglio = c.numero
+        if not nuovo or vis.nemici:
+            return None                          # ogni consiglio si usa una volta, e i nemici vengono prima
+        if c.tempesta and c.direzione in ("left", "right", "behind"):
+            gradi = {"left": -90, "right": 90, "behind": 180}[c.direzione]
+            self.log("IA: la tempesta e' vicina -> vado verso la zona sicura")
+            self._cammina()
+            self.esecutore.gira(gradi)
+            self._cammina(avanti=True, corri=True)
+            self.giro_fino = 0.0
+            self.prossimo_guardarsi = t + 10.0
+            return "scappo dalla tempesta"
+        if c.muro and not vis.casse:
+            self.log("IA: ho un muro davanti -> giro")
+            self._cammina()
+            self.esecutore.gira(random.choice((-1, 1)) * random.uniform(70, 120))
+            return "evito il muro"
+        if c.cassa in ("left", "right") and not vis.casse:
+            self.esecutore.gira(-35 if c.cassa == "left" else 35)
+            return "giro verso la cassa che vede l'IA"
+        return None
 
     def _solo_nemici_vicini(self):
         """Con l'obiettivo delle casse (o sopravvivere, o lo stile Tranquillo) i nemici lontani si ignorano."""

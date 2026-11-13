@@ -195,6 +195,7 @@ def avvia(modo=None):
     from allenamento import Allenamento
     from apprendimento import Apprendimento
     from cervello import Cervello
+    from ia import IA
     from mani import crea_mani
     from occhi import Occhi, Schermo, disegna
 
@@ -224,7 +225,9 @@ def avvia(modo=None):
     if modo == "prova":
         allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni
     esecutore.su_fine_partita = allenamento.fine_partita
-    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile)
+    ia = IA(cfg, log)
+    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
+                        ia if ia.attiva else None)
     if occhi.universale is None and occhi.ia is None and not (cfg.get("colori", {}) or {}).get("nemico"):
         log("ATTENZIONE: non ho niente per riconoscere i nemici (occhio universale spento e nessun colore).")
     mostra = bool(sch.get("mostra_finestra", False)) or modo == "prova"
@@ -237,6 +240,10 @@ def avvia(modo=None):
     print("  OBIETTIVO: " + obiettivo.descrizione())
     print("  (si cambia dal menu 11 o nel file obiettivo.txt)")
     print("  MODALITA': %s - %s" % (stile.nome, stile.descrizione))
+    if ia.attiva:
+        print("  IA CHE GUARDA: accesa (%s)" % ", ".join(f["nome"] for f in ia.fornitori))
+    else:
+        print("  IA CHE GUARDA: spenta (menu 14 per collegarla)")
     if allenamento.attivo:
         print("  ALLENAMENTO: dopo ogni partita scrive il riepilogo in allenamento.txt e migliora")
     print("  BOT ATTIVO  -  %s = pausa/riprendi   %s = chiudi" % (str(tb.get("pausa", "f8")).upper(),
@@ -254,6 +261,8 @@ def avvia(modo=None):
     fermo_prima = False
     scritta_prec = ""
     t_fotogramma = time.monotonic()
+    if ia.attiva:
+        ia.avvia()
     try:
         while not controllo.uscita:
             t0 = time.monotonic()
@@ -302,6 +311,7 @@ def avvia(modo=None):
     except KeyboardInterrupt:
         log("Fermato con CTRL+C")
     finally:
+        ia.ferma()
         try:
             mani.chiudi()
         except Exception:
@@ -484,6 +494,7 @@ MENU = [
     ("11", "Scrivi l'obiettivo (es. aprire 50 casse a partita)", "obiettivo"),
     ("12", "Telecomando: tastiera e mouse del portatile sulla Play (es. INVIO per l'account)", "telecomando"),
     ("13", "Aggiorna il programma (scarica l'ultima versione)", "aggiorna"),
+    ("14", "Collega le IA (il cervello che guarda: bus, casse vere, muri, tempesta)", "ia"),
     ("0", "Esci", "esci"),
 ]
 
@@ -506,6 +517,9 @@ def esegui_comando(cmd):
         telecomando.usa(cfg, log, attesa)
     elif cmd == "aggiorna":
         aggiorna()
+    elif cmd == "ia":
+        import ia
+        ia.collega(BASE, impostazioni.carica(BASE), log)
     elif cmd in ("colori", "immagine", "vita", "zone", "mira", "giro", "impara"):
         getattr(calibra, cmd)(BASE, log)
     else:

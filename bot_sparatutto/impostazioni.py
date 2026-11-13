@@ -15,6 +15,19 @@ PREDEFINITE = {
     "comandi": {"modo": "schedina", "porta": "auto", "scrivi_comandi_in_prova": False},
     "tasti_bot": {"pausa": "f8", "esci": "f9"},
     "telecomando": {"sensibilita_mouse": 1.0},
+    # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
+    "ia": {
+        "attiva": False,
+        "ogni_secondi": 3,               # ogni quanto le manda una foto
+        "validita_secondi": 8,           # casse, muri, tempesta: dopo questo tempo il consiglio e' vecchio
+        "validita_fase_secondi": 45,     # bus, caduta, menu: cambiano piu' piano
+        "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte
+        "fornitori": ["ollama", "pollinations", "gemini", "github", "openrouter", "groq", "mistral", "zai",
+                      "personale"],
+        "chiavi": {},
+        "modelli": {},
+        "personale": {"url": "", "modello": "", "chiave": ""},
+    },
     "schermo": {
         "monitor": 1,
         "zona_cattura": None,
@@ -176,6 +189,13 @@ def leggi_calibrazione(cartella):
 def carica(cartella):
     cfg = unisci(PREDEFINITE, _leggi_yaml(os.path.join(cartella, "impostazioni.yaml")))
     cfg = unisci(cfg, _leggi_yaml(os.path.join(cartella, "calibrazione.yaml")))
+    # l'IA che guarda: chiavi e IA collegate stanno in ia.yaml (lo scrive il menu "Collega le IA")
+    try:
+        ia = _leggi_yaml(os.path.join(cartella, "ia.yaml"))
+    except ErroreImpostazioni:
+        ia = {}
+    if ia:
+        cfg = unisci(cfg, {"ia": ia})
     # i tasti scritti come numeri (1, 2...) diventano testo
     cfg["tasti"] = {str(k): str(v) for k, v in (cfg.get("tasti") or {}).items() if v is not None}
     return cfg
