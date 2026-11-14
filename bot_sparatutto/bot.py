@@ -248,8 +248,15 @@ def avvia(modo=None):
         allenamento.attivo = False                 # scrive il riepilogo ma non cambia le regolazioni
     esecutore.su_fine_partita = allenamento.fine_partita
     ia = IA(cfg, log, conoscenza=modulo_ia.leggi_conoscenza(BASE))
-    cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
-                        ia if ia.attiva else None)
+    if str((cfg.get("fortnite", {}) or {}).get("cervello", "nuovo")).strip().lower() == "vecchio":
+        cervello = Cervello(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
+                            ia if ia.attiva else None)
+        log("Cervello: quello VECCHIO (impostazioni.yaml -> fortnite -> cervello)")
+    else:
+        from pilota import Pilota
+        cervello = Pilota(cfg, mani, occhi, esecutore, istruzioni, log, apprendimento, schermo, obiettivo, stile,
+                          ia if ia.attiva else None)
+        log("Cervello: quello NUOVO (pilota.py, rifatto da zero)")
     import remote_play
     cervello.pc = remote_play.PC(log)
     if not controllo.titolo and cervello.pc.trova_finestra() is not None:
@@ -513,6 +520,13 @@ def autotest():
     cervello.passo(vis, img)
     if mani.mosso_x <= 0:
         log("AUTOTEST: non ha mirato verso il nemico (mosso_x=%s)" % mani.mosso_x)
+        ok = False
+    from pilota import Pilota
+    mani2 = ManiFinte(cfg.get("tasti"), log)
+    esecutore2, istruzioni2 = prepara(cfg, mani2, occhi, schermo, controllo, {})
+    pilota = Pilota(cfg, mani2, occhi, esecutore2, None, log)
+    if not pilota.passo(occhi.analizza(img), img).startswith("combatto") or mani2.mosso_x <= 0:
+        log("AUTOTEST: il cervello nuovo non ha mirato verso il nemico (mosso_x=%s)" % mani2.mosso_x)
         ok = False
     # l'occhio universale (se i modelli ci sono) deve caricarsi e funzionare
     if os.path.isdir(os.path.join(BASE, "modelli")) and any(

@@ -31,6 +31,7 @@ comandi:
 # COSE DA FORTNITE (servono l'IA che guarda: menu 14)
 # ---------------------------------------------------------------------
 fortnite:
+  cervello: nuovo             # nuovo = rifatto da zero (pilota.py); vecchio = quello di prima
   # Il bot sa fare solo un muro (o 4 muri intorno) quando lo colpiscono forte: nelle partite con
   # le costruzioni gli altri costruiscono molto meglio. CONSIGLIATO: modalita' "Zero Costruzioni".
   # true = giochi in Zero Costruzioni (niente muri). false = partite con le costruzioni.

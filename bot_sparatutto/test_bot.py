@@ -2402,6 +2402,159 @@ class TestFileUnicoSchedina(unittest.TestCase):
             crea_uf2.file_da_argomenti(["senza_uguale"])
 
 
+class TestPilota(ConCartella):
+    """IL CERVELLO NUOVO (pilota.py): un ramo alla volta, in ordine di importanza."""
+
+    def _pilota(self, **consiglio):
+        import ia
+        from pilota import Pilota
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani = ManiFinte(cfg["tasti"])
+        mondo = Mondo(mani, ppp=0.5)
+        occhi = Occhi(cfg, self.base, print, universale=False)
+        macro, _ = leggi_macro(cfg["macro"], mani.esiste)
+        esec = Esecutore(mani, occhi, mondo, cfg, None, print, {}, macro)
+        p = Pilota(cfg, mani, occhi, esec, Istruzioni([], occhi), print, None, mondo)
+        p.prossima_mappa_periodica = time.monotonic() + 999
+        if consiglio:
+            c = ia.Consiglio(**consiglio)
+            c.numero, c.quando = 1, time.monotonic()
+            p.ia = FintaIA(c)
+        return mani, mondo, occhi, p
+
+    def _passo(self, mondo, occhi, p, t=None):
+        img = mondo.foto()
+        return p.passo(occhi.analizza(img), img, t)
+
+    def test_combatte_e_ignora_il_suo_personaggio(self):
+        mani, mondo, occhi, p = self._pilota()
+        mondo.oggetti.append((420, 120, 30, 80, ROSSO))                            # nemico a destra
+        self.assertTrue(self._passo(mondo, occhi, p).startswith("combatto"))
+        self.assertGreater(mani.mosso_x, 0)
+        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)                # prende l'arma (slot 2)
+        mani, mondo, occhi, p = self._pilota()
+        mondo.fissi.append((290, 200, 60, 160, ROSSO))                              # il mio personaggio
+        self.assertFalse(self._passo(mondo, occhi, p).startswith("combatto"))
+
+    def test_spara_quando_e_sopra_il_nemico(self):
+        mani, mondo, occhi, p = self._pilota()
+        mondo.oggetti.append((300, 120, 40, 90, ROSSO))                            # davanti al mirino
+        t = time.monotonic()
+        for i in range(10):
+            self._passo(mondo, occhi, p, t + i * 0.1)
+        self.assertIn("giu mouse 1", mani.storia)
+
+    def test_bus_caduta_e_menu(self):
+        mani, mondo, occhi, p = self._pilota(fase="bus", sopra_isola=False)
+        self.assertEqual(self._passo(mondo, occhi, p), "sul bus: aspetto di essere sopra l'isola")
+        mani, mondo, occhi, p = self._pilota(fase="bus", sopra_isola=True)
+        self.assertEqual(self._passo(mondo, occhi, p), "sul bus")
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        mani, mondo, occhi, p = self._pilota(fase="falling", compagno_xy=(0.2, 0.5, "on_screen", None))
+        self.assertEqual(self._passo(mondo, occhi, p), "cado verso terra")
+        self.assertLess(mani.mosso_x, 0)                                            # verso il compagno
+        self.assertTrue(mani.e_premuto("avanti"))
+        mani, mondo, occhi, p = self._pilota(fase="menu", pulsante=(0.5, 0.9))
+        self.assertEqual(self._passo(mondo, occhi, p), "clicco per la partita dopo")
+        self.assertIn("giu mouse 1", mani.storia)
+
+    def test_eliminato_aspetta_e_poi_torna_alla_lobby(self):
+        mani, mondo, occhi, p = self._pilota(fase="dead", osservo=True, pulsante=(0.5, 0.9))
+        t = time.monotonic()
+        p.in_partita = True
+        self.assertTrue(self._passo(mondo, occhi, p, t).startswith("eliminato: guardo un compagno"))
+        self.assertEqual(p.statistiche["partite"], 1)
+        p.ia.c.quando = t + 95
+        self.assertEqual(self._passo(mondo, occhi, p, t + 95), "clicco per la partita dopo")
+
+    def test_ps5_e_remote_play(self):
+        from remote_play import PCFinto
+        mani, mondo, occhi, p = self._pilota(fase="menu", schermo="ps5_who_is_using")
+        self.assertEqual(self._passo(mondo, occhi, p), "la PS5 chiede chi sta giocando")
+        self.assertIn("giu tasto 0x%02X" % CODICI["invio"], mani.storia)
+        mani, mondo, occhi, p = self._pilota(fase="unknown", schermo="remote_play", pulsante_pc=(0.5, 0.6))
+        p.pc = PCFinto()
+        self.assertEqual(self._passo(mondo, occhi, p), "PS Remote Play scollegato")
+        self.assertEqual(len(p.pc.click), 1)
+
+    def test_tempesta_mappa_e_poi_scappa_senza_distrarsi(self):
+        mani, mondo, occhi, p = self._pilota(fase="playing", tempesta=True, obiettivo=("chest", 0.9, 0.5))
+        p.ia.risposte_mappa = [{"heading": 90, "safe": "N"}, {"heading": 91, "safe": "N"},
+                               {"heading": 90, "safe": "S"}]
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, p, t), "vado verso la zona sicura (mappa)")
+        self.assertAlmostEqual(mani.mosso_x, -1200, delta=40)                      # nord: -90 gradi
+        self.assertEqual(p.rotta, 0.0)
+        p.ia.c.numero, p.ia.c.quando = 2, t + 1
+        self.assertEqual(self._passo(mondo, occhi, p, t + 1), "scappo verso la zona sicura")   # niente cassa
+        self.assertTrue(mani.e_premuto("corri"))
+
+    def test_in_acqua_va_verso_la_zona_sicura(self):
+        mani, mondo, occhi, p = self._pilota(fase="playing")
+        p.ia.risposte_mappa = [{"heading": 180, "safe": "N"}] * 3
+        MARE = (200, 140, 30)
+        mondo.fissi.append((0, 190, 640, 170, MARE))                               # nuoto
+        t = time.monotonic()
+        self._passo(mondo, occhi, p, t)
+        p.ia.c.quando = t + 2
+        self.assertEqual(self._passo(mondo, occhi, p, t + 2), "vado verso la zona sicura (mappa)")
+        self.assertAlmostEqual(abs(mani.mosso_x), 2400, delta=40)                  # si gira di 180 gradi
+
+    def test_scritte_arma_compagno_bottino(self):
+        mani, mondo, occhi, p = self._pilota(fase="playing", prompt="open")
+        self.assertEqual(self._passo(mondo, occhi, p), "apro la cassa (IA)")
+        self.assertEqual(p.statistiche["casse_partita"], 1)
+        mani, mondo, occhi, p = self._pilota(fase="playing", in_mano="pickaxe", slot=1, slot_arma=3, ha_arma=True)
+        self._passo(mondo, occhi, p)
+        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)               # slot 3 = tasto 2
+        mani, mondo, occhi, p = self._pilota(fase="playing", compagno_xy=(0.8, 0.4, "on_screen", 70.0))
+        self.assertEqual(self._passo(mondo, occhi, p), "seguo il compagno")
+        self.assertGreater(mani.mosso_x, 0)
+        mani, mondo, occhi, p = self._pilota(fase="playing", compagno_xy=(0.5, 0.4, "on_screen", 4.0))
+        self.assertEqual(self._passo(mondo, occhi, p), "sto vicino al compagno")
+        mani, mondo, occhi, p = self._pilota(fase="playing", obiettivo=("chest", 0.2, 0.6))
+        self.assertEqual(self._passo(mondo, occhi, p), "vado verso una cassa (IA)")
+        self.assertLess(mani.mosso_x, 0)
+
+    def test_viaggia_verso_il_centro_e_si_sblocca(self):
+        mani, mondo, occhi, p = self._pilota()
+        p.rotta = 0.0
+        p._leggi_bussola(60)                                                        # guardo a 60: devo girare a sinistra
+        t = time.monotonic()
+        for i in range(20):
+            self.assertEqual(self._passo(mondo, occhi, p, t + i * 0.1), "vado verso il centro della zona sicura")
+        self.assertLess(mani.mosso_x, 0)
+        mani, mondo, occhi, p = self._pilota()
+        mondo.foto = lambda: np.full((360, 640, 3), 50, np.uint8)                  # contro un muro
+        for i in range(12):
+            self._passo(mondo, occhi, p, t + i * 0.3)
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+
+    def test_gioca_di_nuovo(self):
+        from pilota import Pilota
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani = ManiFinte(cfg["tasti"])
+        menu = MenuFinto(mani, 1.0)
+        occhi = Occhi(cfg, self.base, print, universale=False)
+        esec = Esecutore(mani, occhi, menu, cfg, None, print, {}, {})
+        p = Pilota(cfg, mani, occhi, esec, None, print, None, menu)
+        t = time.monotonic()
+        for i in range(10):
+            img = menu.foto()
+            p.passo(occhi.analizza(img), img, t + i * 1.0)
+            if menu.cliccato:
+                break
+        self.assertTrue(menu.cliccato)
+
+    def test_misura_la_sensibilita(self):
+        mani, mondo, occhi, p = self._pilota(fase="playing")
+        letture = iter([[{"heading": 10}] * 3, [{"heading": 130}] * 3])
+        p.ia.chiedi_voto = lambda img, domanda, quante=3, attesa=20.0: next(letture)
+        p.calibra_da = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, p), "correggo la sensibilita'")
+        self.assertAlmostEqual(p.passi_per_giro, 2400, delta=50)                   # girato il doppio: dimezza
+
+
 class TestRegistra(ConCartella):
     def test_registra_foto_log_e_zip(self):
         import zipfile

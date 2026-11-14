@@ -19,6 +19,7 @@ PREDEFINITE = {
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "cervello": "nuovo",             # nuovo = pilota.py (rifatto da zero); vecchio = cervello.py
         "segui_compagno": True,          # in squadra segue un compagno (come i bot che si assoldano)
         "segui_vicino_metri": 8,         # piu' vicino di cosi': si ferma accanto a lui
         "segui_casse_entro_metri": 25,   # col compagno entro questi metri apre le casse li' intorno
