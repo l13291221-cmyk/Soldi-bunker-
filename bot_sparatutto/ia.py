@@ -121,7 +121,8 @@ DOMANDA = (
     '"prompt": "none|open|pick_up|zipline|door|other", '
     '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null, '
     '"current_slot": 1, "best_slot": 2, "heal_slot": null, '
-    '"enemy_xy": {"x": 0.5, "y": 0.5, "close": false} or null, "explore": "ahead|left|right|behind"}\n'
+    '"enemy_xy": {"x": 0.5, "y": 0.5, "close": false} or null, "explore": "ahead|left|right|behind", '
+    '"compass": 195}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -164,7 +165,8 @@ DOMANDA = (
     "close enemies, rifle for far ones, any gun if unsure; 1 only if there is no gun). heal_slot = the slot "
     "of a healing or shield item, or null. enemy_xy = the nearest enemy player in the 3D world (not the own "
     "character, not teammates), close = near the player; null if none. explore = which way to go to find "
-    "houses and loot ON LAND: never toward the sea or a lake (ahead if unsure)."
+    "houses and loot ON LAND: never toward the sea or a lake (ahead if unsure). compass = the number in "
+    "the middle of the compass at the top center of the screen (degrees where the player looks), or null."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
@@ -205,8 +207,9 @@ class Consiglio:
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
                  pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
                  osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None,
-                 slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead"):
+                 slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead", bussola=None):
         self.fase = fase
+        self.bussola = bussola            # il numero della bussola in alto (gradi dove guardo), o None
         self.slot = slot                  # lo slot dell'inventario evidenziato adesso (1-6)
         self.slot_arma = slot_arma        # lo slot dell'arma migliore per adesso (1 = piccone)
         self.slot_cura = slot_cura        # lo slot di una cura o di uno scudo
@@ -275,6 +278,15 @@ def _scegli(v, ammessi, predefinito):
         if t == a or t.startswith(a):
             return a
     return predefinito
+
+
+def _gradi(v):
+    """Il numero della bussola (0-360), oppure None."""
+    try:
+        g = float(v)
+    except (TypeError, ValueError):
+        return None
+    return g % 360.0 if 0 <= g <= 360 else None
 
 
 def _slot(v):
@@ -388,7 +400,8 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         slot_arma=_slot(dati.get("best_slot")),
         slot_cura=_slot(dati.get("heal_slot")),
         nemico_xy=_nemico(dati.get("enemy_xy")),
-        esplora=_scegli(dati.get("explore"), ("ahead", "left", "right", "behind"), "ahead"))
+        esplora=_scegli(dati.get("explore"), ("ahead", "left", "right", "behind"), "ahead"),
+        bussola=_gradi(dati.get("compass")))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

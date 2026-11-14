@@ -128,6 +128,7 @@ class Mani:
         self._resto_x = 0.0
         self._resto_y = 0.0
         self.passi_totali_y = 0      # quanto ha alzato/abbassato la visuale (per rimetterla dritta)
+        self.passi_totali_x = 0      # quanto ha girato a destra/sinistra (per sapere dove guarda)
         self.lock = threading.RLock()
         # movimento fluido: invece di un salto, tanti passettini (circa 200 al secondo)
         self.usa_fluido = True
@@ -234,6 +235,7 @@ class Mani:
             self._resto_x -= ix
             self._resto_y -= iy
             if ix or iy:
+                self.passi_totali_x += ix
                 self.passi_totali_y += iy
                 self._mouse_muovi(ix, iy)
 

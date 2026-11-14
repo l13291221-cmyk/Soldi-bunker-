@@ -278,6 +278,11 @@ class Cervello:
         self.cura_fino = 0.0              # mi sto curando: non cambio arma
         self.prossimo_controllo_acqua = 0.0
         self.in_acqua_da = None
+        # LA ROTTA: dove devo andare (gradi della bussola: 0 nord, 90 est...) e dove guardo adesso
+        self.rotta = None                 # verso il centro della zona sicura (dalla mappa)
+        self.bussola_rif = None           # (gradi letti, passi del mouse in quel momento)
+        self.storia_passi = []            # [(t, passi orizzontali)]: per sapere quanto ho girato da allora
+        self.prossimo_riallineo = 0.0
         self.prossima_svolta_ia = 0.0     # esplorando: ogni tanto l'IA dice da che parte andare
         self.ultimo_consiglio_esplora = 0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
@@ -387,6 +392,9 @@ class Cervello:
     def passo(self, vis, img=None, t=None):
         """Decide e fa la mossa per questo fotogramma. Restituisce una scritta su cosa sta facendo."""
         t = time.monotonic() if t is None else t
+        self.storia_passi.append((t, self._passi_x()))
+        if len(self.storia_passi) > 400:
+            del self.storia_passi[:100]
         dt = max(1e-3, min(0.2, t - self.t_prec))
         self.t_prec = t
         self.dt_medio = 0.8 * self.dt_medio + 0.2 * dt
@@ -764,6 +772,8 @@ class Cervello:
             return None                          # scappo dalla tempesta: niente case, casse o giri
         nuovo = c.numero != self.ultimo_consiglio
         self.ultimo_consiglio = c.numero
+        if nuovo and c.bussola is not None:
+            self._leggi_bussola(c.bussola, c.quando)
         if nuovo:
             self._controlla_arma(c, t)
         if self.ia.fidati_casse and vis.casse:
@@ -883,6 +893,26 @@ class Cervello:
             return "giro verso la cassa che vede l'IA"
         return None
 
+    def _passi_x(self):
+        return getattr(self.mani, "passi_totali_x", 0)
+
+    def guardo_verso(self):
+        """Dove guardo adesso (gradi della bussola), contando quanto ho girato dall'ultima lettura."""
+        if self.bussola_rif is None:
+            return None
+        gradi, passi = self.bussola_rif
+        return (gradi + (self._passi_x() - passi) * 360.0 / max(1.0, self.passi_per_giro)) % 360.0
+
+    def _leggi_bussola(self, gradi, quando=None):
+        """Mi segno la bussola letta (dall'IA o dalla mappa) e i passi del mouse di QUEL momento."""
+        passi = self._passi_x()
+        if quando is not None:
+            for tt, pp in reversed(self.storia_passi):
+                if tt <= quando:
+                    passi = pp
+                    break
+        self.bussola_rif = (float(gradi) % 360.0, passi)
+
     def _tasto_slot(self, n):
         """Lo slot n dell'inventario -> il tasto (1 = piccone, 2 = arma_1 ... 6 = arma_5)."""
         nome = "piccone" if n == 1 else "arma_%d" % (n - 1)
@@ -993,13 +1023,24 @@ class Cervello:
         sono_dentro = bool(dentro) and sum(dentro) * 2 > len(dentro)
         al_bordo = bool(bordo) and sum(bordo) * 2 > len(bordo)
         scelta = Counter(sicura).most_common(1)[0][0] if sicura else None
-        if (sono_dentro and not al_bordo) or scelta == "HERE":
-            self.log("Mappa: sono dentro la zona sicura (voti: %s)" % ", ".join(sicura or ["?"]))
+        if gradi_bussola:
+            self._leggi_bussola(angolo_medio(gradi_bussola))       # i passi di adesso: non ho girato
+        if scelta == "HERE":
+            self.log("Mappa: sono al centro della zona sicura (voti: %s)" % ", ".join(sicura))
+            self.scappo_fino = 0.0
+            self.rotta = None
+            return "sono nella zona sicura"
+        if sono_dentro and not al_bordo:
+            # dentro: niente corsa, ma esplorando tengo la rotta verso il centro (lontano dal mare
+            # e dalla tempesta)
+            self.rotta = BUSSOLA[scelta] if scelta in BUSSOLA else self.rotta
+            self.log("Mappa: sono dentro la zona sicura; esplorando vado verso il centro (%s)" % (scelta or "?"))
             self.scappo_fino = 0.0
             return "sono nella zona sicura"
         if scelta is None or not gradi_bussola:
             self.log("Mappa: le IA non capiscono da che parte andare (%d risposte)" % len(risposte))
             return "guardo la mappa"
+        self.rotta = BUSSOLA[scelta]
         guardo = angolo_medio(gradi_bussola)
         giro = (BUSSOLA[scelta] - guardo + 180.0) % 360.0 - 180.0
         self.log("Mappa: la zona sicura e' a %s (voti: %s), io guardo a %.0f gradi -> giro di %.0f gradi e corro" % (
@@ -1100,6 +1141,14 @@ class Cervello:
         scritta = self._guarda_mappa(t, "Sono in acqua")
         if scritta and scritta not in ("sono nella zona sicura", "guardo la mappa"):
             return scritta
+        guardo = self.guardo_verso()
+        if self.rotta is not None and guardo is not None:
+            giro = (self.rotta - guardo + 180.0) % 360.0 - 180.0
+            self.log("Sono in acqua: torno verso il centro della zona sicura (giro di %.0f gradi)" % giro)
+            self._cammina()
+            self.esecutore.gira(giro)
+            self.scappo_fino = t + float(self.fort.get("corsa_fuori_acqua", 8) or 8)
+            return "torno a terra"
         self.log("Sono in acqua: mi giro dove c'e' la terra e ci vado")
         self._cammina()
         direzioni = 8
@@ -1577,10 +1626,23 @@ class Cervello:
             scritta = self._guarda_mappa(t, "Controllo")
             if scritta:
                 return scritta
+        guardo = self.guardo_verso()
+        errore_rotta = None
+        if self.rotta is not None and guardo is not None:
+            errore_rotta = (self.rotta - guardo + 180.0) % 360.0 - 180.0
+            if abs(errore_rotta) > 100 and t >= self.prossimo_riallineo and t - self.ultimo_sblocco > 6.0:
+                # sono girato dalla parte sbagliata (dopo una cassa, un nemico...): torno sulla rotta
+                self.prossimo_riallineo = t + 5.0
+                self.log("Riprendo la rotta verso il centro della zona sicura (giro di %.0f gradi)" % errore_rotta)
+                self.esecutore.gira(errore_rotta)
+                self._cammina(avanti=True, corri=bool(self.espl.get("corri", True)))
+                return "riprendo la rotta"
         if self.ia is not None and t >= self.prossima_svolta_ia:
             c = self.ia.consiglio(t)
-            if (c is not None and c.fase == "playing" and c.esplora in ("left", "right", "behind")
-                    and c.numero != self.ultimo_consiglio_esplora):
+            svolta = {"left": -60, "right": 60, "behind": 180}.get(c.esplora if c is not None else "", 0)
+            if errore_rotta is not None and abs((errore_rotta - svolta + 180.0) % 360.0 - 180.0) > 90:
+                svolta = 0                        # mi porterebbe lontano dalla rotta (verso il mare): no
+            if (c is not None and c.fase == "playing" and svolta and c.numero != self.ultimo_consiglio_esplora):
                 # l'IA vede da che parte ci sono case e bottino: vado di la'
                 self.ultimo_consiglio_esplora = c.numero
                 self.prossima_svolta_ia = t + float(self.fort.get("svolta_ia_ogni_secondi", 6) or 6)
@@ -1592,11 +1654,15 @@ class Cervello:
                 return "esploro (IA)"
         # giro intorno a se', lento e fluido, cosi' guarda in ogni direzione (cerca casse e nemici)
         velocita_giro = float(self.espl.get("velocita_giro_gradi", 120) or 120)
+        if errore_rotta is not None:
+            self.giro_fino = 0.0                  # con la rotta niente giri a 360: vado dove devo
         if t < self.giro_fino:
             self._cammina(avanti=True)            # si guarda intorno senza fermarsi
             self._muovi(self.passi_per_giro * velocita_giro / 360.0 * dt, 0, fluido=True)
             return "mi guardo intorno"
         ogni = float(self.espl.get("guarda_intorno_ogni", 12) or 0)
+        if errore_rotta is not None:
+            ogni = 0.0
         if ogni > 0 and self.ia is not None:
             # con l'IA il giro completo serve meno (lei guarda e dice da che parte andare)
             ogni = max(ogni, float(self.espl.get("guarda_intorno_ogni_con_ia", 40) or 40))
@@ -1605,8 +1671,11 @@ class Cervello:
             self.giro_fino = t + 360.0 / velocita_giro
             return "mi guardo intorno"
 
-        # corre con una leggera curva che cambia ogni tanto (cosi' scopre posti nuovi)
-        if t >= self.prossima_deriva:
+        # con la rotta: sterzo dolcemente verso il centro della zona sicura (prima andava a caso e
+        # finiva sempre sulla costa, in acqua). Senza: una leggera curva che cambia ogni tanto
+        if errore_rotta is not None:
+            self.deriva = max(-30.0, min(30.0, errore_rotta * 0.8)) * self.passi_per_giro / 360.0
+        elif t >= self.prossima_deriva:
             self.prossima_deriva = t + random.uniform(1.5, 4.0)
             self.deriva = random.uniform(-1.0, 1.0) * self.passi_per_giro / 360.0 * 15.0   # fino a 15 gradi/s
         dy = 0.0

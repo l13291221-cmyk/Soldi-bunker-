@@ -1341,6 +1341,34 @@ class TestLogicaFortnite(ConCartella):
         img = mondo.foto()
         self.assertTrue(cerv.passo(occhi.analizza(img), img).startswith("vado verso cassa"))
 
+    def test_tiene_la_rotta_verso_il_centro(self):
+        """Dalla mappa sa dov'e' il centro della zona sicura: esplorando ci va (prima girava a caso e
+        finiva in acqua). Sa dove guarda contando quanto ha girato col mouse."""
+        mani, mondo, occhi, cerv = self._cervello(fase="playing")
+        cerv.prossima_mappa_periodica = time.monotonic() + 999
+        cerv.prossimo_guardarsi = time.monotonic() + 999
+        cerv._leggi_bussola(0)                                                    # guardo a nord
+        self.assertAlmostEqual(cerv.guardo_verso(), 0, delta=0.5)
+        mani.muovi(4800 / 4, 0)                                                   # giro di 90 gradi a destra
+        self.assertAlmostEqual(cerv.guardo_verso(), 90, delta=0.5)
+        cerv.rotta = 0                                                            # devo andare a nord
+        t = time.monotonic()
+        scritta = self._passo(mondo, occhi, cerv, t)                              # 90 gradi di errore: sterza
+        prima = mani.mosso_x
+        for i in range(1, 30):
+            self._passo(mondo, occhi, cerv, t + i * 0.1)
+        self.assertLess(mani.mosso_x, prima)                                      # gira a sinistra (verso nord)
+        self.assertLess(abs(cerv.guardo_verso() - 0) % 360, 60)
+        self.assertNotEqual(scritta, "mi guardo intorno")
+        # girato al contrario (dopo una cassa): riprende la rotta con un giro solo
+        cerv._leggi_bussola(180)
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 10), "riprendo la rotta")
+
+    def test_bussola_letta_dall_ia(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", bussola=270)
+        self._passo(mondo, occhi, cerv)
+        self.assertAlmostEqual(cerv.guardo_verso(), 270, delta=1)
+
     def test_bussola_e_conti(self):
         from cervello import angolo_medio, mappa_con_bussola
         self.assertAlmostEqual(angolo_medio([350, 10]) % 360, 0, delta=0.01)       # non 180!
