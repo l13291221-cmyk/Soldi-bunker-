@@ -1080,6 +1080,12 @@ class FintaIA:
         self.validita_fase = 45
         self.fidati_casse = True
         self.foto = 0
+        self.risposte_mappa = None             # se c'e', sa anche guardare la mappa (chiedi_voto)
+
+    def __getattr__(self, nome):
+        if nome == "chiedi_voto" and self.__dict__.get("risposte_mappa") is not None:
+            return lambda img, domanda, quante=3, attesa=20.0: list(self.risposte_mappa)
+        raise AttributeError(nome)
 
     def guarda(self, img):
         self.foto += 1
@@ -1202,6 +1208,59 @@ class TestLogicaFortnite(ConCartella):
         self.assertNotEqual(self._passo(mondo, occhi, cerv), "scappo dalla tempesta")   # una volta sola
         mani, mondo, occhi, cerv = self._cervello(fase="playing", muro=True)
         self.assertEqual(self._passo(mondo, occhi, cerv), "evito il muro")
+
+    def test_prende_l_arma_se_ha_il_piccone(self):
+        """L'IA vede il piccone in mano: preme 2, poi (se c'e' ancora) 3... finche' non ha l'arma."""
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", ha_arma=True)
+        t = time.monotonic()
+        self._passo(mondo, occhi, cerv, t)
+        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+        c = cerv.ia.c
+        c.numero, c.quando = 2, t + 3
+        self._passo(mondo, occhi, cerv, t + 3)                                    # ancora il piccone
+        self.assertIn("giu tasto 0x%02X" % CODICI["3"], mani.storia)
+        c.numero, c.quando, c.in_mano = 3, t + 6, "weapon"
+        self._passo(mondo, occhi, cerv, t + 6)
+        self.assertEqual(cerv.tentativi_arma, 0)
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", ha_arma=False)
+        self._passo(mondo, occhi, cerv)                                           # niente armi: lascia stare
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+
+    def test_scritta_apri_tiene_premuto_e(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", prompt="open")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "apro la cassa (IA)")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        self.assertEqual(cerv.statistiche["casse_partita"], 1)
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", prompt="zipline")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "prendo la zipline")
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", prompt="other")   # "Parla": no
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+
+    def test_va_verso_la_cassa_che_vede_l_ia(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", obiettivo=("chest", 0.8, 0.5))
+        mondo.oggetti.append((330, 220, 14, 14, ORO))                       # punta dorata del piccone (finta)
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "vado verso una cassa (IA)")
+        self.assertGreater(mani.mosso_x, 0)                                       # si gira a destra
+        self.assertTrue(mani.e_premuto("avanti"))
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 0.5), "vado verso una cassa (IA)")   # continua
+
+    def test_guarda_la_mappa_e_vince_la_maggioranza(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True, direzione="right")
+        cerv.ia.risposte_mappa = [{"inside": False, "direction": "left"}, {"inside": False, "direction": "right"},
+                                  {"inside": False, "direction": "left"}]
+        self.assertEqual(self._passo(mondo, occhi, cerv), "vado verso la zona sicura (mappa)")
+        self.assertEqual(mani.storia.count("giu tasto 0x%02X" % CODICI["m"]), 2)   # apre e chiude la mappa
+        self.assertLess(mani.mosso_x, 0)                                          # 2 su 3: a sinistra
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True)
+        cerv.ia.risposte_mappa = [{"inside": True, "near_edge": False, "direction": "ahead"}] * 3
+        self.assertEqual(self._passo(mondo, occhi, cerv), "sono nella zona sicura")
+
+    def test_cielo_rosa_non_e_la_tempesta(self):
+        from cervello import viola
+        img = np.full((360, 640, 3), 60, np.uint8)
+        img[:160] = VIOLA                                                         # tramonto: cielo viola
+        self.assertLess(viola(img), 0.05)
 
     def test_partite_in_loop(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing")

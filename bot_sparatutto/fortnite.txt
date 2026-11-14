@@ -260,6 +260,20 @@ RARITA' (il colore dell'alone e della cornice)
 
 
 ---------------------------------------------------------------------
+10b. LE SCRITTE SULLO SCHERMO (cosa fare)
+---------------------------------------------------------------------
+- Vicino alle cose compare una scritta col tasto da premere (E):
+  "Apri" (cassa, cassa delle munizioni, rifornimento) -> tieni premuto E;
+  "Raccogli" (arma o oggetto per terra) -> premi E;
+  la ZIPLINE (cavo teso tra due punti alti) -> premi E per aggrapparti, scorri da
+  solo fino all'altra parte; SPAZIO per staccarti prima.
+- In mano devi avere un'ARMA per sparare (tasti 2-6). Col PICCONE (tasto 1) il
+  tasto sinistro da' solo colpi di piccone. Appena atterrato premi 2.
+- Consiglio: nelle impostazioni di Fortnite attiva "Raccolta automatica delle
+  armi": camminandoci sopra le armi si prendono da sole.
+
+
+---------------------------------------------------------------------
 11. MUOVERSI SULLA MAPPA
 ---------------------------------------------------------------------
 - Correre e scivolare in discesa e' veloce. In acqua si nuota piu' lenti e si e'
@@ -267,7 +281,11 @@ RARITA' (il colore dell'alone e della cornice)
 - VEICOLI: macchine e barche sono veloci ma rumorose (si sentono e si vedono).
   E per salire e scendere.
 - Altre cose che spostano: rampe di lancio, fenditure (ti teletrasportano in
-  aria e apri il deltaplano), funi/zipline, oggetti di movimento della stagione.
+  aria e apri il deltaplano), zipline, oggetti di movimento della stagione.
+- GRANATA IMPULSO: lanciata vicino a te ti spara in aria (per scappare o salire).
+- LA MAPPA (M): la freccia e' il tuo personaggio (punta dove guardi), il cerchio
+  BIANCO e' la zona sicura. Il bot la apre ogni tanto e chiede a 3 IA da che parte
+  andare: vince la maggioranza.
 - Posti con nome (citta', baie...): piu' bottino ma piu' nemici. Posti piccoli
   lontani dal percorso del bus: meno nemici.
 - (STAGIONE) Posti visti nelle foto: Baia Baccano, Rogue Town, Mulini, Porto,

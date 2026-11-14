@@ -117,7 +117,9 @@ DOMANDA = (
     '"button": {"x": 0.5, "y": 0.9} or null, "cursor": {"x": 0.5, "y": 0.5} or null, '
     '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close", '
     '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null, '
-    '"spectating": true|false}\n'
+    '"spectating": true|false, "holding": "pickaxe|weapon|healing|other|unknown", "has_weapon": true|false, '
+    '"prompt": "none|open|pick_up|zipline|other", '
+    '"target": {"what": "chest|weapon|ammo_box", "x": 0.5, "y": 0.7} or null}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -144,7 +146,28 @@ DOMANDA = (
     "game is not visible. pc_button = ONLY when screen is remote_play: where to click on the screen to "
     "connect again to the PS5 (the OK button of a message, the console name button like 'PS5-123', "
     "'Riprova'/'Retry'), as fractions of screen width and height; null if it asks for a number/code or "
-    "for an update."
+    "for an update. "
+    "holding = what the player's character has in hand now (the highlighted slot of the inventory at the "
+    "bottom right; the first slot is the pickaxe). has_weapon = there is at least one gun in the inventory. "
+    "prompt = the interaction prompt written near the center of the screen: open = 'Apri'/'Open' (chest, "
+    "ammo box, supply drop), pick_up = 'Raccogli'/'Pick up' (an item on the ground), zipline = grab a "
+    "zipline, other = anything else (talk, doors, vehicles...). target = the most useful thing to go to "
+    "now in the 3D world, with its center as fractions of screen width and height: the nearest CLOSED "
+    "chest; if there is none, a weapon on the ground (when the player has few weapons) or an ammo box; "
+    "null if nothing."
+)
+
+# la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
+DOMANDA_MAPPA = (
+    "This is the big map of Fortnite (opened with M). The player is the ARROW-shaped marker (white, with "
+    "a colored outline); the arrow points where the player is looking. The safe zone is inside the WHITE "
+    "circle (the next one, if there are two circles); outside the circle there is the storm (purple). "
+    "Answer ONLY with one JSON object, no other text:\n"
+    '{"inside": true|false, "near_edge": true|false, '
+    '"direction": "ahead|ahead_right|right|behind_right|behind|behind_left|left|ahead_left|unknown"}\n'
+    "inside = the player arrow is inside the white circle. near_edge = the arrow is close to the edge of "
+    "the circle. direction = which way the player must go to reach the center of the safe zone, RELATIVE "
+    "to where the arrow points (ahead = the way the arrow points). unknown if you cannot see the arrow."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
@@ -154,6 +177,11 @@ TASTI = ("none", "space", "enter", "esc", "e", "f")
 NOMI_TASTI = {"space": "spazio", "enter": "invio", "esc": "esc", "e": "e", "f": "f"}
 DIREZIONI = ("left", "right", "ahead", "behind", "unknown")
 SCHERMI = ("game", "ps5_who_is_using", "remote_play", "desktop")
+IN_MANO = ("pickaxe", "weapon", "healing", "other", "unknown")
+PROMPT = ("none", "open", "pick_up", "zipline", "other")
+OBIETTIVI = ("chest", "weapon", "ammo_box")
+DIREZIONI_MAPPA = {"ahead": 0, "ahead_right": 45, "right": 90, "behind_right": 135, "behind": 180,
+                   "behind_left": -135, "left": -90, "ahead_left": -45}
 
 
 class Consiglio:
@@ -162,8 +190,12 @@ class Consiglio:
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
                  pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
-                 osservo=False):
+                 osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None):
         self.fase = fase
+        self.in_mano = in_mano            # pickaxe / weapon / healing / other / unknown
+        self.ha_arma = ha_arma            # True/False: ha almeno un'arma nell'inventario (None = non so)
+        self.prompt = prompt              # scritta sullo schermo: open / pick_up / zipline / other / none
+        self.obiettivo = obiettivo        # (cosa, x, y): la cassa (o l'arma) piu' utile, dove sta
         self.osservo = osservo            # eliminato: guardo un ALTRO giocatore (non sono io!)
         self.schermo = schermo            # game / ps5_who_is_using / remote_play / desktop
         self.pulsante_pc = pulsante_pc    # dove cliccare col mouse del PC (Remote Play), oppure None
@@ -225,6 +257,17 @@ def _scegli(v, ammessi, predefinito):
     return predefinito
 
 
+def _obiettivo(v):
+    """{"what": "chest", "x": 0.4, "y": 0.7} -> ("chest", 0.4, 0.7), oppure None."""
+    if not isinstance(v, dict):
+        return None
+    cosa = _scegli(v.get("what"), OBIETTIVI, "")
+    punto = _punto(v)
+    if not cosa or punto is None:
+        return None
+    return (cosa,) + tuple(punto)
+
+
 def _punto(v):
     """{"x": 0.5, "y": 0.9} oppure [0.5, 0.9] -> (0.5, 0.9); None se non e' un punto dello schermo."""
     try:
@@ -245,6 +288,21 @@ def togli_pensieri(testo):
     """Alcune IA scrivono prima il loro ragionamento (<thought>...</thought>): lo tolgo."""
     testo = re.sub(r"<(thought|think|thinking)>.*?</\1>", " ", str(testo or ""), flags=re.S | re.I)
     return re.sub(r"<(thought|think|thinking)>.*", " ", testo, flags=re.S | re.I)   # pensiero non finito
+
+
+def leggi_json(testo):
+    """Il primo oggetto JSON nel testo dell'IA (anche dentro ```json ... ```), oppure None."""
+    testo = togli_pensieri(testo)
+    m = re.search(r"\{.*\}", testo, re.S)
+    if not m:
+        return None
+    for prova in (m.group(0), m.group(0).replace("'", '"')):
+        try:
+            dati = json.loads(prova)
+            return dati if isinstance(dati, dict) else None
+        except ValueError:
+            continue
+    return None
 
 
 def leggi_risposta(testo, quando=0.0, fornitore=""):
@@ -284,7 +342,11 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         compagno=_scegli(dati.get("downed_teammate"), VEICOLO, "none"),
         schermo=_scegli(dati.get("screen"), SCHERMI, "game"),
         pulsante_pc=_punto(dati.get("pc_button")),
-        osservo=_si(dati.get("spectating", False)))
+        osservo=_si(dati.get("spectating", False)),
+        in_mano=_scegli(dati.get("holding"), IN_MANO, "unknown"),
+        ha_arma=_si(dati["has_weapon"]) if "has_weapon" in dati else None,
+        prompt=_scegli(dati.get("prompt"), PROMPT, "none"),
+        obiettivo=_obiettivo(dati.get("target")))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA
@@ -554,6 +616,40 @@ class IA:
                 self.errori[f["nome"]] = adesso + riposo
                 self.log("IA %s: %s (riprovo tra %d s, intanto uso le altre)" % (f["nome"], e, riposo))
         return None
+
+    def chiedi_voto(self, img, domanda, quante=3, attesa=20.0):
+        """Fa la stessa domanda a piu' IA veloci INSIEME e restituisce le risposte (dizionari):
+        chi chiama decide a maggioranza. Le IA che riposano (finite le domande) non le chiede."""
+        adesso = time.monotonic()
+        pronte = [f for f in self.fornitori if self.errori.get(f["nome"], 0) <= adesso]
+        veloci = [f for f in pronte if f["tipo"] != "ollama" and not f["nome"].startswith("gemma")]
+        scelte = (veloci or pronte)[:max(1, int(quante))]
+        if not scelte:
+            return []
+        foto = jpeg_base64(img, 1024, 80)
+        risposte = []
+        blocco = threading.Lock()
+
+        def chiedi_a(f):
+            try:
+                url, intest, corpo = richiesta(f, foto, domanda, lunghezza=300)
+                dati = leggi_json(testo_della_risposta(f, self.invia(url, intest, corpo, min(attesa, f["attesa"]))))
+                if dati:
+                    with blocco:
+                        risposte.append(dict(dati, _ia=f["nome"]))
+            except Exception as e:
+                if "429" in str(e):
+                    volte = self.finite.get(f["nome"], 0) + 1
+                    self.finite[f["nome"]] = volte
+                    self.errori[f["nome"]] = time.monotonic() + min(1800.0, 60.0 * 2 ** (volte - 1))
+        fili = [threading.Thread(target=chiedi_a, args=(f,), daemon=True) for f in scelte]
+        for filo in fili:
+            filo.start()
+        fine = time.monotonic() + attesa
+        for filo in fili:
+            filo.join(max(0.0, fine - time.monotonic()))
+        with blocco:
+            return list(risposte)
 
     def _lavora(self):
         prossima = 0.0

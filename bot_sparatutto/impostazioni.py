@@ -18,6 +18,13 @@ PREDEFINITE = {
     # cose da Fortnite che fa con l'IA che guarda
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
+        "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "campo_visivo_gradi": 80,        # quanto si vede da sinistra a destra (per girarsi verso le casse)
+        "guarda_mappa": True,            # con l'IA: apre la mappa (M) per capire dov'e' la zona sicura
+        "mappa_ogni_secondi": 60,        # ogni quanto la controlla anche se va tutto bene (0 = solo tempesta)
+        "mappa_non_prima_di_secondi": 20,
+        "mappa_attesa_secondi": 1.3,     # quanto aspetta che la mappa si apra prima della foto
+        "mappa_quante_ia": 3,            # quante IA guardano la mappa insieme: vince la maggioranza
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
         "aspetta_riavvio_secondi": 90,   # eliminato in squadra: aspetta che lo riportino col furgone, poi esce
         "pulsante_giallo": True,         # clicca il pulsante grande e giallo "Gioca di nuovo" (senza IA)

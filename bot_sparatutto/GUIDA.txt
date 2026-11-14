@@ -87,6 +87,12 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   zero_costruzioni: true). Se giochi con le costruzioni scrivi false.
 - Usa un piccone SENZA parti dorate o gialle luminose: il bot cerca le casse anche
   dal colore oro, e la punta dorata del piccone lo confonde.
+- In Fortnite attiva "Raccolta automatica delle armi" (Impostazioni del gioco):
+  camminandoci sopra le armi si prendono da sole.
+- Con l'IA collegata il bot: prende l'arma se vede il piccone in mano (prova i
+  tasti 2, 3, 4...), preme E se sullo schermo c'e' "Apri", "Raccogli" o una
+  zipline, va verso la cassa che vede l'IA, e guarda la MAPPA (M) ogni minuto e
+  quando c'e' la tempesta: 3 IA dicono da che parte andare, vince la maggioranza.
 - titolo_finestra_gioco: scrivi il nome del gioco (come appare nella barra
   della finestra). Cosi' se passi a un'altra finestra il bot si ferma da solo.
   CONSIGLIATO.

@@ -20,6 +20,7 @@ Per riuscirci, ogni fotogramma segue questo ordine (il primo che vale vince):
 import math
 import random
 import time
+from collections import Counter
 
 import cv2
 import numpy as np
@@ -40,7 +41,11 @@ def _cfg(cfg, sezione):
 
 
 def viola(img):
-    """Quanta parte dello schermo e' viola (0-1): la tempesta di Fortnite colora tutto di viola."""
+    """Quanta parte dello schermo e' viola (0-1): la tempesta di Fortnite colora tutto di viola.
+    Guardo solo la parte BASSA (il terreno): al tramonto il CIELO e' rosa/viola anche fuori dalla
+    tempesta, e il bot "impazziva" credendosi dentro."""
+    H = img.shape[0]
+    img = img[int(0.45 * H):int(0.88 * H)]
     piccola = cv2.resize(img, (96, 54), interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(piccola, cv2.COLOR_BGR2HSV)
     h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
@@ -82,6 +87,12 @@ def trova_pulsante_giallo(img):
     k = W / float(lw)
     x, y, w, h = migliore
     return ((x + w / 2.0) * k, (y + h / 2.0) * k, w * k, h * k)
+
+
+NOMI_OBIETTIVI = {"chest": "una cassa", "weapon": "un'arma per terra", "ammo_box": "una cassa di munizioni"}
+NOMI_DIREZIONI = {"ahead": "dritto", "ahead_right": "avanti a destra", "right": "a destra",
+                  "behind_right": "dietro a destra", "behind": "dietro", "behind_left": "dietro a sinistra",
+                  "left": "a sinistra", "ahead_left": "avanti a sinistra"}
 
 
 class Conferma:
@@ -199,6 +210,15 @@ class Cervello:
         self.prossima_cura = 0.0
         self.ultimo_colpo = 0.0           # quando mi hanno colpito l'ultima volta
         self.prossimo_cambio_arma = 0.0
+        self.prossimo_cambio_arma_ia = 0.0
+        self.tentativi_arma = 0           # quante volte ho provato a prendere l'arma (tasti 2, 3, 4...)
+        self.prossimo_prompt = 0.0        # ultima volta che ho premuto E per una scritta (Apri, Raccogli...)
+        self.verso_obiettivo_fino = 0.0   # sto andando verso la cassa/arma che ha visto l'IA
+        self.obiettivo_ia = None
+        self.prossima_mappa = 0.0         # non guardo la mappa troppo spesso
+        self.prossima_mappa_periodica = time.monotonic() + 30.0
+        self.ultima_fase = None
+        self.mirando_da = None            # da quando miro questo nemico
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
         self.errore_mira = (0.0, 0.0)     # stile: di quanto sbaglia la mira adesso
         self.prossimo_errore = 0.0
@@ -435,6 +455,12 @@ class Cervello:
                 self.attesa_da = t
         else:
             self.attesa_da = None
+        if c.fase == "playing" and self.ultima_fase in ("bus", "falling"):
+            self.log("Atterrato: prendo l'arma in mano e tra poco guardo la mappa")
+            if self.mani.esiste("arma_1"):
+                self.mani.premi("arma_1", 0.08)
+            self.prossima_mappa_periodica = t + 10.0
+        self.ultima_fase = c.fase
         if c.fase in ("bus", "falling", "playing"):
             self.in_partita = True
         if c.fase == "bus":
@@ -646,7 +672,8 @@ class Cervello:
         return "porto il cursore sul pulsante"
 
     def _tattica_ia(self, vis, t):
-        """In partita: l'IA dice se le casse sono vere, se c'e' un muro, dov'e' la tempesta."""
+        """In partita l'IA dice: cosa ho in mano, le scritte (Apri, Raccogli, zipline), dov'e' la cassa
+        vera, se c'e' un muro, se la tempesta e' vicina (allora guardo la mappa)."""
         if self.ia is None:
             return None
         c = self.ia.consiglio(t)
@@ -655,12 +682,26 @@ class Cervello:
         scritta = self._auto(c, vis, t)
         if scritta:
             return scritta
-        if c.cassa == "none" and self.ia.fidati_casse and vis.casse:
-            vis.oggetti["cassa"] = []            # l'IA non vede casse: quelle trovate col colore sono finte
         nuovo = c.numero != self.ultimo_consiglio
         self.ultimo_consiglio = c.numero
-        if not nuovo or vis.nemici:
-            return None                          # ogni consiglio si usa una volta, e i nemici vengono prima
+        if nuovo:
+            self._controlla_arma(c, t)
+        if self.ia.fidati_casse and vis.casse:
+            # le casse trovate col COLORE (oro) tengo solo se l'IA vede davvero una cassa li': la punta
+            # dorata del piccone, le icone gialle e le lampadine le scambiava per casse
+            if c.obiettivo is not None and c.obiettivo[0] == "chest":
+                x = c.obiettivo[1] * vis.larghezza
+                vis.oggetti["cassa"] = [b for b in vis.casse if abs(b.cx - x) < 0.12 * vis.larghezza]
+            elif c.cassa == "none":
+                vis.oggetti["cassa"] = []
+        if vis.nemici:
+            return None                          # i nemici vengono prima
+        if t < self.verso_obiettivo_fino and not vis.casse:
+            # tra una risposta dell'IA e l'altra continuo verso la cassa (o l'arma) che ha visto
+            self._cammina(avanti=True)
+            return "vado verso %s (IA)" % NOMI_OBIETTIVI.get(self.obiettivo_ia, "l'obiettivo")
+        if not nuovo:
+            return None                          # ogni consiglio si usa una volta
         if c.compagno != "none" and self.fort.get("rianima_compagni", True):
             if c.compagno == "close" and self.mani.esiste("interagisci"):
                 self.log("IA: un compagno e' a terra vicino -> lo rianimo")
@@ -680,6 +721,10 @@ class Cervello:
             self._cammina()
             if self._esegui_macro(self.vita_cfg.get("macro_cura", "cura"), "IA: ho poca vita"):
                 return "mi curo"
+        if c.prompt in ("open", "pick_up", "zipline") and self.fort.get("usa_le_scritte", True):
+            scritta = self._usa_scritta(c, t)
+            if scritta:
+                return scritta
         if (c.veicolo == "close" and self.fort.get("usa_veicoli", True) and t >= self.niente_auto_fino
                 and not vis.casse and self.mani.esiste("interagisci")):
             self.log("IA: c'e' una macchina vicina -> salgo")
@@ -687,24 +732,139 @@ class Cervello:
             self.mani.premi("interagisci", 0.1)
             self.niente_auto_fino = t + 5.0
             return "salgo in macchina"
-        if c.tempesta and c.direzione in ("left", "right", "behind"):
-            gradi = {"left": -90, "right": 90, "behind": 180}[c.direzione]
-            self.log("IA: la tempesta e' vicina -> vado verso la zona sicura")
-            self._cammina()
-            self.esecutore.gira(gradi)
-            self._cammina(avanti=True, corri=True)
-            self.giro_fino = 0.0
-            self.prossimo_guardarsi = t + 10.0
-            return "scappo dalla tempesta"
+        if c.tempesta:
+            # per sapere DOVE andare guardo la mappa (prima tirava a indovinare girandosi intorno)
+            scritta = self._guarda_mappa(t, "L'IA dice che la tempesta e' vicina")
+            if scritta:
+                return scritta
+            if t >= self.prossima_mappa and c.direzione in ("left", "right", "behind"):
+                # la mappa non si puo' guardare: faccio come dice l'IA guardando lo schermo
+                self.log("IA: la tempesta e' vicina -> vado verso la zona sicura")
+                self._cammina()
+                self.esecutore.gira({"left": -90, "right": 90, "behind": 180}[c.direzione])
+                self._cammina(avanti=True, corri=True)
+                self.giro_fino = 0.0
+                self.prossimo_guardarsi = t + 10.0
+                return "scappo dalla tempesta"
         if c.muro and not vis.casse:
             self.log("IA: ho un muro davanti -> giro")
             self._cammina()
             self.esecutore.gira(random.choice((-1, 1)) * random.uniform(70, 120))
             return "evito il muro"
+        if c.obiettivo is not None and not vis.casse and self.racc.get("casse", True):
+            cosa, x, y = c.obiettivo
+            if cosa != "chest" and not self.racc.get("armi", True):
+                return None
+            gradi = (x - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
+            if abs(gradi) > 5:
+                self.esecutore.gira(gradi)
+            # piu' e' in alto sullo schermo, piu' e' lontana: cammino di piu' prima della prossima risposta
+            self.verso_obiettivo_fino = t + 1.0 + 1.5 * max(0.0, min(1.0, (0.85 - y) / 0.5))
+            if cosa != self.obiettivo_ia:
+                self.log("IA: vedo %s -> ci vado" % NOMI_OBIETTIVI[cosa])
+            self.obiettivo_ia = cosa
+            self._cammina(avanti=True)
+            return "vado verso %s (IA)" % NOMI_OBIETTIVI[cosa]
         if c.cassa in ("left", "right") and not vis.casse:
             self.esecutore.gira(-35 if c.cassa == "left" else 35)
             return "giro verso la cassa che vede l'IA"
         return None
+
+    def _controlla_arma(self, c, t):
+        """L'IA vede cosa ho in mano: se e' il piccone (e ho un'arma) prendo l'arma. Provo i tasti
+        dell'inventario uno dopo l'altro (2, 3, 4...) finche' l'IA non vede un'arma in mano."""
+        if c.in_mano == "weapon":
+            self.tentativi_arma = 0
+            return
+        if (c.fase != "playing" or c.in_mano not in ("pickaxe", "other") or c.ha_arma is False
+                or not self.comb.get("prendi_arma", True) or t < self.prossimo_cambio_arma_ia):
+            return
+        # i tasti dell'inventario uno dopo l'altro; se nessuno funziona, la rotella del mouse
+        tasti = [k for k in ("arma_1", "arma_2", "arma_3", "arma_4", "arma_5", "rotella_giu") if self.mani.esiste(k)]
+        if not tasti:
+            return
+        self.prossimo_cambio_arma_ia = t + 2.0
+        tasto = tasti[self.tentativi_arma % len(tasti)]
+        self.tentativi_arma += 1
+        self.log("IA: in mano ho %s -> prendo un'arma (%s)" % (
+            "il piccone" if c.in_mano == "pickaxe" else "un'altra cosa", tasto))
+        self.mani.premi(tasto, 0.08)
+
+    def _usa_scritta(self, c, t):
+        """Sullo schermo c'e' "Apri" (cassa), "Raccogli" (arma per terra) o una zipline: premo E
+        (per aprire lo tengo premuto un po')."""
+        if t < self.prossimo_prompt or not self.mani.esiste("interagisci"):
+            return None
+        self.prossimo_prompt = t + 1.5
+        self._spara(False)
+        self._cammina()
+        tieni = c.prompt == "open"
+        nome = {"open": "Apri", "pick_up": "Raccogli", "zipline": "zipline"}[c.prompt]
+        self.log("IA: sullo schermo c'e' '%s' -> %s E" % (nome, "tengo premuto" if tieni else "premo"))
+        self.mani.giu("interagisci")
+        try:
+            self.esecutore.dormi(float(self.racc.get("tempo_apertura_cassa", 1.2)) if tieni else 0.12)
+        finally:
+            self.mani.su("interagisci")
+        self.verso_obiettivo_fino = 0.0
+        self.obiettivo_ia = None
+        if c.prompt == "open":
+            self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
+            self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
+            n = self.statistiche["casse_partita"]
+            self.log("Cassa aperta! (in questa partita: %d)" % n)
+            if self.obiettivo.tipo == "casse_n" and n == self.obiettivo.casse:
+                self.log("Obiettivo raggiunto: %d casse! Ora gioco per vincere." % n)
+            if self.racc.get("raccogli_dopo_cassa", True):
+                self._raccogli_bottino()
+            return "apro la cassa (IA)"
+        if c.prompt == "pick_up":
+            self.statistiche["armi"] = self.statistiche.get("armi", 0) + 1
+            return "raccolgo (IA)"
+        return "prendo la zipline"
+
+    def _guarda_mappa(self, t, motivo):
+        """Apro la mappa (M), faccio la foto, la chiudo e chiedo a PIU' IA insieme da che parte e' la
+        zona sicura: vince la MAGGIORANZA. Poi mi giro da quella parte e corro."""
+        if (self.ia is None or not hasattr(self.ia, "chiedi_voto") or not self.mani.esiste("mappa")
+                or not self.fort.get("guarda_mappa", True) or t < self.prossima_mappa):
+            return None
+        from ia import DIREZIONI_MAPPA, DOMANDA_MAPPA, _si
+        self.prossima_mappa = t + float(self.fort.get("mappa_non_prima_di_secondi", 20) or 20)
+        self.log("%s: guardo la mappa per capire dov'e' la zona sicura" % motivo)
+        self._spara(False)
+        self._cammina()
+        self.mani.premi("mappa", 0.1)
+        self.esecutore.dormi(float(self.fort.get("mappa_attesa_secondi", 1.3) or 1.3))
+        foto = self.esecutore.foto_fresca()
+        self.mani.premi("mappa", 0.1)                 # la richiudo
+        self.esecutore.dormi(0.4)
+        if foto is None:
+            return None
+        risposte = self.ia.chiedi_voto(foto, DOMANDA_MAPPA, int(self.fort.get("mappa_quante_ia", 3) or 3))
+        voti = [str(r.get("direction", "")).strip().lower() for r in risposte]
+        voti = [v for v in voti if v in DIREZIONI_MAPPA]
+        dentro = [_si(r.get("inside")) for r in risposte if "inside" in r]
+        bordo = [_si(r.get("near_edge")) for r in risposte if "near_edge" in r]
+        sono_dentro = bool(dentro) and sum(dentro) * 2 > len(dentro)
+        al_bordo = bool(bordo) and sum(bordo) * 2 > len(bordo)
+        if sono_dentro and not al_bordo:
+            self.log("Mappa: sono dentro la zona sicura (%d IA su %d)" % (sum(dentro), len(dentro)))
+            self.scappo_fino = 0.0
+            return "sono nella zona sicura"
+        if not voti:
+            self.log("Mappa: le IA non capiscono da che parte andare (%d risposte)" % len(risposte))
+            return "guardo la mappa"
+        scelta, quanti = Counter(voti).most_common(1)[0]
+        self.log("Mappa: vado %s (voti: %s -> vince la maggioranza, %d su %d)" % (
+            NOMI_DIREZIONI[scelta], ", ".join(NOMI_DIREZIONI[v] for v in voti), quanti, len(voti)))
+        if DIREZIONI_MAPPA[scelta]:
+            self.esecutore.gira(DIREZIONI_MAPPA[scelta])
+        self.scappo_fino = t + float(self.fort.get("corsa_fuori_tempesta", 10) or 10)
+        self.giro_fino = 0.0
+        self.prossimo_guardarsi = t + 15.0
+        self.mini_prec = None
+        return "vado verso la zona sicura (mappa)"
 
     def _auto(self, c, vis, t):
         """In macchina: guida (verso la zona sicura se c'e' la tempesta) e scende quando serve."""
@@ -749,6 +909,11 @@ class Cervello:
         quanto = viola(img)
         if quanto < float(self.fort.get("tempesta_soglia_viola", 0.35) or 0.35):
             return None
+        scritta = self._guarda_mappa(t, "Sono nella tempesta (%.0f%% viola)" % (quanto * 100))
+        if scritta:
+            return scritta
+        if self.ia is not None and t < self.prossima_mappa:
+            return None                       # ho appena guardato la mappa: seguo quella
         self.log("Sono nella tempesta (%.0f%% viola): cerco la zona sicura" % (quanto * 100))
         self._cammina()
         direzioni = 8
@@ -875,6 +1040,7 @@ class Cervello:
         if self.bersaglio is None:
             # nemico appena visto: con lo stile Normale/Tranquillo ci mette un attimo a reagire
             self.reazione_fino = t + self.stile.reazione
+            self.mirando_da = t
             # in mano un'arma, non il piccone (se ce l'ha)
             if self.comb.get("prendi_arma", True) and t >= self.prossimo_cambio_arma and \
                     self.mani.esiste("arma_1"):
@@ -912,7 +1078,12 @@ class Cervello:
         if self.sparando_da is not None:      # gia' sparo: un po' piu' di margine
             tol_x *= 1.5
             tol_y *= 1.5
-        allineato = abs(ex) <= tol_x and abs(ey) <= tol_y and t >= self.reazione_fino
+        # con PS Remote Play l'immagine arriva in ritardo e la mira "balla" intorno al nemico: se dopo
+        # mezzo secondo e' quasi sopra di lui, sparo lo stesso (prima mirava e basta, senza sparare)
+        quasi = abs(ex) <= max(tol_x, 0.6 * b.w) and abs(ey) <= max(tol_y, 0.35 * b.h)
+        da_quanto = t - (self.mirando_da if self.mirando_da is not None else t)
+        allineato = ((abs(ex) <= tol_x and abs(ey) <= tol_y) or
+                     (quasi and da_quanto >= float(self.mira.get("spara_quasi_dopo", 0.5)))) and t >= self.reazione_fino
         if self.mira.get("mira_col_tasto_destro") and self.mani.esiste("mira"):
             self.mani.giu("mira")
         if allineato:
@@ -1149,8 +1320,11 @@ class Cervello:
             return False
         self.t_mini = t
         H, W = img.shape[:2]
-        centro = img[int(0.3 * H):int(0.8 * H), int(0.25 * W):int(0.75 * W)]
-        mini = cv2.resize(cv2.cvtColor(centro, cv2.COLOR_BGR2GRAY), (48, 28), interpolation=cv2.INTER_AREA)
+        # i due lati dello schermo (senza il mio personaggio al centro: la sua corsa si muove anche
+        # quando sono bloccato contro un muro, e il bot non se ne accorgeva)
+        lati = np.hstack([img[int(0.3 * H):int(0.85 * H), int(0.04 * W):int(0.3 * W)],
+                          img[int(0.3 * H):int(0.85 * H), int(0.7 * W):int(0.96 * W)]])
+        mini = cv2.resize(cv2.cvtColor(lati, cv2.COLOR_BGR2GRAY), (48, 28), interpolation=cv2.INTER_AREA)
         if not sto_camminando:
             self.ultimo_mosso = t
             self.fermo_conta = 0
@@ -1207,6 +1381,12 @@ class Cervello:
         return True
 
     def _esplora(self, vis, t, dt, img):
+        ogni_mappa = float(self.fort.get("mappa_ogni_secondi", 60) or 0)
+        if ogni_mappa > 0 and self.ia is not None and t >= self.prossima_mappa_periodica:
+            self.prossima_mappa_periodica = t + ogni_mappa
+            scritta = self._guarda_mappa(t, "Controllo")
+            if scritta:
+                return scritta
         # giro intorno a se', lento e fluido, cosi' guarda in ogni direzione (cerca casse e nemici)
         velocita_giro = float(self.espl.get("velocita_giro_gradi", 120) or 120)
         if t < self.giro_fino:
