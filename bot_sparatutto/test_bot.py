@@ -1245,6 +1245,21 @@ class TestLogicaFortnite(ConCartella):
         self.assertTrue(mani.e_premuto("avanti"))
         self.assertEqual(self._passo(mondo, occhi, cerv, t + 0.5), "vado verso una cassa (IA)")   # continua
 
+    def test_cerca_le_casse_nelle_case(self):
+        """Niente casse in vista: va verso la casa piu' vicina; in caduta si dirige verso le case;
+        davanti a una porta preme E."""
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", obiettivo=("building", 0.2, 0.4))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "vado verso una casa (dentro ci sono le casse) (IA)")
+        self.assertLess(mani.mosso_x, 0)                                          # la casa e' a sinistra
+        mani, mondo, occhi, cerv = self._cervello(fase="falling", obiettivo=("building", 0.85, 0.7))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "cado verso terra")
+        self.assertGreater(mani.mosso_x, 0)                                       # case a destra: ci va
+        self.assertTrue(mani.e_premuto("avanti"))
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", prompt="door")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "apro la porta")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        self.assertEqual(cerv.statistiche.get("casse_partita", 0), 0)              # una porta non e' una cassa
+
     def test_guarda_la_mappa_e_vince_la_maggioranza(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True, direzione="right")
         cerv.ia.risposte_mappa = [{"inside": False, "direction": "left"}, {"inside": False, "direction": "right"},

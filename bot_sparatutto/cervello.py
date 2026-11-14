@@ -89,7 +89,8 @@ def trova_pulsante_giallo(img):
     return ((x + w / 2.0) * k, (y + h / 2.0) * k, w * k, h * k)
 
 
-NOMI_OBIETTIVI = {"chest": "una cassa", "weapon": "un'arma per terra", "ammo_box": "una cassa di munizioni"}
+NOMI_OBIETTIVI = {"chest": "una cassa", "weapon": "un'arma per terra", "ammo_box": "una cassa di munizioni",
+                  "building": "una casa (dentro ci sono le casse)"}
 NOMI_DIREZIONI = {"ahead": "dritto", "ahead_right": "avanti a destra", "right": "a destra",
                   "behind_right": "dietro a destra", "behind": "dietro", "behind_left": "dietro a sinistra",
                   "left": "a sinistra", "ahead_left": "avanti a sinistra"}
@@ -218,6 +219,7 @@ class Cervello:
         self.prossima_mappa = 0.0         # non guardo la mappa troppo spesso
         self.prossima_mappa_periodica = time.monotonic() + 30.0
         self.ultima_fase = None
+        self.ultimo_consiglio_caduta = 0
         self.mirando_da = None            # da quando miro questo nemico
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
         self.errore_mira = (0.0, 0.0)     # stile: di quanto sbaglia la mira adesso
@@ -473,6 +475,14 @@ class Cervello:
             return "sul bus"
         if c.fase == "falling":
             self._spara(False)
+            if (c.obiettivo is not None and c.obiettivo[0] in ("building", "chest")
+                    and c.numero != self.ultimo_consiglio_caduta and self.racc.get("casse", True)):
+                # cado verso il gruppo di case piu' vicino: dentro le case ci sono le casse
+                self.ultimo_consiglio_caduta = c.numero
+                gradi = (c.obiettivo[1] - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
+                if abs(gradi) > 8:
+                    self.esecutore.gira(gradi)
+                    self.log("IA: in caduta vedo delle case -> ci vado (dentro ci sono le casse)")
             self._cammina(avanti=True)           # in caduta: avanti (il deltaplano si apre da solo)
             return "cado verso terra"
         if c.fase in ("menu", "dead"):
@@ -721,7 +731,7 @@ class Cervello:
             self._cammina()
             if self._esegui_macro(self.vita_cfg.get("macro_cura", "cura"), "IA: ho poca vita"):
                 return "mi curo"
-        if c.prompt in ("open", "pick_up", "zipline") and self.fort.get("usa_le_scritte", True):
+        if c.prompt in ("open", "pick_up", "zipline", "door") and self.fort.get("usa_le_scritte", True):
             scritta = self._usa_scritta(c, t)
             if scritta:
                 return scritta
@@ -753,7 +763,7 @@ class Cervello:
             return "evito il muro"
         if c.obiettivo is not None and not vis.casse and self.racc.get("casse", True):
             cosa, x, y = c.obiettivo
-            if cosa != "chest" and not self.racc.get("armi", True):
+            if cosa == "weapon" and not self.racc.get("armi", True):
                 return None
             gradi = (x - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
             if abs(gradi) > 5:
@@ -799,7 +809,7 @@ class Cervello:
         self._spara(False)
         self._cammina()
         tieni = c.prompt == "open"
-        nome = {"open": "Apri", "pick_up": "Raccogli", "zipline": "zipline"}[c.prompt]
+        nome = {"open": "Apri", "pick_up": "Raccogli", "zipline": "zipline", "door": "porta"}[c.prompt]
         self.log("IA: sullo schermo c'e' '%s' -> %s E" % (nome, "tengo premuto" if tieni else "premo"))
         self.mani.giu("interagisci")
         try:
@@ -821,6 +831,9 @@ class Cervello:
         if c.prompt == "pick_up":
             self.statistiche["armi"] = self.statistiche.get("armi", 0) + 1
             return "raccolgo (IA)"
+        if c.prompt == "door":
+            self._cammina(avanti=True)          # apro la porta ed entro (dentro le case ci sono le casse)
+            return "apro la porta"
         return "prendo la zipline"
 
     def _guarda_mappa(self, t, motivo):

@@ -118,8 +118,8 @@ DOMANDA = (
     '"key": "none|space|enter|esc|e|f", "downed_teammate": "none|left|center|right|close", '
     '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null, '
     '"spectating": true|false, "holding": "pickaxe|weapon|healing|other|unknown", "has_weapon": true|false, '
-    '"prompt": "none|open|pick_up|zipline|other", '
-    '"target": {"what": "chest|weapon|ammo_box", "x": 0.5, "y": 0.7} or null}\n'
+    '"prompt": "none|open|pick_up|zipline|door|other", '
+    '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -151,10 +151,11 @@ DOMANDA = (
     "bottom right; the first slot is the pickaxe). has_weapon = there is at least one gun in the inventory. "
     "prompt = the interaction prompt written near the center of the screen: open = 'Apri'/'Open' (chest, "
     "ammo box, supply drop), pick_up = 'Raccogli'/'Pick up' (an item on the ground), zipline = grab a "
-    "zipline, other = anything else (talk, doors, vehicles...). target = the most useful thing to go to "
+    "zipline, door = open a door, other = anything else (talk, vehicles...). target = the most useful thing to go to "
     "now in the 3D world, with its center as fractions of screen width and height: the nearest CLOSED "
     "chest; if there is none, a weapon on the ground (when the player has few weapons) or an ammo box; "
-    "null if nothing."
+    "if none of these is visible, the nearest house or building to search inside (chests are inside "
+    "houses), also while skydiving or gliding (the nearest group of houses below); null if nothing."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
@@ -178,8 +179,8 @@ NOMI_TASTI = {"space": "spazio", "enter": "invio", "esc": "esc", "e": "e", "f": 
 DIREZIONI = ("left", "right", "ahead", "behind", "unknown")
 SCHERMI = ("game", "ps5_who_is_using", "remote_play", "desktop")
 IN_MANO = ("pickaxe", "weapon", "healing", "other", "unknown")
-PROMPT = ("none", "open", "pick_up", "zipline", "other")
-OBIETTIVI = ("chest", "weapon", "ammo_box")
+PROMPT = ("none", "open", "pick_up", "zipline", "door", "other")
+OBIETTIVI = ("chest", "weapon", "ammo_box", "building")
 DIREZIONI_MAPPA = {"ahead": 0, "ahead_right": 45, "right": 90, "behind_right": 135, "behind": 180,
                    "behind_left": -135, "left": -90, "ahead_left": -45}
 
