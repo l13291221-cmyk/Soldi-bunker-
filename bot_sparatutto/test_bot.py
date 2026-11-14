@@ -138,8 +138,9 @@ class TestMani(unittest.TestCase):
         self.assertEqual(m.risolvi("costruisci"), ("tasto", CODICI["f1"]))   # costruisci -> muro -> F1
         self.assertEqual(m.risolvi("pavimento"), ("tasto", CODICI["f2"]))
         self.assertEqual(m.risolvi("interagisci"), ("tasto", CODICI["e"]))
-        self.assertEqual(m.risolvi("arma_1"), ("tasto", CODICI["2"]))
-        self.assertEqual(m.risolvi("cura"), ("tasto", CODICI["6"]))           # cura -> arma_5 -> 6
+        self.assertEqual(m.risolvi("piccone"), ("tasto", CODICI["f"]))       # Fortnite adesso: F piccone
+        self.assertEqual(m.risolvi("arma_1"), ("tasto", CODICI["1"]))        # ...e 1-5 gli slot
+        self.assertEqual(m.risolvi("cura"), ("tasto", CODICI["5"]))           # cura -> arma_5 -> 5
         self.assertEqual(m.risolvi("spara"), ("mouse", 1))
 
     def test_mouse_con_virgola(self):
@@ -520,7 +521,7 @@ class TestCervello(ConCartella):
                     primo = i * 0.1
         self.assertIsNotNone(primo)
         self.assertLess(primo, 1.5)                                  # prima ci metteva 2 secondi
-        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)   # la prima volta: piccone
+        self.assertIn("giu tasto 0x%02X" % CODICI["f"], mani.storia)   # la prima volta: piccone (F)
         self.assertIn("giu mouse 1", mani.storia)                        # ...e sfonda
         giri = [g for g in giri if g]
         self.assertGreaterEqual(len(giri), 2)
@@ -681,7 +682,7 @@ class TestCasseVere(ConCartella):
         self.assertEqual(cerv.passo(occhi.analizza(img), img), "apro cassa")
         self.assertEqual(cerv.statistiche["casse"], 1)
         self.assertGreaterEqual(mani.storia.count("giu tasto 0x%02X" % CODICI["e"]), 4)   # raccoglie il bottino
-        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)                      # prende l'arma
+        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)                      # prende l'arma
 
     def test_cassa_che_non_si_apre_la_lascia_stare(self):
         cfg = cfg_test(raccolta={"tempo_apertura_cassa": 0.06, "tentativi_per_cassa": 2},
@@ -1214,17 +1215,17 @@ class TestLogicaFortnite(ConCartella):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", ha_arma=True)
         t = time.monotonic()
         self._passo(mondo, occhi, cerv, t)
-        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)
         c = cerv.ia.c
         c.numero, c.quando = 2, t + 3
         self._passo(mondo, occhi, cerv, t + 3)                                    # ancora il piccone
-        self.assertIn("giu tasto 0x%02X" % CODICI["3"], mani.storia)
+        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
         c.numero, c.quando, c.in_mano = 3, t + 6, "weapon"
         self._passo(mondo, occhi, cerv, t + 6)
         self.assertEqual(cerv.tentativi_arma, 0)
         mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", ha_arma=False)
         self._passo(mondo, occhi, cerv)                                           # niente armi: lascia stare
-        self.assertNotIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)
 
     def test_scritta_apri_tiene_premuto_e(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", prompt="open")
@@ -1249,8 +1250,8 @@ class TestLogicaFortnite(ConCartella):
         # in mano lo slot 1 (piccone), l'arma migliore e' nello slot 4 -> preme 4
         mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", slot=1, slot_arma=4)
         self._passo(mondo, occhi, cerv)
-        self.assertIn("giu tasto 0x%02X" % CODICI["4"], mani.storia)
-        self.assertNotIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+        self.assertIn("giu tasto 0x%02X" % CODICI["3"], mani.storia)          # slot 4 = arma_3 = tasto 3
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)
         # un nemico vicino a destra che l'occhio veloce non vede: si gira e prende l'arma
         mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="weapon", slot=2, slot_arma=2,
                                                   nemico_xy=(0.85, 0.45, True))
@@ -1267,7 +1268,7 @@ class TestLogicaFortnite(ConCartella):
         cerv.fort["cura_secondi"] = 0.1
         self.assertEqual(self._passo(mondo, occhi, cerv), "mi curo")
         storia = " | ".join(mani.storia)
-        self.assertLess(storia.index("giu tasto 0x%02X" % CODICI["5"]), storia.rindex("giu tasto 0x%02X" % CODICI["2"]))
+        self.assertLess(storia.index("giu tasto 0x%02X" % CODICI["4"]), storia.rindex("giu tasto 0x%02X" % CODICI["1"]))
         self.assertIn("giu mouse 1", mani.storia)                                  # tiene premuto per curarsi
 
     def test_esplora_dove_dice_l_ia(self):
@@ -1292,14 +1293,61 @@ class TestLogicaFortnite(ConCartella):
 
     def test_guarda_la_mappa_e_vince_la_maggioranza(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True, direzione="right")
-        cerv.ia.risposte_mappa = [{"inside": False, "direction": "left"}, {"inside": False, "direction": "right"},
-                                  {"inside": False, "direction": "left"}]
+        # guardo a 90 gradi (est); 2 IA su 3: la zona sicura e' a NORD -> giro di 90 gradi a sinistra
+        cerv.ia.risposte_mappa = [{"inside": False, "heading": 90, "safe": "N"},
+                                  {"inside": False, "heading": 92, "safe": "S"},
+                                  {"inside": False, "heading": 88, "safe": "n"}]
         self.assertEqual(self._passo(mondo, occhi, cerv), "vado verso la zona sicura (mappa)")
         self.assertEqual(mani.storia.count("giu tasto 0x%02X" % CODICI["m"]), 2)   # apre e chiude la mappa
-        self.assertLess(mani.mosso_x, 0)                                          # 2 su 3: a sinistra
+        self.assertAlmostEqual(mani.mosso_x, -0.25 * 4800, delta=40)            # -90 gradi
         mani, mondo, occhi, cerv = self._cervello(fase="playing", tempesta=True)
-        cerv.ia.risposte_mappa = [{"inside": True, "near_edge": False, "direction": "ahead"}] * 3
+        cerv.ia.risposte_mappa = [{"inside": True, "near_edge": False, "heading": 10, "safe": "here"}] * 3
         self.assertEqual(self._passo(mondo, occhi, cerv), "sono nella zona sicura")
+
+    def test_torna_a_terra_se_e_in_acqua(self):
+        """Sulle foto VERE: nuotando la parte bassa e' blu acqua, a terra no. In acqua torna a terra
+        girandosi verso dove all'orizzonte c'e' meno mare."""
+        from cervello import acqua
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        nuota = cv2.imread(os.path.join(cartella, "foto_20261113_122047_00043.jpg"))
+        terra = cv2.imread(os.path.join(cartella, "foto_20261113_141108_00007.jpg"))
+        if nuota is None or terra is None:
+            self.skipTest("foto non presenti")
+        self.assertGreater(acqua(nuota), 0.8)
+        self.assertLess(acqua(terra), 0.1)
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        MARE = (200, 140, 30)                                                     # blu acqua (BGR)
+        # tutto mare tranne la terra (da 1200 a 1800 del panorama = dietro di me)
+        mondo.oggetti += [(0, -400, 1200, 1200, MARE), (1800, -400, 600, 1200, MARE)]
+        cerv.prossimo_guardarsi = time.monotonic() + 999
+        t = time.monotonic()
+        scritte = []
+        for i in range(4):
+            img = mondo.foto()
+            scritte.append(cerv.passo(occhi.analizza(img), img, t + i * 1.1))
+        self.assertIn("torno a terra", scritte)
+        self.assertAlmostEqual(mondo.x_visuale(), 1200, delta=40)                  # girato verso la terra
+
+    def test_riflesso_dorato_sul_mare_non_e_una_cassa(self):
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        MARE = (200, 140, 30)
+        mondo.oggetti += [(200, 150, 300, 210, MARE), (330, 220, 30, 18, ORO)]       # sole sul mare
+        cerv.prossimo_guardarsi = time.monotonic() + 999
+        img = mondo.foto()
+        self.assertFalse(cerv.passo(occhi.analizza(img), img).startswith("vado verso cassa"))
+        mondo.oggetti = [(330, 220, 40, 30, ORO)]                                  # sulla terra: si'
+        img = mondo.foto()
+        self.assertTrue(cerv.passo(occhi.analizza(img), img).startswith("vado verso cassa"))
+
+    def test_bussola_e_conti(self):
+        from cervello import angolo_medio, mappa_con_bussola
+        self.assertAlmostEqual(angolo_medio([350, 10]) % 360, 0, delta=0.01)       # non 180!
+        self.assertAlmostEqual(angolo_medio([170, 190]), 180, delta=0.01)
+        foto = mappa_con_bussola(np.zeros((720, 1280, 3), np.uint8), np.zeros((720, 1280, 3), np.uint8))
+        self.assertEqual(foto.shape[1], 1024)
+        self.assertGreater(foto.shape[0], 576)                                    # la mappa + la bussola sotto
 
     def test_cielo_rosa_non_e_la_tempesta(self):
         from cervello import viola
@@ -1388,7 +1436,7 @@ class TestLogicaFortnite(ConCartella):
     def test_si_cura_se_l_ia_vede_poca_vita(self):
         mani, mondo, occhi, cerv = self._cervello(fase="playing", poca_vita=True)
         self.assertEqual(self._passo(mondo, occhi, cerv), "mi curo")
-        self.assertIn("giu tasto 0x%02X" % CODICI["6"], mani.storia)          # cura = arma_5 = tasto 6
+        self.assertIn("giu tasto 0x%02X" % CODICI["5"], mani.storia)          # cura = arma_5 = tasto 5
 
     def test_non_resta_fermo_se_l_ia_e_lenta(self):
         """L'IA lenta aveva detto 'menu' un minuto fa, ma ora si gioca: il bot non deve restare fermo."""

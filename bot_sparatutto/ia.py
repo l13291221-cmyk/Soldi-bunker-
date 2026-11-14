@@ -164,20 +164,22 @@ DOMANDA = (
     "close enemies, rifle for far ones, any gun if unsure; 1 only if there is no gun). heal_slot = the slot "
     "of a healing or shield item, or null. enemy_xy = the nearest enemy player in the 3D world (not the own "
     "character, not teammates), close = near the player; null if none. explore = which way to go to find "
-    "houses and loot (ahead if unsure)."
+    "houses and loot ON LAND: never toward the sea or a lake (ahead if unsure)."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
 DOMANDA_MAPPA = (
-    "This is the big map of Fortnite (opened with M). The player is the ARROW-shaped marker (white, with "
-    "a colored outline); the arrow points where the player is looking. The safe zone is inside the WHITE "
-    "circle (the next one, if there are two circles); outside the circle there is the storm (purple). "
+    "The TOP image is the big map of Fortnite: NORTH IS UP. The player is the ARROW-shaped marker (white, "
+    "with a colored outline). The safe zone is inside the WHITE circle (if there are two circles, the "
+    "smaller one is the next safe zone); outside it there is the storm (purple). The BOTTOM strip is the "
+    "game's COMPASS: the number in the middle is the direction the player is looking, in degrees "
+    "(0 = north, 90 = east, 180 = south, 270 = west).\n"
     "Answer ONLY with one JSON object, no other text:\n"
-    '{"inside": true|false, "near_edge": true|false, '
-    '"direction": "ahead|ahead_right|right|behind_right|behind|behind_left|left|ahead_left|unknown"}\n'
-    "inside = the player arrow is inside the white circle. near_edge = the arrow is close to the edge of "
-    "the circle. direction = which way the player must go to reach the center of the safe zone, RELATIVE "
-    "to where the arrow points (ahead = the way the arrow points). unknown if you cannot see the arrow."
+    '{"heading": 195, "inside": true|false, "near_edge": true|false, '
+    '"safe": "N|NE|E|SE|S|SW|W|NW|here"}\n'
+    "heading = the number in the middle of the compass. inside = the player marker is inside the white "
+    "circle. near_edge = it is close to the edge of the circle. safe = the direction ON THE MAP (north up) "
+    "from the player marker to the CENTER of the white circle; here = the player is already near the center."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
@@ -192,6 +194,8 @@ PROMPT = ("none", "open", "pick_up", "zipline", "door", "other")
 OBIETTIVI = ("chest", "weapon", "ammo_box", "building")
 DIREZIONI_MAPPA = {"ahead": 0, "ahead_right": 45, "right": 90, "behind_right": 135, "behind": 180,
                    "behind_left": -135, "left": -90, "ahead_left": -45}
+# la bussola: dove sta la zona sicura sulla mappa (nord in alto) -> gradi
+BUSSOLA = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SW": 225, "W": 270, "NW": 315}
 
 
 class Consiglio:

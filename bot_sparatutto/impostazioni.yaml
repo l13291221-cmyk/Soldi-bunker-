@@ -96,12 +96,13 @@ tasti:
   mira: mouse_destro          # mirino (zoom)
   ricarica: r
   interagisci: e              # apri casse (armi e materiali), raccogli armi
-  piccone: "1"                # strumento per raccogliere materiali
-  arma_1: "2"
-  arma_2: "3"
-  arma_3: "4"
-  arma_4: "5"
-  arma_5: "6"
+  # Inventario come nel Fortnite di adesso (lo vedi scritto sotto gli slot): F piccone, 1-5 armi
+  piccone: f                  # strumento per raccogliere materiali
+  arma_1: "1"
+  arma_2: "2"
+  arma_3: "3"
+  arma_4: "4"
+  arma_5: "5"
   cura: arma_5                # lo slot dove tieni le cure
   # --- costruzione ---
   muro: f1

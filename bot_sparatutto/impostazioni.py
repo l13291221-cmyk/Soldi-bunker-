@@ -19,12 +19,15 @@ PREDEFINITE = {
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "evita_acqua": True,             # se nuota (fuori dalla tempesta) torna a terra
+        "acqua_soglia": 0.5,             # parte bassa dello schermo blu acqua per dire "sono in acqua"
+        "corsa_fuori_acqua": 8,
         "cura_secondi": 5,               # quanto tiene premuto per usare una cura (slot detto dall'IA)
         "svolta_ia_ogni_secondi": 6,     # esplorando: ogni quanto segue l'IA che dice da che parte andare
         "campo_visivo_gradi": 80,        # quanto si vede da sinistra a destra (per girarsi verso le casse)
         "guarda_mappa": True,            # con l'IA: apre la mappa (M) per capire dov'e' la zona sicura
         "mappa_ogni_secondi": 60,        # ogni quanto la controlla anche se va tutto bene (0 = solo tempesta)
-        "mappa_non_prima_di_secondi": 20,
+        "mappa_non_prima_di_secondi": 15,
         "mappa_attesa_secondi": 1.3,     # quanto aspetta che la mappa si apra prima della foto
         "mappa_quante_ia": 3,            # quante IA guardano la mappa insieme: vince la maggioranza
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
@@ -76,7 +79,8 @@ PREDEFINITE = {
         "avanti": "w", "indietro": "s", "sinistra": "a", "destra": "d",
         "salta": "spazio", "accovacciati": "ctrl", "corri": "shift",
         "spara": "mouse_sinistro", "mira": "mouse_destro", "ricarica": "r", "interagisci": "e",
-        "piccone": "1", "arma_1": "2", "arma_2": "3", "arma_3": "4", "arma_4": "5", "arma_5": "6",
+        # i tasti di Fortnite adesso (novembre 2026, visti sotto l'inventario): F piccone, 1-5 slot
+        "piccone": "f", "arma_1": "1", "arma_2": "2", "arma_3": "3", "arma_4": "4", "arma_5": "5",
         "muro": "f1", "pavimento": "f2", "scale": "f3", "tetto": "f4", "trappola": "f5",
         "modifica": "g", "costruisci": "muro",
         "mappa": "m", "inventario": "i", "emote": "b",
@@ -192,6 +196,10 @@ def unisci(base, sopra):
     return risultato
 
 
+TASTI_INVENTARIO_VECCHI = {"piccone": "1", "arma_1": "2", "arma_2": "3", "arma_3": "4", "arma_4": "5", "arma_5": "6"}
+TASTI_INVENTARIO_NUOVI = {"piccone": "f", "arma_1": "1", "arma_2": "2", "arma_3": "3", "arma_4": "4", "arma_5": "5"}
+
+
 class ErroreImpostazioni(ValueError):
     pass
 
@@ -232,6 +240,12 @@ def carica(cartella):
         cfg = unisci(cfg, {"ia": ia})
     # i tasti scritti come numeri (1, 2...) diventano testo
     cfg["tasti"] = {str(k): str(v) for k, v in (cfg.get("tasti") or {}).items() if v is not None}
+    # i file vecchi avevano 1 = piccone e 2-6 = armi: in Fortnite adesso il piccone e' F e gli slot 1-5
+    # (premendo "2" per prendere l'arma il bot sceglieva uno slot vuoto e restava col piccone)
+    if (all(cfg["tasti"].get(k) == v for k, v in TASTI_INVENTARIO_VECCHI.items())
+            and not (cfg.get("fortnite") or {}).get("tasti_inventario_vecchi")):
+        cfg["tasti"].update(TASTI_INVENTARIO_NUOVI)
+        cfg["tasti_aggiornati"] = True
     return cfg
 
 

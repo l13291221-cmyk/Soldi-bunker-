@@ -210,6 +210,10 @@ def avvia(modo=None):
         if modulo_ia.collega_gratis(BASE, cfg, log, solo_se_mancano=True):
             cfg = impostazioni.carica(BASE)
     sch = cfg.get("schermo", {}) or {}
+    if cfg.get("tasti_aggiornati"):
+        log("Tasti dell'inventario aggiornati come nel Fortnite di adesso: F = piccone, 1-5 = armi "
+            "(se nel tuo gioco sono ancora 1 = piccone e 2-6 = armi, in impostazioni.yaml scrivi "
+            "tasti_inventario_vecchi: true sotto fortnite)")
     mani = crea_mani(cfg, log, modo)
     log("Comandi: %s" % mani.nome_modo)
     schermo = Schermo(int(sch.get("monitor", 1) or 1), sch.get("zona_cattura"))

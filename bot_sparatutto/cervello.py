@@ -53,6 +53,33 @@ def viola(img):
     return float(np.count_nonzero(m)) / m.size
 
 
+def acqua(img, alto=0.55, basso=0.9):
+    """Quanta parte (0-1) della striscia di schermo e' blu ACQUA. In basso (0.55-0.9): quando il
+    personaggio nuota e' sopra 0.8, a terra sotto 0.1 (misurato sulle foto vere). All'orizzonte
+    (0.38-0.6) serve per capire da che parte c'e' la terra."""
+    H, W = img.shape[:2]
+    z = img[int(alto * H):int(basso * H), int(0.1 * W):int(0.9 * W)]
+    p = cv2.resize(z, (96, 40), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(p, cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    m = (h >= 85) & (h <= 112) & (s >= 70) & (v >= 70)
+    return float(np.count_nonzero(m)) / m.size
+
+
+def sull_acqua(img, b):
+    """La "cassa" trovata dal colore e' in mezzo all'acqua? (il riflesso dorato del sole sul mare:
+    il bot ci andava a nuoto). Guardo intorno e sotto la macchia."""
+    H, W = img.shape[:2]
+    x1, x2 = int(max(0, b.x - 1.5 * b.w)), int(min(W, b.x + 2.5 * b.w))
+    y1, y2 = int(max(0, b.y - 0.5 * b.h)), int(min(H, b.y + 3.0 * b.h))
+    if x2 - x1 < 4 or y2 - y1 < 4:
+        return False
+    hsv = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    m = (h >= 85) & (h <= 112) & (s >= 70) & (v >= 70)
+    return float(np.count_nonzero(m)) / m.size > 0.4
+
+
 def trova_pulsante_giallo(img):
     """Il pulsante grande e giallo ("Gioca di nuovo", "Gioca"): un rettangolo giallo pieno, largo,
     nella parte destra dello schermo (non in alto). -> (cx, cy, w, h) in pixel, oppure None."""
@@ -92,6 +119,28 @@ def trova_pulsante_giallo(img):
     k = W / float(lw)
     x, y, w, h = migliore
     return ((x + w / 2.0) * k, (y + h / 2.0) * k, w * k, h * k)
+
+
+def mappa_con_bussola(mappa, gioco=None, larghezza=1024):
+    """Una foto sola per l'IA: sopra la mappa, sotto la striscia della bussola presa dal gioco
+    (il numero in alto al centro = dove guardo)."""
+    H, W = mappa.shape[:2]
+    sopra = cv2.resize(mappa, (larghezza, max(1, int(H * larghezza / float(W)))), interpolation=cv2.INTER_AREA)
+    if gioco is None:
+        return sopra
+    h, w = gioco.shape[:2]
+    striscia = gioco[0:max(1, int(0.075 * h)), int(0.3 * w):int(0.7 * w)]
+    sh, sw = striscia.shape[:2]
+    sotto = cv2.resize(striscia, (larghezza, max(1, int(sh * larghezza / float(sw)))), interpolation=cv2.INTER_CUBIC)
+    riga = np.full((6, larghezza, 3), 255, np.uint8)
+    return np.vstack([sopra, riga, sotto])
+
+
+def angolo_medio(gradi):
+    """La media di direzioni in gradi (350 e 10 -> 0, non 180)."""
+    x = sum(math.cos(math.radians(g)) for g in gradi)
+    y = sum(math.sin(math.radians(g)) for g in gradi)
+    return math.degrees(math.atan2(y, x)) % 360.0
 
 
 NOMI_OBIETTIVI = {"chest": "una cassa", "weapon": "un'arma per terra", "ammo_box": "una cassa di munizioni",
@@ -227,6 +276,8 @@ class Cervello:
         self.ultimo_consiglio_caduta = 0
         self.mirando_da = None            # da quando miro questo nemico
         self.cura_fino = 0.0              # mi sto curando: non cambio arma
+        self.prossimo_controllo_acqua = 0.0
+        self.in_acqua_da = None
         self.prossima_svolta_ia = 0.0     # esplorando: ogni tanto l'IA dice da che parte andare
         self.ultimo_consiglio_esplora = 0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
@@ -411,6 +462,11 @@ class Cervello:
 
         # 3b. tempesta (si vede dal viola): scappo verso dove c'e' meno viola
         scritta = self._tempesta(img, t)
+        if scritta:
+            return scritta
+
+        # 3c. in acqua (il mare ai bordi della mappa): torno a terra
+        scritta = self._acqua(img, t)
         if scritta:
             return scritta
 
@@ -695,11 +751,17 @@ class Cervello:
         if self.ia is None:
             return None
         c = self.ia.consiglio(t)
+        if c is None and self.ia.fidati_casse and getattr(self.ia, "attiva", True):
+            # l'IA non ha ancora risposto: le "casse" dal colore da sole sbagliano troppo (riflessi
+            # dorati sul mare, il piccone, le lampadine): aspetto lei
+            vis.oggetti["cassa"] = []
         if c is None or c.fase not in ("playing", "unknown"):
             return None
         scritta = self._auto(c, vis, t)
         if scritta:
             return scritta
+        if t < self.scappo_fino:
+            return None                          # scappo dalla tempesta: niente case, casse o giri
         nuovo = c.numero != self.ultimo_consiglio
         self.ultimo_consiglio = c.numero
         if nuovo:
@@ -894,45 +956,60 @@ class Cervello:
         return "prendo la zipline"
 
     def _guarda_mappa(self, t, motivo):
-        """Apro la mappa (M), faccio la foto, la chiudo e chiedo a PIU' IA insieme da che parte e' la
-        zona sicura: vince la MAGGIORANZA. Poi mi giro da quella parte e corro."""
+        """Per sapere dove andare: leggo la BUSSOLA (il numero in alto = dove guardo), apro la mappa (M),
+        faccio la foto e la chiudo. A PIU' IA insieme chiedo il numero della bussola e da che parte e'
+        la zona sicura SULLA MAPPA (nord in alto): vince la maggioranza. Il giro lo calcolo io:
+        direzione della zona sicura - direzione in cui guardo. Poi corro."""
         if (self.ia is None or not hasattr(self.ia, "chiedi_voto") or not self.mani.esiste("mappa")
                 or not self.fort.get("guarda_mappa", True) or t < self.prossima_mappa):
             return None
-        from ia import DIREZIONI_MAPPA, DOMANDA_MAPPA, _si
-        self.prossima_mappa = t + float(self.fort.get("mappa_non_prima_di_secondi", 20) or 20)
+        from ia import BUSSOLA, DOMANDA_MAPPA, _si
+        self.prossima_mappa = t + float(self.fort.get("mappa_non_prima_di_secondi", 15) or 15)
         self.log("%s: guardo la mappa per capire dov'e' la zona sicura" % motivo)
         self._spara(False)
         self._cammina()
+        gioco = self.esecutore.foto_fresca()          # la bussola si vede solo fuori dalla mappa
         self.mani.premi("mappa", 0.1)
         self.esecutore.dormi(float(self.fort.get("mappa_attesa_secondi", 1.3) or 1.3))
-        foto = self.esecutore.foto_fresca()
+        mappa = self.esecutore.foto_fresca()
         self.mani.premi("mappa", 0.1)                 # la richiudo
         self.esecutore.dormi(0.4)
-        if foto is None:
+        if mappa is None:
             return None
+        foto = mappa_con_bussola(mappa, gioco)
         risposte = self.ia.chiedi_voto(foto, DOMANDA_MAPPA, int(self.fort.get("mappa_quante_ia", 3) or 3))
-        voti = [str(r.get("direction", "")).strip().lower() for r in risposte]
-        voti = [v for v in voti if v in DIREZIONI_MAPPA]
         dentro = [_si(r.get("inside")) for r in risposte if "inside" in r]
         bordo = [_si(r.get("near_edge")) for r in risposte if "near_edge" in r]
+        sicura = [str(r.get("safe", "")).strip().upper() for r in risposte]
+        sicura = [v for v in sicura if v in BUSSOLA or v == "HERE"]
+        gradi_bussola = []
+        for r in risposte:
+            try:
+                g = float(r.get("heading"))
+            except (TypeError, ValueError):
+                continue
+            if 0 <= g <= 360:
+                gradi_bussola.append(g % 360)
         sono_dentro = bool(dentro) and sum(dentro) * 2 > len(dentro)
         al_bordo = bool(bordo) and sum(bordo) * 2 > len(bordo)
-        if sono_dentro and not al_bordo:
-            self.log("Mappa: sono dentro la zona sicura (%d IA su %d)" % (sum(dentro), len(dentro)))
+        scelta = Counter(sicura).most_common(1)[0][0] if sicura else None
+        if (sono_dentro and not al_bordo) or scelta == "HERE":
+            self.log("Mappa: sono dentro la zona sicura (voti: %s)" % ", ".join(sicura or ["?"]))
             self.scappo_fino = 0.0
             return "sono nella zona sicura"
-        if not voti:
+        if scelta is None or not gradi_bussola:
             self.log("Mappa: le IA non capiscono da che parte andare (%d risposte)" % len(risposte))
             return "guardo la mappa"
-        scelta, quanti = Counter(voti).most_common(1)[0]
-        self.log("Mappa: vado %s (voti: %s -> vince la maggioranza, %d su %d)" % (
-            NOMI_DIREZIONI[scelta], ", ".join(NOMI_DIREZIONI[v] for v in voti), quanti, len(voti)))
-        if DIREZIONI_MAPPA[scelta]:
-            self.esecutore.gira(DIREZIONI_MAPPA[scelta])
+        guardo = angolo_medio(gradi_bussola)
+        giro = (BUSSOLA[scelta] - guardo + 180.0) % 360.0 - 180.0
+        self.log("Mappa: la zona sicura e' a %s (voti: %s), io guardo a %.0f gradi -> giro di %.0f gradi e corro" % (
+            scelta, ", ".join(sicura), guardo, giro))
+        if abs(giro) > 5:
+            self.esecutore.gira(giro)
         self.scappo_fino = t + float(self.fort.get("corsa_fuori_tempesta", 10) or 10)
         self.giro_fino = 0.0
         self.prossimo_guardarsi = t + 15.0
+        self.verso_obiettivo_fino = 0.0
         self.mini_prec = None
         return "vado verso la zona sicura (mappa)"
 
@@ -1002,6 +1079,47 @@ class Cervello:
         self.prossimo_guardarsi = t + 15.0
         self.mini_prec = None
         return "scappo dalla tempesta"
+
+    def _acqua(self, img, t):
+        """Se nuoto (non per scappare dalla tempesta) torno a terra: guardo la mappa e vado verso il
+        centro della zona sicura (e' terra); se non posso, mi giro dove all'orizzonte c'e' meno mare."""
+        if (img is None or not self.fort.get("evita_acqua", True) or t < self.prossimo_controllo_acqua
+                or t < self.scappo_fino):
+            return None
+        self.prossimo_controllo_acqua = t + 1.0
+        if acqua(img) < float(self.fort.get("acqua_soglia", 0.5) or 0.5):
+            self.in_acqua_da = None
+            return None
+        if self.in_acqua_da is None:
+            self.in_acqua_da = t                  # aspetto un attimo: una pozzanghera o uno schizzo no
+            return None
+        if t - self.in_acqua_da < 1.5:
+            return None
+        self.in_acqua_da = None
+        self.prossimo_controllo_acqua = t + 8.0
+        scritta = self._guarda_mappa(t, "Sono in acqua")
+        if scritta and scritta not in ("sono nella zona sicura", "guardo la mappa"):
+            return scritta
+        self.log("Sono in acqua: mi giro dove c'e' la terra e ci vado")
+        self._cammina()
+        direzioni = 8
+        migliore, minimo = 0, acqua(img, 0.38, 0.6)
+        for i in range(1, direzioni):
+            self.esecutore.gira(360.0 / direzioni, durata=0.15)
+            self.esecutore.dormi(0.3)
+            foto = self.esecutore.foto_fresca()
+            if foto is None:
+                continue
+            q = acqua(foto, 0.38, 0.6)
+            if q < minimo:
+                migliore, minimo = i, q
+        self.esecutore.gira(360.0 / direzioni, durata=0.15)      # di nuovo dove ero partito
+        if migliore:
+            self.esecutore.gira(migliore * 360.0 / direzioni)
+        self.scappo_fino = t + float(self.fort.get("corsa_fuori_acqua", 8) or 8)
+        self.giro_fino = 0.0
+        self.mini_prec = None
+        return "torno a terra"
 
     def _solo_nemici_vicini(self):
         """Con l'obiettivo delle casse (o sopravvivere, o lo stile Tranquillo) i nemici lontani si ignorano."""
@@ -1244,6 +1362,8 @@ class Cervello:
         for tipo, attivo in (("cassa", "casse"), ("materiali", "casse_materiali"), ("arma", "armi")):
             if self.racc.get(attivo, True):
                 candidati += [(b, tipo) for b in vis.oggetti.get(tipo, [])]
+        if img is not None and self.fort.get("evita_acqua", True):
+            candidati = [(b, tipo) for b, tipo in candidati if not sull_acqua(img, b)]   # riflessi sul mare
         interazione = self.occhi.controlla_interazione(vis) if self.racc.get("immagine_interazione") else False
         if not candidati and not interazione:
             self.inseguo_da = None
