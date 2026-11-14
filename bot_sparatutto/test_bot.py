@@ -1484,6 +1484,19 @@ class TestPulsanteGiallo(ConCartella):
         self.assertIsNone(trova_pulsante_giallo(img))
         self.assertIsNone(trova_pulsante_giallo(np.full((360, 640, 3), GIALLO, np.uint8)))   # tutto giallo: no
 
+    def test_non_scambia_il_pass_battaglia_per_gioca_di_nuovo(self):
+        """Sulle foto VERE di fine partita: in basso a sinistra c'e' il giallo "Ottieni il pass
+        battaglia", a destra "Gioca di nuovo". Il bot cliccava il primo."""
+        from cervello import trova_pulsante_giallo
+        for nome in ("foto_20261113_121822_00022.jpg", "foto_20261113_121827_00023.jpg"):
+            img = cv2.imread(os.path.join(QUI, "foto_per_ia", "images", nome))
+            if img is None:
+                self.skipTest("foto di fine partita non presenti")
+            H, W = img.shape[:2]
+            cx, cy, w, h = trova_pulsante_giallo(img)
+            self.assertGreater(cx / W, 0.7, nome)                                 # quello a destra
+            self.assertAlmostEqual(cy / H, 0.49, delta=0.03)
+
     def _gioca(self, passi_per_pixel_vero):
         cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
         mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5})

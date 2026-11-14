@@ -54,8 +54,8 @@ def viola(img):
 
 
 def trova_pulsante_giallo(img):
-    """Il pulsante grande e giallo ("Gioca di nuovo", "Gioca"): un rettangolo giallo pieno,
-    largo, nella meta' bassa dello schermo. -> (cx, cy, w, h) in pixel, oppure None."""
+    """Il pulsante grande e giallo ("Gioca di nuovo", "Gioca"): un rettangolo giallo pieno, largo,
+    nella parte destra dello schermo (non in alto). -> (cx, cy, w, h) in pixel, oppure None."""
     H, W = img.shape[:2]
     lw = 320
     lh = max(1, int(round(H * lw / float(W))))
@@ -70,7 +70,12 @@ def trova_pulsante_giallo(img):
         frazione = (w * h) / float(lw * lh)
         if not (0.006 <= frazione <= 0.2) or not (1.6 <= w / max(1.0, h) <= 9.0):
             continue
-        if area / float(max(1, w * h)) < 0.6 or (y + h / 2.0) / lh < 0.5:
+        if area / float(max(1, w * h)) < 0.6 or (y + h / 2.0) / lh < 0.35:
+            continue
+        # "Gioca di nuovo" (fine partita, a destra a meta' altezza) e "Gioca" (lobby, in basso a destra)
+        # stanno nella meta' DESTRA. In basso a sinistra c'e' il giallo "Ottieni il pass battaglia":
+        # il bot lo cliccava al posto di "Gioca di nuovo"
+        if (x + w / 2.0) / lw < 0.45:
             continue
         # un pulsante ha la SCRITTA sopra (lettere scure): un muro o un oggetto giallo no
         k = W / float(lw)
