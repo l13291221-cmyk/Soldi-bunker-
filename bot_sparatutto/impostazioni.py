@@ -19,6 +19,8 @@ PREDEFINITE = {
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "cura_secondi": 5,               # quanto tiene premuto per usare una cura (slot detto dall'IA)
+        "svolta_ia_ogni_secondi": 6,     # esplorando: ogni quanto segue l'IA che dice da che parte andare
         "campo_visivo_gradi": 80,        # quanto si vede da sinistra a destra (per girarsi verso le casse)
         "guarda_mappa": True,            # con l'IA: apre la mappa (M) per capire dov'e' la zona sicura
         "mappa_ogni_secondi": 60,        # ogni quanto la controlla anche se va tutto bene (0 = solo tempesta)

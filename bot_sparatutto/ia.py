@@ -119,7 +119,9 @@ DOMANDA = (
     '"screen": "game|ps5_who_is_using|remote_play|desktop", "pc_button": {"x": 0.5, "y": 0.5} or null, '
     '"spectating": true|false, "holding": "pickaxe|weapon|healing|other|unknown", "has_weapon": true|false, '
     '"prompt": "none|open|pick_up|zipline|door|other", '
-    '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null}\n'
+    '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null, '
+    '"current_slot": 1, "best_slot": 2, "heal_slot": null, '
+    '"enemy_xy": {"x": 0.5, "y": 0.5, "close": false} or null, "explore": "ahead|left|right|behind"}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -156,7 +158,13 @@ DOMANDA = (
     "now in the 3D world, with its center as fractions of screen width and height: the nearest CLOSED "
     "chest; if there is none, a weapon on the ground (when the player has few weapons) or an ammo box; "
     "if none of these is visible, the nearest house or building to search inside (chests are inside "
-    "houses), also while skydiving or gliding (the nearest group of houses below); null if nothing."
+    "houses), also while skydiving or gliding (the nearest group of houses below); null if nothing. "
+    "Inventory (bottom right): slot 1 is the pickaxe, slots 2-6 are weapons and items. current_slot = the "
+    "highlighted slot now (1-6). best_slot = the slot of the best weapon to hold now (shotgun or SMG for "
+    "close enemies, rifle for far ones, any gun if unsure; 1 only if there is no gun). heal_slot = the slot "
+    "of a healing or shield item, or null. enemy_xy = the nearest enemy player in the 3D world (not the own "
+    "character, not teammates), close = near the player; null if none. explore = which way to go to find "
+    "houses and loot (ahead if unsure)."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
@@ -192,8 +200,14 @@ class Consiglio:
     def __init__(self, fase="unknown", cassa="none", muro=False, tempesta=False, direzione="unknown",
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
                  pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
-                 osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None):
+                 osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None,
+                 slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead"):
         self.fase = fase
+        self.slot = slot                  # lo slot dell'inventario evidenziato adesso (1-6)
+        self.slot_arma = slot_arma        # lo slot dell'arma migliore per adesso (1 = piccone)
+        self.slot_cura = slot_cura        # lo slot di una cura o di uno scudo
+        self.nemico_xy = nemico_xy        # (x, y, vicino) del nemico piu' vicino, oppure None
+        self.esplora = esplora            # da che parte andare per trovare case e bottino
         self.in_mano = in_mano            # pickaxe / weapon / healing / other / unknown
         self.ha_arma = ha_arma            # True/False: ha almeno un'arma nell'inventario (None = non so)
         self.prompt = prompt              # scritta sullo schermo: open / pick_up / zipline / other / none
@@ -257,6 +271,23 @@ def _scegli(v, ammessi, predefinito):
         if t == a or t.startswith(a):
             return a
     return predefinito
+
+
+def _slot(v):
+    """Un numero di slot dell'inventario (1-6), oppure None."""
+    try:
+        n = int(float(v))
+    except (TypeError, ValueError):
+        return None
+    return n if 1 <= n <= 6 else None
+
+
+def _nemico(v):
+    """{"x": 0.6, "y": 0.4, "close": true} -> (0.6, 0.4, True), oppure None."""
+    punto = _punto(v) if isinstance(v, dict) else None
+    if punto is None:
+        return None
+    return punto + (_si(v.get("close", False)),)
 
 
 def _obiettivo(v):
@@ -348,7 +379,12 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         in_mano=_scegli(dati.get("holding"), IN_MANO, "unknown"),
         ha_arma=_si(dati["has_weapon"]) if "has_weapon" in dati else None,
         prompt=_scegli(dati.get("prompt"), PROMPT, "none"),
-        obiettivo=_obiettivo(dati.get("target")))
+        obiettivo=_obiettivo(dati.get("target")),
+        slot=_slot(dati.get("current_slot")),
+        slot_arma=_slot(dati.get("best_slot")),
+        slot_cura=_slot(dati.get("heal_slot")),
+        nemico_xy=_nemico(dati.get("enemy_xy")),
+        esplora=_scegli(dati.get("explore"), ("ahead", "left", "right", "behind"), "ahead"))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

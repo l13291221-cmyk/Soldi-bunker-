@@ -226,6 +226,9 @@ class Cervello:
         self.ultima_fase = None
         self.ultimo_consiglio_caduta = 0
         self.mirando_da = None            # da quando miro questo nemico
+        self.cura_fino = 0.0              # mi sto curando: non cambio arma
+        self.prossima_svolta_ia = 0.0     # esplorando: ogni tanto l'IA dice da che parte andare
+        self.ultimo_consiglio_esplora = 0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
         self.errore_mira = (0.0, 0.0)     # stile: di quanto sbaglia la mira adesso
         self.prossimo_errore = 0.0
@@ -717,6 +720,21 @@ class Cervello:
             return "vado verso %s (IA)" % NOMI_OBIETTIVI.get(self.obiettivo_ia, "l'obiettivo")
         if not nuovo:
             return None                          # ogni consiglio si usa una volta
+        if c.nemico_xy is not None and self.comb.get("attivo", True):
+            x, y, vicino = c.nemico_xy
+            if vicino or not self._solo_nemici_vicini():
+                # l'occhio veloce non lo vede (lontano, mezzo nascosto...): mi giro verso di lui
+                gradi = (x - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
+                self.log("IA: c'e' un nemico%s %s -> mi giro e prendo l'arma" % (
+                    " vicino" if vicino else "", "a destra" if gradi > 5 else ("a sinistra" if gradi < -5 else "davanti")))
+                self._cammina()
+                if abs(gradi) > 4:
+                    self.esecutore.gira(gradi)
+                tasto = self._tasto_slot(c.slot_arma) if c.slot_arma and c.slot_arma != 1 else None
+                tasto = tasto or ("arma_1" if self.mani.esiste("arma_1") else None)
+                if tasto and c.slot != c.slot_arma:
+                    self.mani.premi(tasto, 0.08)
+                return "mi giro verso il nemico (IA)"
         if c.compagno != "none" and self.fort.get("rianima_compagni", True):
             if c.compagno == "close" and self.mani.esiste("interagisci"):
                 self.log("IA: un compagno e' a terra vicino -> lo rianimo")
@@ -734,6 +752,24 @@ class Cervello:
         if c.poca_vita and self.fort.get("cura_con_ia", True) and t >= self.prossima_cura:
             self.prossima_cura = t + 10.0
             self._cammina()
+            tasto = self._tasto_slot(c.slot_cura) if c.slot_cura and c.slot_cura != 1 else None
+            if tasto:
+                # l'IA sa in che slot sono le cure: le prendo, tengo premuto e poi torno all'arma
+                secondi = float(self.fort.get("cura_secondi", 5) or 5)
+                self.log("IA: ho poca vita -> mi curo (slot %d)" % c.slot_cura)
+                self.cura_fino = t + secondi + 1.0
+                self.mani.premi(tasto, 0.08)
+                self.esecutore.dormi(0.3)
+                self.mani.imposta("spara", True)
+                try:
+                    self.esecutore.dormi(secondi)
+                finally:
+                    self.mani.imposta("spara", False)
+                arma = self._tasto_slot(c.slot_arma) if c.slot_arma and c.slot_arma != 1 else None
+                arma = arma or ("arma_1" if self.mani.esiste("arma_1") else None)
+                if arma:
+                    self.mani.premi(arma, 0.08)
+                return "mi curo"
             if self._esegui_macro(self.vita_cfg.get("macro_cura", "cura"), "IA: ho poca vita"):
                 return "mi curo"
         if c.prompt in ("open", "pick_up", "zipline", "door") and self.fort.get("usa_le_scritte", True):
@@ -785,9 +821,25 @@ class Cervello:
             return "giro verso la cassa che vede l'IA"
         return None
 
+    def _tasto_slot(self, n):
+        """Lo slot n dell'inventario -> il tasto (1 = piccone, 2 = arma_1 ... 6 = arma_5)."""
+        nome = "piccone" if n == 1 else "arma_%d" % (n - 1)
+        return nome if self.mani.esiste(nome) else None
+
     def _controlla_arma(self, c, t):
-        """L'IA vede cosa ho in mano: se e' il piccone (e ho un'arma) prendo l'arma. Provo i tasti
-        dell'inventario uno dopo l'altro (2, 3, 4...) finche' l'IA non vede un'arma in mano."""
+        """L'IA vede cosa ho in mano e dove sta l'arma migliore (fucile a pompa vicino, fucile
+        lontano...): se ho in mano altro premo lo slot giusto. Se non lo sa, provo i tasti uno
+        dopo l'altro (2, 3, 4...) finche' l'IA non vede un'arma in mano."""
+        if (c.fase == "playing" and c.slot and c.slot_arma and c.slot_arma != c.slot and c.slot_arma != 1
+                and self.comb.get("prendi_arma", True) and t >= self.prossimo_cambio_arma_ia
+                and t >= self.cura_fino):
+            tasto = self._tasto_slot(c.slot_arma)
+            if tasto:
+                self.prossimo_cambio_arma_ia = t + 2.0
+                self.log("IA: l'arma migliore e' nello slot %d (in mano ho lo slot %d) -> premo %s" % (
+                    c.slot_arma, c.slot, tasto))
+                self.mani.premi(tasto, 0.08)
+                return
         if c.in_mano == "weapon":
             self.tentativi_arma = 0
             return
@@ -1405,6 +1457,19 @@ class Cervello:
             scritta = self._guarda_mappa(t, "Controllo")
             if scritta:
                 return scritta
+        if self.ia is not None and t >= self.prossima_svolta_ia:
+            c = self.ia.consiglio(t)
+            if (c is not None and c.fase == "playing" and c.esplora in ("left", "right", "behind")
+                    and c.numero != self.ultimo_consiglio_esplora):
+                # l'IA vede da che parte ci sono case e bottino: vado di la'
+                self.ultimo_consiglio_esplora = c.numero
+                self.prossima_svolta_ia = t + float(self.fort.get("svolta_ia_ogni_secondi", 6) or 6)
+                gradi = {"left": -60, "right": 60, "behind": 180}[c.esplora]
+                self.log("IA: per trovare case e bottino vado %s" % {"left": "a sinistra", "right": "a destra",
+                                                                    "behind": "indietro"}[c.esplora])
+                self.esecutore.gira(gradi)
+                self._cammina(avanti=True, corri=bool(self.espl.get("corri", True)))
+                return "esploro (IA)"
         # giro intorno a se', lento e fluido, cosi' guarda in ogni direzione (cerca casse e nemici)
         velocita_giro = float(self.espl.get("velocita_giro_gradi", 120) or 120)
         if t < self.giro_fino:
@@ -1412,6 +1477,9 @@ class Cervello:
             self._muovi(self.passi_per_giro * velocita_giro / 360.0 * dt, 0, fluido=True)
             return "mi guardo intorno"
         ogni = float(self.espl.get("guarda_intorno_ogni", 12) or 0)
+        if ogni > 0 and self.ia is not None:
+            # con l'IA il giro completo serve meno (lei guarda e dice da che parte andare)
+            ogni = max(ogni, float(self.espl.get("guarda_intorno_ogni_con_ia", 40) or 40))
         if ogni > 0 and t >= self.prossimo_guardarsi:
             self.prossimo_guardarsi = t + ogni
             self.giro_fino = t + 360.0 / velocita_giro

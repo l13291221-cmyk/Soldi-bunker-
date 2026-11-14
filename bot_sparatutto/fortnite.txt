@@ -330,3 +330,37 @@ RARITA' (il colore dell'alone e della cornice)
   Fortnite e' gia' selezionato: INVIO per tornare nel gioco.
 - DESKTOP DI WINDOWS (icone, barra in basso, finestre nere con scritte): il gioco
   non si vede. Le icone gialle delle cartelle NON sono casse!
+
+
+---------------------------------------------------------------------
+14. QUESTA STAGIONE: "CACCIATORI DI TESORI" (TREASURE HUNTERS)
+    dal 1 novembre al 5 dicembre 2026 (fonte: Fortnite Wiki)
+---------------------------------------------------------------------
+- Isola pirata (Crossbones Isle). Posti: Arlong Park, Busy Bay (Baia Baccano),
+  Cursed Cavern, Lantern Landing, Lil' Uzi's Stronghold (prima Fortune's Fort),
+  Loguetown (Rogue Town), Buggy's Beachhead (prima Loot Lagoon), Plunder Port,
+  Rubber Resort, The S.S. Rocky, The Chest, Windmill Village (Mulini).
+  Punti di riferimento: Boogie Boat, Baratie, Giant's Battlefield, Henry,
+  The Salty Skull, Nami's Tangerine Grove.
+- CACCIA AL TESORO: APRIRE O ROMPERE una cassa (normale, rara, sepolta, cassa
+  degli spiritelli) da' una piccola probabilita' di un tesoro. NON contano: casse
+  delle munizioni, casse della frutta, rifornimenti aerei, cannoni del bottino.
+  Se la cassa trema a lungo e' un premio raro: luce BLU = oggetto estetico, luce
+  DORATA lunga = il GETTONE DEL NEGOZIO DEI PIRATI ("Pirate Shop Access": per 14
+  giorni il Negozio e' gratis). Se lo trova un compagno lo prendono TUTTI quelli
+  della squadra.
+- IMPORTANTE: per tenere il premio bisogna RESTARE nella partita finche' si viene
+  eliminati o finisce. Se si esce dal menu da vivi o ci si scollega, il premio si
+  perde. Da eliminati si puo' tornare alla lobby.
+- Probabilita' del gettone: circa 1 su 137.500 casse (1 su 68.750 nelle "Ore del
+  tesoro", quando il gioco lo annuncia). E' rarissimo: servono tantissime casse.
+- SPIRITELLI: piccoli aiutanti (si equipaggiano nella lobby, scheda Spiritelli, e
+  in partita: "Equipaggia uno spiritello"). Chester: piu' bottino dalle casse e
+  niente danno da caduta. Wayfinder: mostra gli spiritelli vicini. Altri:
+  Re-Pete, Lil' Flacko, Exmarks, Plundarrgh... Se muori lo spiritello torna al
+  livello 1. Il "Localizzatore di spiritelli" fa comparire una cassa sepolta
+  (segnata sulla mappa) con dentro uno spiritello.
+- Armi nuove: Bundlebuss Repeater Rifle (fucile), Gilded Dragoon Shotgun (pompa),
+  Throttled Tactical SMG (mitraglietta), Flint-Knock Pistol (pistola), Shock
+  Rocket di A$AP Rocky, fionda di Usopp e altre armi di One Piece.
+- Frutti del diavolo: Frutto Gom Gom, Frutto Foco Foco (poteri speciali).

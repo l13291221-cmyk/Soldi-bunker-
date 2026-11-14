@@ -1245,6 +1245,36 @@ class TestLogicaFortnite(ConCartella):
         self.assertTrue(mani.e_premuto("avanti"))
         self.assertEqual(self._passo(mondo, occhi, cerv, t + 0.5), "vado verso una cassa (IA)")   # continua
 
+    def test_l_ia_dice_lo_slot_giusto_e_dove_sta_il_nemico(self):
+        # in mano lo slot 1 (piccone), l'arma migliore e' nello slot 4 -> preme 4
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="pickaxe", slot=1, slot_arma=4)
+        self._passo(mondo, occhi, cerv)
+        self.assertIn("giu tasto 0x%02X" % CODICI["4"], mani.storia)
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)
+        # un nemico vicino a destra che l'occhio veloce non vede: si gira e prende l'arma
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", in_mano="weapon", slot=2, slot_arma=2,
+                                                  nemico_xy=(0.85, 0.45, True))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "mi giro verso il nemico (IA)")
+        self.assertGreater(mani.mosso_x, 0)
+        # obiettivo casse: un nemico LONTANO lo ignora
+        import obiettivo
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", nemico_xy=(0.85, 0.45, False))
+        cerv.obiettivo = obiettivo.capisci("aprire piu' casse possibili")
+        self.assertNotEqual(self._passo(mondo, occhi, cerv), "mi giro verso il nemico (IA)")
+
+    def test_si_cura_con_lo_slot_delle_cure(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", poca_vita=True, slot=2, slot_arma=2, slot_cura=5)
+        cerv.fort["cura_secondi"] = 0.1
+        self.assertEqual(self._passo(mondo, occhi, cerv), "mi curo")
+        storia = " | ".join(mani.storia)
+        self.assertLess(storia.index("giu tasto 0x%02X" % CODICI["5"]), storia.rindex("giu tasto 0x%02X" % CODICI["2"]))
+        self.assertIn("giu mouse 1", mani.storia)                                  # tiene premuto per curarsi
+
+    def test_esplora_dove_dice_l_ia(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", esplora="left")
+        self.assertEqual(self._passo(mondo, occhi, cerv), "esploro (IA)")
+        self.assertLess(mani.mosso_x, 0)
+
     def test_cerca_le_casse_nelle_case(self):
         """Niente casse in vista: va verso la casa piu' vicina; in caduta si dirige verso le case;
         davanti a una porta preme E."""
