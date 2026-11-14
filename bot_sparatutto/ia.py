@@ -122,7 +122,7 @@ DOMANDA = (
     '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null, '
     '"current_slot": 1, "best_slot": 2, "heal_slot": null, '
     '"enemy_xy": {"x": 0.5, "y": 0.5, "close": false} or null, "explore": "ahead|left|right|behind", '
-    '"compass": 195}\n'
+    '"compass": 195, "over_island": true|false}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -166,7 +166,9 @@ DOMANDA = (
     "of a healing or shield item, or null. enemy_xy = the nearest enemy player in the 3D world (not the own "
     "character, not teammates), close = near the player; null if none. explore = which way to go to find "
     "houses and loot ON LAND: never toward the sea or a lake (ahead if unsure). compass = the number in "
-    "the middle of the compass at the top center of the screen (degrees where the player looks), or null."
+    "the middle of the compass at the top center of the screen (degrees where the player looks), or null. "
+    "over_island = ONLY on the bus or while skydiving/gliding: true if the island (land with trees, houses) is "
+    "right below, false if below there is open sea."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
@@ -181,7 +183,8 @@ DOMANDA_MAPPA = (
     '"safe": "N|NE|E|SE|S|SW|W|NW|here"}\n'
     "heading = the number in the middle of the compass. inside = the player marker is inside the white "
     "circle. near_edge = it is close to the edge of the circle. safe = the direction ON THE MAP (north up) "
-    "from the player marker to the CENTER of the white circle; here = the player is already near the center."
+    "from the player marker to the CENTER of the white circle; if there is no white circle yet (on the bus, "
+    "at the start), to the CENTER of the island. here = the player is already near that center."
 )
 
 FASI = ("bus", "falling", "playing", "menu", "dead", "unknown")
@@ -196,6 +199,11 @@ PROMPT = ("none", "open", "pick_up", "zipline", "door", "other")
 OBIETTIVI = ("chest", "weapon", "ammo_box", "building")
 DIREZIONI_MAPPA = {"ahead": 0, "ahead_right": 45, "right": 90, "behind_right": 135, "behind": 180,
                    "behind_left": -135, "left": -90, "ahead_left": -45}
+DOMANDA_BUSSOLA = (
+    "This is the compass strip at the top of the Fortnite screen. Answer ONLY with one JSON object: "
+    '{"heading": 195} where heading is the number written in the middle (the degrees where the player '
+    "looks: 0 north, 90 east, 180 south, 270 west)."
+)
 # la bussola: dove sta la zona sicura sulla mappa (nord in alto) -> gradi
 BUSSOLA = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SW": 225, "W": 270, "NW": 315}
 
@@ -207,8 +215,10 @@ class Consiglio:
                  nemico=False, quando=0.0, fornitore="", poca_vita=False, veicolo="none", in_veicolo=False,
                  pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
                  osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None,
-                 slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead", bussola=None):
+                 slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead", bussola=None,
+                 sopra_isola=None):
         self.fase = fase
+        self.sopra_isola = sopra_isola    # sul bus / in caduta: sotto c'e' l'isola (True) o il mare (False)
         self.bussola = bussola            # il numero della bussola in alto (gradi dove guardo), o None
         self.slot = slot                  # lo slot dell'inventario evidenziato adesso (1-6)
         self.slot_arma = slot_arma        # lo slot dell'arma migliore per adesso (1 = piccone)
@@ -401,7 +411,8 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         slot_cura=_slot(dati.get("heal_slot")),
         nemico_xy=_nemico(dati.get("enemy_xy")),
         esplora=_scegli(dati.get("explore"), ("ahead", "left", "right", "behind"), "ahead"),
-        bussola=_gradi(dati.get("compass")))
+        bussola=_gradi(dati.get("compass")),
+        sopra_isola=_si(dati["over_island"]) if dati.get("over_island") is not None else None)
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

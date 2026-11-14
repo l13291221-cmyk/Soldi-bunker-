@@ -283,6 +283,11 @@ class Cervello:
         self.bussola_rif = None           # (gradi letti, passi del mouse in quel momento)
         self.storia_passi = []            # [(t, passi orizzontali)]: per sapere quanto ho girato da allora
         self.prossimo_riallineo = 0.0
+        self.bus_da = None                # da quando sono sul bus
+        self.prossima_correzione_caduta = 0.0
+        self.calibra_bussola_da = None    # appena atterrato misuro quanto mi giro davvero (con la bussola)
+        self.ultima_calibrazione_bussola = -1e9
+        self.bussola_sbagliata = 0        # quante volte la bussola letta non torna con i miei conti
         self.prossima_svolta_ia = 0.0     # esplorando: ogni tanto l'IA dice da che parte andare
         self.ultimo_consiglio_esplora = 0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
@@ -531,22 +536,48 @@ class Cervello:
             self.attesa_da = None
         if c.fase == "playing" and self.ultima_fase in ("bus", "falling"):
             self.log("Atterrato: prendo l'arma in mano e tra poco guardo la mappa")
+            if t - self.ultima_calibrazione_bussola > float(self.fort.get("ricalibra_bussola_secondi", 1200) or 1200):
+                self.calibra_bussola_da = t + 2.0
             if self.mani.esiste("arma_1"):
                 self.mani.premi("arma_1", 0.08)
             self.prossima_mappa_periodica = t + 10.0
         self.ultima_fase = c.fase
         if c.fase in ("bus", "falling", "playing"):
             self.in_partita = True
+        if c.fase != "bus":
+            self.bus_da = None
         if c.fase == "bus":
             self._spara(False)
             self._cammina()
+            if self.bus_da is None:
+                self.bus_da = t
+                self.rotta = None
+            if self.rotta is None:
+                self._guarda_mappa(t, "Sul bus")          # dov'e' il centro dell'isola (la rotta)
+            # all'inizio il bus vola sul MARE: buttandosi subito finiva in acqua lontano dall'isola
+            aspetto = (c.sopra_isola is False and
+                       t - self.bus_da < float(self.fort.get("bus_attesa_massima", 45) or 45))
+            if aspetto:
+                return "sul bus: aspetto di essere sopra l'isola"
             if t >= self.prossimo_salto_bus and self.mani.esiste("salta"):
                 self.prossimo_salto_bus = t + 3.0
-                self.log("IA: sono sul bus -> salto giu'")
+                self.log("IA: sono sul bus%s -> salto giu'" % (" sopra l'isola" if c.sopra_isola else ""))
                 self.mani.premi("salta")
             return "sul bus"
         if c.fase == "falling":
             self._spara(False)
+            guardo = self.guardo_verso()
+            if self.rotta is None and c.sopra_isola is False:
+                self._guarda_mappa(t, "In caduta sopra il mare")
+            if self.rotta is not None and guardo is not None and c.sopra_isola is not True:
+                # sopra il mare: vado verso il centro dell'isola
+                errore = (self.rotta - guardo + 180.0) % 360.0 - 180.0
+                if abs(errore) > 20 and t >= self.prossima_correzione_caduta:
+                    self.prossima_correzione_caduta = t + 2.0
+                    self.log("In caduta: giro verso il centro dell'isola (%.0f gradi)" % errore)
+                    self.esecutore.gira(errore)
+                self._cammina(avanti=True)
+                return "cado verso terra"
             if (c.obiettivo is not None and c.obiettivo[0] in ("building", "chest")
                     and c.numero != self.ultimo_consiglio_caduta and self.racc.get("casse", True)):
                 # cado verso il gruppo di case piu' vicino: dentro le case ci sono le casse
@@ -773,6 +804,15 @@ class Cervello:
         nuovo = c.numero != self.ultimo_consiglio
         self.ultimo_consiglio = c.numero
         if nuovo and c.bussola is not None:
+            previsto = self.guardo_verso()
+            if previsto is not None and abs((c.bussola - previsto + 180.0) % 360.0 - 180.0) > 60:
+                self.bussola_sbagliata += 1
+                if self.bussola_sbagliata >= 3 and self.calibra_bussola_da is None:
+                    self.log("I miei conti non tornano con la bussola: rimisuro quanto mi giro")
+                    self.calibra_bussola_da = t
+                    self.bussola_sbagliata = 0
+            else:
+                self.bussola_sbagliata = 0
             self._leggi_bussola(c.bussola, c.quando)
         if nuovo:
             self._controlla_arma(c, t)
@@ -984,6 +1024,73 @@ class Cervello:
             self._cammina(avanti=True)          # apro la porta ed entro (dentro le case ci sono le casse)
             return "apro la porta"
         return "prendo la zipline"
+
+    def _leggi_bussola_ia(self, foto):
+        """Chiedo a piu' IA il numero della bussola (striscia in alto al centro). -> gradi o None."""
+        from ia import DOMANDA_BUSSOLA
+        if foto is None:
+            return None
+        h, w = foto.shape[:2]
+        striscia = foto[0:max(1, int(0.075 * h)), int(0.3 * w):int(0.7 * w)]
+        striscia = cv2.resize(striscia, (1024, max(1, int(striscia.shape[0] * 1024 / float(striscia.shape[1])))),
+                              interpolation=cv2.INTER_CUBIC)
+        gradi = []
+        for r in self.ia.chiedi_voto(striscia, DOMANDA_BUSSOLA, 3, attesa=12.0):
+            try:
+                g = float(r.get("heading"))
+            except (TypeError, ValueError):
+                continue
+            if 0 <= g <= 360:
+                gradi.append(g % 360)
+        if not gradi:
+            return None
+        # vince il gruppo piu' grande di letture vicine (se un'IA legge male, non conta)
+        gruppi = [[h for h in gradi if abs((h - g + 180) % 360 - 180) <= 15] for g in gradi]
+        return angolo_medio(max(gruppi, key=len))
+
+    def _calibra_bussola(self, t):
+        """Misuro QUANTO MI GIRO DAVVERO: leggo la bussola, giro di 60 gradi (secondo i miei conti),
+        la rileggo. Se mi sono girato di 120 i miei conti erano sbagliati del doppio: li correggo.
+        (Con la sensibilita' sbagliata "giro di 90" diventava "giro di 180": andava al contrario.)"""
+        if self.ia is None or not hasattr(self.ia, "chiedi_voto") or not self.fort.get("calibra_con_bussola", True):
+            return None
+        self._spara(False)
+        self._cammina()
+        prima = self._leggi_bussola_ia(self.esecutore.foto_fresca())
+        if prima is None:
+            self.log("Bussola: non riesco a leggerla, riprovo tra un po'")
+            self.calibra_bussola_da = t + 30.0
+            return "leggo la bussola"
+        voluti = float(self.fort.get("calibra_bussola_gradi", 60) or 60)
+        self.esecutore.gira(voluti, durata=0.3)
+        self.esecutore.dormi(0.5)
+        dopo = self._leggi_bussola_ia(self.esecutore.foto_fresca())
+        if dopo is None:
+            self.calibra_bussola_da = t + 30.0
+            return "leggo la bussola"
+        self.ultima_calibrazione_bussola = t
+        girati = (dopo - prima) % 360.0
+        self._leggi_bussola(dopo)
+        if girati < 10 or girati > 350:
+            self.log("Bussola: ho mosso il mouse ma la visuale non si e' girata (%.0f -> %.0f)" % (prima, dopo))
+            return "leggo la bussola"
+        vecchi = float(self.passi_per_giro)
+        nuovi = vecchi * voluti / girati
+        if abs(girati - voluti) <= 8:
+            self.log("Bussola: giro giusto (%.0f gradi su %.0f): la sensibilita' va bene" % (girati, voluti))
+            return "leggo la bussola"
+        if not 0.25 <= nuovi / vecchi <= 4.0:
+            self.log("Bussola: misura strana (%.0f gradi invece di %.0f): non cambio niente" % (girati, voluti))
+            return "leggo la bussola"
+        self.log("Bussola: volevo girarmi di %.0f gradi e mi sono girato di %.0f -> correggo la sensibilita' "
+                 "(passi per un giro: %.0f -> %.0f)" % (voluti, girati, vecchi, nuovi))
+        if self.apprendimento is not None:
+            self.apprendimento.passi_per_giro = nuovi
+            impostazioni.salva_calibrazione(self.apprendimento.base, ["mira", "passi_per_giro"], round(nuovi))
+        else:
+            self.mira["passi_per_giro"] = nuovi
+        self.esecutore.passi_per_giro = nuovi
+        return "correggo la sensibilita'"
 
     def _guarda_mappa(self, t, motivo):
         """Per sapere dove andare: leggo la BUSSOLA (il numero in alto = dove guardo), apro la mappa (M),
@@ -1620,6 +1727,11 @@ class Cervello:
         return True
 
     def _esplora(self, vis, t, dt, img):
+        if self.calibra_bussola_da is not None and t >= self.calibra_bussola_da:
+            self.calibra_bussola_da = None
+            scritta = self._calibra_bussola(t)
+            if scritta:
+                return scritta
         ogni_mappa = float(self.fort.get("mappa_ogni_secondi", 60) or 0)
         if ogni_mappa > 0 and self.ia is not None and t >= self.prossima_mappa_periodica:
             self.prossima_mappa_periodica = t + ogni_mappa

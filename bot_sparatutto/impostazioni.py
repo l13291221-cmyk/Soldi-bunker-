@@ -19,6 +19,10 @@ PREDEFINITE = {
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "bus_attesa_massima": 45,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
+        "calibra_con_bussola": True,     # appena atterrato misura con la bussola quanto si gira davvero
+        "calibra_bussola_gradi": 60,
+        "ricalibra_bussola_secondi": 1200,
         "evita_acqua": True,             # se nuota (fuori dalla tempesta) torna a terra
         "acqua_soglia": 0.5,             # parte bassa dello schermo blu acqua per dire "sono in acqua"
         "corsa_fuori_acqua": 8,

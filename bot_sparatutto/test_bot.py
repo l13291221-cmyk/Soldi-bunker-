@@ -1369,6 +1369,40 @@ class TestLogicaFortnite(ConCartella):
         self._passo(mondo, occhi, cerv)
         self.assertAlmostEqual(cerv.guardo_verso(), 270, delta=1)
 
+    def test_sul_bus_aspetta_l_isola_e_in_caduta_va_verso_il_centro(self):
+        mani, mondo, occhi, cerv = self._cervello(fase="bus", sopra_isola=False)
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "sul bus: aspetto di essere sopra l'isola")
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)          # sopra il mare: no
+        cerv.ia.c.quando = t + 50
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 50), "sul bus")          # troppo tempo: salta
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        mani, mondo, occhi, cerv = self._cervello(fase="bus", sopra_isola=True)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "sul bus")                  # sopra l'isola: salta
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        # in caduta sopra il mare: si gira verso il centro dell'isola (rotta) e va avanti
+        mani, mondo, occhi, cerv = self._cervello(fase="falling", sopra_isola=False)
+        cerv.rotta = 0
+        cerv._leggi_bussola(90)
+        self.assertEqual(self._passo(mondo, occhi, cerv), "cado verso terra")
+        self.assertAlmostEqual(mani.mosso_x, -0.25 * 4800, delta=40)                # -90 gradi
+        self.assertTrue(mani.e_premuto("avanti"))
+
+    def test_misura_la_sensibilita_con_la_bussola(self):
+        """Voleva girarsi di 60 gradi e si e' girato di 120: i passi per un giro erano il doppio
+        del giusto (per questo 'andava al contrario'). Li dimezza."""
+        mani, mondo, occhi, cerv = self._cervello(fase="playing")
+        cerv.prossima_mappa_periodica = time.monotonic() + 999
+        letture = iter([[{"heading": 100}, {"heading": 101}, {"heading": 99}],
+                        [{"heading": 220}, {"heading": 221}, {"heading": 300}]])     # una IA sbaglia
+        cerv.ia.chiedi_voto = lambda img, domanda, quante=3, attesa=20.0: next(letture)
+        cerv.calibra_bussola_da = time.monotonic()
+        prima = cerv.passi_per_giro
+        self.assertEqual(self._passo(mondo, occhi, cerv), "correggo la sensibilita'")
+        self.assertAlmostEqual(cerv.passi_per_giro, prima / 2, delta=prima * 0.02)
+        self.assertAlmostEqual(cerv.esecutore.passi_per_giro, prima / 2, delta=prima * 0.02)
+        self.assertAlmostEqual(cerv.guardo_verso(), 220.5, delta=1)
+
     def test_bussola_e_conti(self):
         from cervello import angolo_medio, mappa_con_bussola
         self.assertAlmostEqual(angolo_medio([350, 10]) % 360, 0, delta=0.01)       # non 180!
