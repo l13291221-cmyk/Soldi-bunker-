@@ -122,7 +122,8 @@ DOMANDA = (
     '"target": {"what": "chest|weapon|ammo_box|building", "x": 0.5, "y": 0.7} or null, '
     '"current_slot": 1, "best_slot": 2, "heal_slot": null, '
     '"enemy_xy": {"x": 0.5, "y": 0.5, "close": false} or null, "explore": "ahead|left|right|behind", '
-    '"compass": 195, "over_island": true|false}\n'
+    '"compass": 195, "over_island": true|false, '
+    '"teammate": {"x": 0.5, "y": 0.4, "side": "on_screen|left|right|behind", "distance": 25} or null}\n'
     "phase: bus = riding the battle bus, falling = skydiving or gliding, menu = lobby or menus, "
     "dead = the player was eliminated (elimination or end-of-match screen, or spectating). "
     "spectating = the player was eliminated and now the camera follows ANOTHER player (a teammate or the "
@@ -168,7 +169,11 @@ DOMANDA = (
     "houses and loot ON LAND: never toward the sea or a lake (ahead if unsure). compass = the number in "
     "the middle of the compass at the top center of the screen (degrees where the player looks), or null. "
     "over_island = ONLY on the bus or while skydiving/gliding: true if the island (land with trees, houses) is "
-    "right below, false if below there is open sea."
+    "right below, false if below there is open sea. teammate = the nearest TEAMMATE (a player of the same "
+    "squad: colored NAME TAG above the head, also while skydiving), NOT the player's own character: x,y = "
+    "where on screen; side = on_screen if visible, or left/right/behind if only their marker with the name "
+    "is at the edge or bottom of the screen; distance = the meters written under the name (number), or "
+    "null; null if no teammate."
 )
 
 # la mappa: dove andare per la zona sicura (rispondono piu' IA e vince la maggioranza)
@@ -216,8 +221,9 @@ class Consiglio:
                  pulsante=None, cursore=None, tasto="none", compagno="none", schermo="game", pulsante_pc=None,
                  osservo=False, in_mano="unknown", ha_arma=None, prompt="none", obiettivo=None,
                  slot=None, slot_arma=None, slot_cura=None, nemico_xy=None, esplora="ahead", bussola=None,
-                 sopra_isola=None):
+                 sopra_isola=None, compagno_xy=None):
         self.fase = fase
+        self.compagno_xy = compagno_xy    # (x, y, lato, metri) del compagno piu' vicino, oppure None
         self.sopra_isola = sopra_isola    # sul bus / in caduta: sotto c'e' l'isola (True) o il mare (False)
         self.bussola = bussola            # il numero della bussola in alto (gradi dove guardo), o None
         self.slot = slot                  # lo slot dell'inventario evidenziato adesso (1-6)
@@ -288,6 +294,24 @@ def _scegli(v, ammessi, predefinito):
         if t == a or t.startswith(a):
             return a
     return predefinito
+
+
+def _compagno(v):
+    """{"x":0.6,"y":0.4,"side":"on_screen","distance":25} -> (0.6, 0.4, "on_screen", 25.0), oppure None."""
+    if not isinstance(v, dict):
+        return None
+    lato = _scegli(v.get("side"), ("on_screen", "left", "right", "behind"), "")
+    punto = _punto(v)
+    if not lato:
+        lato = "on_screen" if punto is not None else ""
+    if not lato or (lato == "on_screen" and punto is None):
+        return None
+    try:
+        metri = float(v.get("distance"))
+    except (TypeError, ValueError):
+        metri = None
+    x, y = punto if punto is not None else (0.5, 0.5)
+    return (x, y, lato, metri)
 
 
 def _gradi(v):
@@ -412,7 +436,8 @@ def leggi_risposta(testo, quando=0.0, fornitore=""):
         nemico_xy=_nemico(dati.get("enemy_xy")),
         esplora=_scegli(dati.get("explore"), ("ahead", "left", "right", "behind"), "ahead"),
         bussola=_gradi(dati.get("compass")),
-        sopra_isola=_si(dati["over_island"]) if dati.get("over_island") is not None else None)
+        sopra_isola=_si(dati["over_island"]) if dati.get("over_island") is not None else None,
+        compagno_xy=_compagno(dati.get("teammate")))
 
 
 # ------------------------------------------------------------------ come si parla a ogni IA

@@ -34,8 +34,17 @@ from istruzioni import (Esecutore, Interrotto, Istruzioni, finestra_in_primo_pia
                         imposta_dpi, leggi_istruzioni, leggi_macro)
 
 
+REGISTRATORE = None          # menu 17: registra la partita (registra.py)
+
+
 def log(testo):
-    print(time.strftime("%H:%M:%S ") + str(testo), flush=True)
+    riga = time.strftime("%H:%M:%S ") + str(testo)
+    print(riga, flush=True)
+    if REGISTRATORE is not None:
+        try:
+            REGISTRATORE.scrivi_log(riga)
+        except Exception:
+            pass
 
 
 def aspetta_invio(messaggio="\nPremi INVIO per continuare..."):
@@ -190,6 +199,10 @@ def scrivi_statistiche(statistiche, inizio):
 
 # ------------------------------------------------------------------ il bot
 def avvia(modo=None):
+    global REGISTRATORE
+    registra = modo == "registra"
+    if registra:
+        modo = None
     import obiettivo as modulo_obiettivo
     import stile as modulo_stile
     from allenamento import Allenamento
@@ -250,6 +263,10 @@ def avvia(modo=None):
     fps = float(sch.get("fps_massimi", 60) or 60)
     controllo.avvia_tasti()
     tb = cfg.get("tasti_bot", {}) or {}
+    if registra:
+        import registra as modulo_registra
+        REGISTRATORE = modulo_registra.Registratore(BASE, log=log)
+        log("REGISTRO la partita (una foto ogni 2 secondi con cosa pensa il bot, per 20 minuti)")
 
     print()
     print("=" * 70)
@@ -304,6 +321,13 @@ def avvia(modo=None):
             adesso = time.monotonic()
             allenamento.conta_tempo(scritta, adesso - t_fotogramma)
             t_fotogramma = adesso
+            if REGISTRATORE is not None and REGISTRATORE.attivo:
+                try:
+                    import registra as modulo_registra
+                    REGISTRATORE.foto(disegna(img, vis, "", cervello.bersaglio, cervello._mirino(vis)),
+                                      modulo_registra.righe_di_stato(cervello, vis, scritta, adesso), adesso)
+                except Exception as e:
+                    log("Registrazione: %s" % e)
             if mostra:
                 try:
                     import cv2
@@ -328,6 +352,14 @@ def avvia(modo=None):
         log("Fermato con CTRL+C")
     finally:
         ia.ferma()
+        if REGISTRATORE is not None:
+            reg, REGISTRATORE = REGISTRATORE, None
+            percorso = reg.chiudi()
+            print("\n" + "=" * 70)
+            print("  REGISTRAZIONE PRONTA: %s" % percorso)
+            print("  Mandala a chi sistema il bot (es. trascinala nella chat): si vede cosa ha fatto")
+            print("  e cosa pensava. Dentro ci sono le foto dello schermo di gioco.")
+            print("=" * 70)
         try:
             mani.chiudi()
         except Exception:
@@ -513,6 +545,7 @@ MENU = [
     ("14", "Collega le IA (il cervello che guarda: bus, casse vere, muri, tempesta)", "ia"),
     ("15", "Collega le IA GRATIS: Google (Gemma 4) e NVIDIA - insieme bastano per giorni", "gemini"),
     ("16", "L'IA studia le foto: trova nemici e casse nelle foto di foto_per_ia", "studia"),
+    ("17", "Gioca e REGISTRA (foto + cosa pensa il bot): da mandare per capire cosa sbaglia", "registra"),
     ("0", "Esci", "esci"),
 ]
 
@@ -541,6 +574,8 @@ def esegui_comando(cmd):
     elif cmd == "gemini":
         import ia
         ia.collega_gratis(BASE, impostazioni.carica(BASE), log)
+    elif cmd == "registra":
+        avvia("registra")
     elif cmd == "studia":
         import studia_foto
         studia_foto.studia(BASE, impostazioni.carica(BASE), log)

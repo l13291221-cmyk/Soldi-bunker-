@@ -1403,6 +1403,33 @@ class TestLogicaFortnite(ConCartella):
         self.assertAlmostEqual(cerv.esecutore.passi_per_giro, prima / 2, delta=prima * 0.02)
         self.assertAlmostEqual(cerv.guardo_verso(), 220.5, delta=1)
 
+    def test_segue_il_compagno(self):
+        """Come i bot di Fortnite: va dove va il compagno, gli sta vicino, apre le casse vicino a lui."""
+        # lontano (60 metri) a destra: si gira verso di lui e corre
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno_xy=(0.8, 0.45, "on_screen", 60.0),
+                                                  obiettivo=("chest", 0.2, 0.6))
+        t = time.monotonic()
+        self.assertEqual(self._passo(mondo, occhi, cerv, t), "seguo il compagno")      # prima del baule
+        self.assertGreater(mani.mosso_x, 0)
+        self.assertTrue(mani.e_premuto("avanti") and mani.e_premuto("corri"))
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 0.5), "seguo il compagno")  # continua
+        # vicino (5 metri): si ferma accanto a lui
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno_xy=(0.5, 0.45, "on_screen", 5.0))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "sto vicino al compagno")
+        self.assertFalse(mani.e_premuto("avanti"))
+        # a 15 metri con una cassa vicino: prima la cassa
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno_xy=(0.5, 0.45, "on_screen", 15.0),
+                                                  obiettivo=("chest", 0.6, 0.6))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "vado verso una cassa (IA)")
+        # si vede solo la sua freccia dietro: si gira di 180 gradi
+        mani, mondo, occhi, cerv = self._cervello(fase="playing", compagno_xy=(0.5, 0.5, "behind", 90.0))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "seguo il compagno")
+        self.assertAlmostEqual(abs(mani.mosso_x), 0.5 * 4800, delta=40)
+        # in caduta: verso il compagno
+        mani, mondo, occhi, cerv = self._cervello(fase="falling", compagno_xy=(0.2, 0.5, "on_screen", None))
+        self.assertEqual(self._passo(mondo, occhi, cerv), "cado verso il compagno")
+        self.assertLess(mani.mosso_x, 0)
+
     def test_bussola_e_conti(self):
         from cervello import angolo_medio, mappa_con_bussola
         self.assertAlmostEqual(angolo_medio([350, 10]) % 360, 0, delta=0.01)       # non 180!
@@ -2373,6 +2400,37 @@ class TestFileUnicoSchedina(unittest.TestCase):
                 self.assertEqual(letti[nome], f.read())
         with self.assertRaises(ValueError):
             crea_uf2.file_da_argomenti(["senza_uguale"])
+
+
+class TestRegistra(ConCartella):
+    def test_registra_foto_log_e_zip(self):
+        import zipfile
+
+        import registra
+        r = registra.Registratore(self.base, ogni=2.0)
+        r.scrivi_log("12:00:00 Sono bloccato")
+        img = np.zeros((720, 1280, 3), np.uint8)
+        self.assertTrue(r.foto(img, ["FA: esploro", "guardo: 90"], 10.0))
+        self.assertFalse(r.foto(img, ["troppo presto"], 11.0))                   # una ogni 2 secondi
+        self.assertTrue(r.foto(img, ["FA: apro la cassa (IA)"], 12.5))
+        zip_ = r.chiudi()
+        self.assertTrue(zip_.endswith(".zip"))
+        nomi = zipfile.ZipFile(zip_).namelist()
+        self.assertEqual(sum(n.endswith(".jpg") for n in nomi), 2)
+        self.assertTrue(any(n.endswith("log.txt") for n in nomi))
+
+    def test_righe_di_stato(self):
+        import ia
+        import registra
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        mani, mondo, occhi, esec, app, cerv = crea(self.base, cfg, {"ppp": 0.5}, apprendimento=False)
+        img = mondo.foto()
+        righe = registra.righe_di_stato(cerv, occhi.analizza(img), "esploro", time.monotonic())
+        self.assertIn("FA: esploro", righe[0])
+        c = ia.Consiglio(fase="playing")
+        cerv.ia = types.SimpleNamespace(ultimo=c)
+        righe = registra.righe_di_stato(cerv, occhi.analizza(img), "esploro", time.monotonic())
+        self.assertIn("fase=playing", righe[2])
 
 
 # ====================================================================== autotest dell'exe

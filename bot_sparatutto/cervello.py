@@ -288,6 +288,11 @@ class Cervello:
         self.calibra_bussola_da = None    # appena atterrato misuro quanto mi giro davvero (con la bussola)
         self.ultima_calibrazione_bussola = -1e9
         self.bussola_sbagliata = 0        # quante volte la bussola letta non torna con i miei conti
+        # SEGUO UN COMPAGNO (come i bot che si assoldano in Fortnite): va dove va lui
+        self.ultimo_compagno = -1e9       # quando l'ho visto l'ultima volta
+        self.verso_compagno_fino = 0.0
+        self.vicino_compagno_fino = 0.0
+        self.seguo_da_log = False
         self.prossima_svolta_ia = 0.0     # esplorando: ogni tanto l'IA dice da che parte andare
         self.ultimo_consiglio_esplora = 0
         self.reazione_fino = 0.0          # stile: prima di questo momento non spara al nemico appena visto
@@ -566,6 +571,15 @@ class Cervello:
             return "sul bus"
         if c.fase == "falling":
             self._spara(False)
+            if (c.compagno_xy is not None and c.compagno_xy[2] == "on_screen" and self.fort.get("segui_compagno", True)
+                    and c.numero != self.ultimo_consiglio_caduta):
+                # cado dove cade il compagno: lui sa dove atterrare
+                self.ultimo_consiglio_caduta = c.numero
+                gradi = (c.compagno_xy[0] - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
+                if abs(gradi) > 8:
+                    self.esecutore.gira(gradi)
+                self._cammina(avanti=True)
+                return "cado verso il compagno"
             guardo = self.guardo_verso()
             if self.rotta is None and c.sopra_isola is False:
                 self._guarda_mappa(t, "In caduta sopra il mare")
@@ -826,6 +840,12 @@ class Cervello:
                 vis.oggetti["cassa"] = []
         if vis.nemici:
             return None                          # i nemici vengono prima
+        if t < self.verso_compagno_fino and not vis.casse:
+            self._cammina(avanti=True, corri=True)
+            return "seguo il compagno"
+        if t < self.vicino_compagno_fino and not vis.casse and t >= self.verso_obiettivo_fino:
+            self._cammina()
+            return "sto vicino al compagno"
         if t < self.verso_obiettivo_fino and not vis.casse:
             # tra una risposta dell'IA e l'altra continuo verso la cassa (o l'arma) che ha visto
             self._cammina(avanti=True)
@@ -914,6 +934,11 @@ class Cervello:
             self._cammina()
             self.esecutore.gira(random.choice((-1, 1)) * random.uniform(70, 120))
             return "evito il muro"
+        segui = c.compagno_xy is not None and self.fort.get("segui_compagno", True)
+        lontano = segui and not (c.compagno_xy[2] == "on_screen" and c.compagno_xy[3] is not None
+                                 and c.compagno_xy[3] <= float(self.fort.get("segui_casse_entro_metri", 25)))
+        if lontano:
+            return self._segui_compagno(c, t)
         if c.obiettivo is not None and not vis.casse and self.racc.get("casse", True):
             cosa, x, y = c.obiettivo
             if cosa == "weapon" and not self.racc.get("armi", True):
@@ -931,7 +956,36 @@ class Cervello:
         if c.cassa in ("left", "right") and not vis.casse:
             self.esecutore.gira(-35 if c.cassa == "left" else 35)
             return "giro verso la cassa che vede l'IA"
+        if segui:
+            return self._segui_compagno(c, t)
         return None
+
+    def _segui_compagno(self, c, t):
+        """Come i bot che si assoldano in Fortnite: vado dove va il compagno e gli sto vicino.
+        Lui sa dove andare (terra, case, zona sicura): io lo seguo, apro le casse vicino a lui e
+        sparo ai nemici che vedo. Se muore, l'IA mi indica il compagno piu' vicino dopo."""
+        x, y, lato, metri = c.compagno_xy
+        self.ultimo_compagno = t
+        if lato == "on_screen":
+            gradi = (x - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
+        else:
+            gradi = {"left": -75.0, "right": 75.0, "behind": 180.0}[lato]
+        vicino = lato == "on_screen" and metri is not None and \
+            metri <= float(self.fort.get("segui_vicino_metri", 8) or 8)
+        if abs(gradi) > 8:
+            self.esecutore.gira(gradi)
+        if vicino:
+            self._cammina()
+            self.verso_compagno_fino = 0.0
+            self.vicino_compagno_fino = t + 2.0
+            return "sto vicino al compagno"
+        if not self.seguo_da_log:
+            self.log("Seguo il compagno di squadra (%s)" % ("%.0f metri" % metri if metri is not None else lato))
+            self.seguo_da_log = True
+        self.verso_compagno_fino = t + (2.5 if metri is None or metri > 30 else 1.2)
+        self.vicino_compagno_fino = 0.0
+        self._cammina(avanti=True, corri=True)
+        return "seguo il compagno"
 
     def _passi_x(self):
         return getattr(self.mani, "passi_totali_x", 0)
@@ -1738,6 +1792,11 @@ class Cervello:
             scritta = self._guarda_mappa(t, "Controllo")
             if scritta:
                 return scritta
+        if t - self.ultimo_compagno < float(self.fort.get("segui_memoria_secondi", 12) or 12):
+            # seguo un compagno: niente giri a caso, vado dritto dove andavo (verso di lui)
+            self._cammina(avanti=True, corri=bool(self.espl.get("corri", True)))
+            self._controlla_blocco(img, t)
+            return "seguo il compagno"
         guardo = self.guardo_verso()
         errore_rotta = None
         if self.rotta is not None and guardo is not None:

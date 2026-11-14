@@ -36,6 +36,7 @@ fortnite:
   # true = giochi in Zero Costruzioni (niente muri). false = partite con le costruzioni.
   zero_costruzioni: true
   partite_in_loop: true       # finita la partita preme/clicca da solo per la prossima, e cosi' via
+  segui_compagno: true        # in squadra segue un compagno (come i bot che si assoldano in Fortnite)
   usa_le_scritte: true        # con l'IA: se sullo schermo c'e' "Apri", "Raccogli" o una zipline preme E
   guarda_mappa: true          # con l'IA: apre la mappa (M) per sapere dov'e' la zona sicura
   mappa_ogni_secondi: 60      # la controlla ogni tanto anche se va tutto bene (0 = solo con la tempesta)

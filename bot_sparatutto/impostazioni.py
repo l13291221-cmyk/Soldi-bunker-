@@ -19,6 +19,10 @@ PREDEFINITE = {
     "fortnite": {
         "zero_costruzioni": True,        # giochi in "Zero Costruzioni": il bot non prova a fare muri
         "usa_le_scritte": True,          # con l'IA: "Apri" / "Raccogli" / zipline sullo schermo -> preme E
+        "segui_compagno": True,          # in squadra segue un compagno (come i bot che si assoldano)
+        "segui_vicino_metri": 8,         # piu' vicino di cosi': si ferma accanto a lui
+        "segui_casse_entro_metri": 25,   # col compagno entro questi metri apre le casse li' intorno
+        "segui_memoria_secondi": 12,
         "bus_attesa_massima": 45,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
         "calibra_con_bussola": True,     # appena atterrato misura con la bussola quanto si gira davvero
         "calibra_bussola_gradi": 60,

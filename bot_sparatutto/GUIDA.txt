@@ -382,6 +382,14 @@ computer (le IA online senza chiave provate a novembre 2026 non accettano immagi
     una volta sola: Ollama + il modello qwen2.5vl:3b).
   - Senza scheda video e' lenta (anche 30-60 secondi a foto): va bene soprattutto
     per bus, menu e partita successiva; per casse e muri arriva tardi.
+IN SQUADRA IL BOT SEGUE UN COMPAGNO (come i bot che si assoldano in Fortnite): cade
+dove cade lui, gli corre dietro, gli sta vicino, apre le casse li' intorno e spara ai
+nemici che vede. Se il compagno muore segue quello dopo. (fortnite -> segui_compagno)
+
+MENU 17 "GIOCA E REGISTRA": gioca e intanto salva una foto ogni 2 secondi con scritto
+sopra cosa pensa il bot, piu' tutto quello che scrive. Alla fine (F9) fa uno zip
+"registrazione_....zip" nella cartella del bot: mandalo a chi sistema il bot.
+
 PER GIOCARE GIORNI INTERI il PC non deve addormentarsi: Impostazioni di Windows ->
 Sistema -> Alimentazione -> Schermo e sospensione: "Mai" (con il caricatore attaccato).
 
