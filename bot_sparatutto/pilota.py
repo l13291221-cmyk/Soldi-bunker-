@@ -79,6 +79,8 @@ class Lavagna:
         self.barra = False           # si vede la barra delle armi
         self.bus = False             # bussola si', barra delle armi no: sono sul bus
         self.compagni = []           # triangolini dei compagni sulla bussola (gradi rispetto a dove guardo)
+        self.compagni_bordi = []     # frecce dei compagni ai bordi / dietro (gradi rispetto a dove guardo)
+        self.compagni_mini = []      # frecce gialle sulla minimappa: (gradi della bussola, distanza 0-1)
 
 
 class Pilota:
@@ -163,8 +165,12 @@ class Pilota:
         self.meta_compagno = None         # (gradi, metri o None, quando era la foto)
         self.meta_bottino = None          # (gradi, cosa, y sullo schermo, quando era la foto)
         self.bottino_usato = None
-        self.compagno_hud = None          # il compagno che seguo (gradi), visto sulla bussola
+        self.compagno_hud = None          # il compagno che seguo (gradi), visto sullo schermo
         self.compagno_hud_t = -1e9
+        self.compagno_dist = None         # quanto e' lontano sulla minimappa (0 = attaccato, 1 = al bordo)
+        self.compagno_dist_t = -1e9
+        self.compagno_fonte = ""
+        self.salvo_memo = None            # (gradi, quando): l'ultima direzione "lontano dalla tempesta"
         # movimento
         self.cammino_fino = 0.0           # cammino avanti fino a (verso la cassa / il compagno)
         self.cammino_cosa = ""
@@ -377,7 +383,14 @@ class Pilota:
             self.prossima_minimappa = t + float(self.fort.get("minimappa_ogni_secondi", 0.4) or 0.4)
             lv.barra = hud.barra_armi(img)
             lv.mini = hud.leggi_minimappa(img)
-            lv.compagni = hud.compagni_sulla_bussola(img) if t - self.ultima_bussola_hud < 1.0 else []
+            in_gioco = lv.barra and t - self.ultima_bussola_hud < 1.0
+            lv.compagni = hud.compagni_sulla_bussola(img) if in_gioco else []
+            lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
+            lv.compagni_mini = hud.compagni_sulla_minimappa(img) if in_gioco else []
+            if lv.mini.ok and 0.05 <= lv.mini.tempesta <= 0.9:
+                g = lv.mini.lontano_dalla_tempesta()
+                if g is not None:
+                    self.salvo_memo = (g, t)        # me lo ricordo per quando la minimappa e' tutta viola
             # sul bus: si legge la bussola, si vede la minimappa, ma la barra delle armi no
             if t - self.ultima_bussola_hud < 1.0 and lv.mini.ok and not lv.barra:
                 self.bus_conta += 1
@@ -431,20 +444,37 @@ class Pilota:
             self.stime_giro = []
 
     def _scegli_compagno(self, t):
-        """Il compagno da seguire, visto sulla bussola: sempre lo stesso (quello piu' vicino alla
-        direzione di prima); se lo perdo per un po' ne scelgo un altro a caso."""
+        """Il compagno da seguire (come i bot che si assoldano: "al guinzaglio"). Lo cerco sulla
+        minimappa (freccia gialla: so anche quanto e' lontano), sopra la bussola (triangolini) e ai
+        bordi dello schermo (frecce < > e v quando e' dietro). Seguo sempre lo stesso; se lo perdo
+        per un po' ne scelgo un altro a caso."""
         lv = self.lavagna
         g = self.guardo_verso()
-        if not lv.compagni or g is None:
+        if g is None:
             return
-        assoluti = [(g + d) % 360.0 for d in lv.compagni]
+        candidati = [(b, d, "minimappa") for b, d in lv.compagni_mini]
+        candidati += [((g + d) % 360.0, None, "bussola") for d in lv.compagni]
+        candidati += [((g + d) % 360.0, None, "bordo") for d in lv.compagni_bordi]
+        if not candidati:
+            return
+        ordine = {"minimappa": 0, "bussola": 1, "bordo": 2}
+        scelto = None
         if self.compagno_hud is not None and t - self.compagno_hud_t < 20.0:
-            vicino = min(assoluti, key=lambda a: abs(avvolgi(a - self.compagno_hud)))
-            if abs(avvolgi(vicino - self.compagno_hud)) <= 35 or t - self.compagno_hud_t > 6.0:
-                self.compagno_hud, self.compagno_hud_t = vicino, t
-            return
-        self.compagno_hud, self.compagno_hud_t = random.choice(assoluti), t
-        self.log("Scelgo un compagno da seguire: e' verso %.0f gradi" % self.compagno_hud)
+            tolleranza = {"minimappa": 45, "bussola": 45, "bordo": 90}
+            vicini = [c for c in candidati if abs(avvolgi(c[0] - self.compagno_hud)) <= tolleranza[c[2]]]
+            if vicini:
+                scelto = min(vicini, key=lambda c: (ordine[c[2]], abs(avvolgi(c[0] - self.compagno_hud))))
+            elif t - self.compagno_hud_t <= 6.0:
+                return                              # per un po' resto fedele a quello di prima
+        nuovo = scelto is None
+        if nuovo:
+            migliori = [c for c in candidati if ordine[c[2]] == min(ordine[x[2]] for x in candidati)]
+            scelto = random.choice(migliori)
+        self.compagno_hud, self.compagno_hud_t, self.compagno_fonte = scelto[0], t, scelto[2]
+        if scelto[1] is not None:
+            self.compagno_dist, self.compagno_dist_t = scelto[1], t
+        if nuovo:
+            self.log("Scelgo un compagno da seguire: e' verso %.0f gradi (%s)" % (scelto[0], scelto[2]))
 
     def _mete_dall_ia(self, c):
         """La risposta dell'IA (anche se arriva tardi) diventa una DIREZIONE DELLA BUSSOLA: dove
@@ -777,12 +807,21 @@ class Pilota:
                 if g is not None:
                     return g, "fuori dalla tempesta (minimappa)"
             if lv.in_acqua:
-                g = m.verso_terra()
+                g = m.verso_terra(preferita=self._direzione_compagno(t))   # meglio la terra dov'e' il compagno
                 if g is not None:
                     return g, "la terra piu' vicina (minimappa)"
             g = m.lontano_dalla_tempesta()
             if g is not None and lv.in_tempesta:
                 return g, "lontano dalla tempesta (minimappa)"
+        if lv.in_tempesta:
+            # la minimappa e' tutta viola: vado dal compagno (lui sta nella zona sicura) o dove
+            # ricordo che la tempesta finiva
+            compagno = self._direzione_compagno(t)
+            if compagno is not None:
+                return compagno, "verso il compagno (fuori dalla tempesta)"
+            if self.salvo_memo is not None and t - self.salvo_memo[1] < float(
+                    self.fort.get("ricordo_zona_secondi", 180) or 180):
+                return self.salvo_memo[0], "dove finiva la tempesta (ricordo della minimappa)"
         if self.rotta_ia is not None and t - self.rotta_ia_t < float(self.fort.get("mappa_valida_secondi", 90) or 90):
             return self.rotta_ia, "la zona sicura (mappa)"
         return None, None
@@ -1090,20 +1129,26 @@ class Pilota:
             return "sto vicino al compagno"
         gradi = self._direzione_compagno(t) if lv.guardo is not None else None
         if gradi is not None:
+            # IL GUINZAGLIO (come i compagni assoldati): lontano -> corro da lui; vicino -> resto li'
             mc = self.meta_compagno
             metri = mc[1] if mc is not None and t - mc[2] <= 6.0 else None
-            if metri is not None and metri <= float(self.fort.get("segui_vicino_metri", 8) or 8):
+            dist = self.compagno_dist if t - self.compagno_dist_t <= 2.0 else None
+            vicino = (metri is not None and metri <= float(self.fort.get("segui_vicino_metri", 8) or 8)) or \
+                (dist is not None and dist <= float(self.fort.get("guinzaglio_vicino", 0.12) or 0.12))
+            if vicino:
                 self._cammina()
-                self.fermo_fino = t + 2.0
+                self.fermo_fino = t + 1.5
                 return "sto vicino al compagno"
             if lv.mini.ok:
                 gradi = lv.mini.direzione_sicura(gradi, 10)          # non dietro di lui nel mare
             if self.cammino_cosa != "compagno":
                 self.log("Seguo il compagno di squadra (verso %.0f gradi%s)" % (
-                    gradi, ", %.0f metri" % metri if metri is not None else ""))
+                    gradi, ", %.0f metri" % metri if metri is not None else
+                    (", sulla minimappa a %.0f%% dal centro" % (100 * dist) if dist is not None else "")))
             self.cammino_cosa = "compagno"
             self._vai_verso(gradi, t)
-            self._cammina(avanti=True, corri=True)
+            corri = dist is None or dist > float(self.fort.get("guinzaglio_corri", 0.25) or 0.25)
+            self._cammina(avanti=True, corri=corri)
             self._controlla_blocco(img, t)
             return "seguo il compagno"
         # senza bussola: come prima, con quello che vede l'IA sullo schermo

@@ -100,6 +100,11 @@ def righe_di_stato(cervello, vis, scritta, t):
                          lv.bussola_hud, "ok" if mini.ok else "non la vedo", qui, 100 * mini.tempesta,
                          100 * mini.acqua, "si" if lv.barra else "no", "si" if lv.bus else "no",
                          ",".join("%.0f" % g for g in lv.compagni) or "-"))
+        righe.append("COMPAGNO: seguo quello verso %s (%s) | minimappa: %s | bordi: %s" % (
+            "%.0f" % cervello.compagno_hud if getattr(cervello, "compagno_hud", None) is not None else "nessuno",
+            getattr(cervello, "compagno_fonte", ""),
+            ",".join("%.0f@%.2f" % (g, d) for g, d in getattr(lv, "compagni_mini", [])) or "-",
+            ",".join("%.0f" % g for g in getattr(lv, "compagni_bordi", [])) or "-"))
     ia = getattr(cervello, "ia", None)
     c = ia.ultimo if ia is not None and hasattr(ia, "ultimo") else None
     if c is None:

@@ -2580,6 +2580,9 @@ def schermo_vero(numero, larghezza=960, altezza=540):
     metti("barra", int(round(0.68 * larghezza)), int(round(0.84 * altezza)))
     metti("triangoli", int(round(0.28 * larghezza)), 0)
     metti("numero", int(round(0.46 * larghezza)), 0)
+    metti("sinistra", 0, int(round(0.15 * altezza)))
+    metti("destra", int(round(0.978 * larghezza)), int(round(0.15 * altezza)))
+    metti("sotto", int(round(0.25 * larghezza)), int(round(0.962 * altezza)))
     return img
 
 
@@ -2649,6 +2652,21 @@ class TestHud(unittest.TestCase):
         self.assertEqual(len(hud.compagni_sulla_bussola(schermo_vero(170))), 2)
         self.assertEqual(hud.compagni_sulla_bussola(schermo_vero(184)), [])
 
+    def test_compagni_ai_bordi_e_sulla_minimappa(self):
+        import hud
+        self.assertEqual(hud.compagni_ai_bordi(schermo_vero(199)), [100.0])            # a destra
+        self.assertEqual(sorted(hud.compagni_ai_bordi(schermo_vero(205))), [-100.0, -100.0, 100.0])
+        dietro = hud.compagni_ai_bordi(schermo_vero(73))
+        self.assertGreaterEqual(len(dietro), 3)
+        self.assertTrue(all(abs(g) > 140 for g in dietro))                            # sono dietro
+        self.assertEqual(hud.compagni_ai_bordi(schermo_vero(109)), [])
+        for numero, gradi in ((40, 137), (42, 134)):                                  # freccia gialla a sud-est
+            trovati = hud.compagni_sulla_minimappa(schermo_vero(numero))
+            self.assertEqual(len(trovati), 1, numero)
+            self.assertLess(abs(hud.differenza(trovati[0][0], gradi)), 15, numero)
+        for numero in (85, 97, 109, 121, 184, 34):
+            self.assertEqual(hud.compagni_sulla_minimappa(schermo_vero(numero)), [], numero)
+
     def test_direzione_sicura(self):
         import hud
         m = hud.leggi_minimappa(schermo_vero(109))
@@ -2710,6 +2728,39 @@ class TestPilotaConLoSchermo(ConCartella):
         self.assertEqual(scritta, "seguo il compagno")
         self.assertLess(abs(avvolgi_test(p.compagno_hud - 323)), 10)          # 272 + 51
         self.assertGreater(mani.mosso_x, 0)
+
+    def test_guinzaglio_col_compagno(self):
+        """Come i compagni assoldati in Fortnite: lontano -> corre da lui; vicino -> resta accanto."""
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        img = schermo_vero(109)
+        p.passo(occhi.analizza(img), img, t)
+        p.passo(occhi.analizza(img), img, t + 0.5)
+        p.lavagna.compagni_mini = [(300.0, 0.6)]                  # freccia gialla lontana a nord-ovest
+        p.compagno_hud = None
+        p._scegli_compagno(t + 0.6)
+        self.assertEqual(p.compagno_fonte, "minimappa")
+        self.assertEqual(p._ramo_compagno(None, img, t + 0.7), "seguo il compagno")
+        self.assertTrue(mani.e_premuto("corri"))
+        p.lavagna.compagni_mini = [(300.0, 0.05)]                 # adesso e' attaccato a me
+        p._scegli_compagno(t + 1.0)
+        self.assertEqual(p._ramo_compagno(None, img, t + 1.1), "sto vicino al compagno")
+        self.assertFalse(mani.e_premuto("avanti"))
+
+    def test_tempesta_tutta_viola_va_dal_compagno(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        img = schermo_vero(97)
+        for i in range(3):
+            p.passo(occhi.analizza(img), img, t + i * 0.3)
+        p.lavagna.mini.qui = 3
+        p.lavagna.mini.tempesta = 1.0
+        p.lavagna.mini.ok = False                                   # come se la minimappa fosse tutta viola
+        p.compagno_hud, p.compagno_hud_t = 200.0, t + 1.0
+        self.assertEqual(p._rotta_di_fuga(t + 1.0)[0], 200.0)
+        p.compagno_hud = None
+        p.salvo_memo = (250.0, t)
+        self.assertEqual(p._rotta_di_fuga(t + 1.0)[0], 250.0)
 
     def test_misura_quanto_si_gira_con_la_bussola(self):
         mani, occhi, p = self._pilota()

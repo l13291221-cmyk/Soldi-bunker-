@@ -24,6 +24,9 @@ PREDEFINITE = {
         "segui_vicino_metri": 8,         # piu' vicino di cosi': si ferma accanto a lui
         "segui_casse_entro_metri": 25,   # col compagno entro questi metri apre le casse li' intorno
         "segui_memoria_secondi": 12,
+        "guinzaglio_vicino": 0.12,       # sulla minimappa il compagno e' piu' vicino di cosi': resto accanto a lui
+        "guinzaglio_corri": 0.25,        # piu' lontano di cosi': corro (scatto) per raggiungerlo
+        "ricordo_zona_secondi": 180,     # minimappa tutta viola: vado dove ricordo che finiva la tempesta
         "bus_attesa_massima": 60,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
         "bus_terra_minima": 0.7,         # salta quando sulla minimappa, intorno al bus, c'e' almeno 70% di terra
         "caduta_secondi": 50,            # dopo il salto cade per circa questi secondi (verso la terra)

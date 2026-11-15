@@ -154,6 +154,75 @@ def compagni_sulla_bussola(img):
     return sorted(gradi)
 
 
+def _pezzi_bianchi(img, x0, x1, y0, y1, soglia=205):
+    """I pezzi bianchi in una striscia dello schermo, misurati come su uno schermo 960x540."""
+    H, W = img.shape[:2]
+    c = img[int(round(y0 * H)):int(round(y1 * H)), int(round(x0 * W)):int(round(x1 * W))]
+    if c.size == 0:
+        return []
+    largo = max(1, int(round((x1 - x0) * 960)))
+    alto = max(1, int(round((y1 - y0) * 540)))
+    c = cv2.resize(c, (largo, alto), interpolation=cv2.INTER_AREA)
+    m = (c.min(axis=2) > soglia).astype(np.uint8)
+    n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
+    return [tuple(int(v) for v in st[k]) for k in range(1, n) if st[k][4] >= 8]
+
+
+def compagni_ai_bordi(img):
+    """Le frecce bianche dei compagni che NON vedo: "<" sul bordo sinistro, ">" sul bordo destro,
+    "v" in basso (sono dietro di me). -> lista di gradi (circa) rispetto a dove guardo."""
+    if img is None:
+        return []
+    gradi = []
+    for x0, x1, verso in ((0.0, 0.022, -100.0), (0.978, 1.0, 100.0)):
+        for x, y, w, h, a in _pezzi_bianchi(img, x0, x1, 0.15, 0.85):
+            if 3 <= w <= 9 and 9 <= h <= 16:
+                gradi.append(verso)
+    for x, y, w, h, a in _pezzi_bianchi(img, 0.25, 0.68, 0.962, 0.995):
+        if 4 <= y <= 8 and 5 <= h <= 9 and 9 <= w <= 27:
+            quanti = max(1, int(round(w / 12.5)))
+            for i in range(quanti):
+                cx = 0.25 * 960 + x + (i + 0.5) * w / quanti
+                # dietro: a sinistra in basso = dietro a sinistra
+                gradi.append(differenza(180.0 - (cx / 960.0 - 0.5) * 160.0, 0.0))
+    return gradi
+
+
+def compagni_sulla_minimappa(img):
+    """Le frecce GIALLE dei compagni sulla minimappa (bordo nero intorno): dove sono e quanto
+    lontano. -> lista di (gradi della bussola, distanza 0-1 dove 1 = bordo della minimappa)."""
+    if img is None:
+        return []
+    H, W = img.shape[:2]
+    cx, cy, mezzo = MM_X * W, MM_Y * H, MM_MEZZO * W
+    c = img[max(0, int(round(cy - mezzo))):int(round(cy + mezzo)),
+            max(0, int(round(cx - mezzo))):int(round(cx + mezzo))]
+    if c.size == 0:
+        return []
+    lato = 128
+    c = cv2.resize(c, (lato, lato), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
+    h, s, v = (hsv[..., k].astype(np.int16) for k in range(3))
+    giallo = ((h >= 21) & (h <= 35) & (s >= 140) & (v >= 190)).astype(np.uint8)
+    scuro = v < 110
+    n, lab, st, cen = cv2.connectedComponentsWithStats(giallo, 8)
+    trovati = []
+    for k in range(1, n):
+        x, y, w, hh, a = (int(v_) for v_ in st[k])
+        if not (5 <= a <= 90 and w <= 14 and hh <= 14):
+            continue
+        x0, y0, x1, y1 = max(0, x - 2), max(0, y - 2), min(lato, x + w + 2), min(lato, y + hh + 2)
+        anello = np.zeros(giallo.shape, bool)
+        anello[y0:y1, x0:x1] = True
+        anello &= lab != k
+        if not anello.any() or float(scuro[anello].mean()) < 0.2:
+            continue                      # senza bordo scuro: e' un pezzo di sabbia, non un compagno
+        dx, dy = float(cen[k][0]) - (lato - 1) / 2.0, float(cen[k][1]) - (lato - 1) / 2.0
+        r = math.hypot(dx, dy)          # vicinissimo (sopra la mia freccia): distanza quasi 0
+        trovati.append((math.degrees(math.atan2(dx, -dy)) % 360.0, min(1.0, r / (lato / 2.0))))
+    return trovati
+
+
 # ------------------------------------------------------------------ la barra delle armi
 def barra_armi(img):
     """C'e' la barra delle armi in basso a destra (il quadrato grigio del piccone)?
@@ -291,10 +360,20 @@ class Minimappa:
                 distanze[g] = d
         return self._migliore(distanze)
 
-    def verso_terra(self):
-        """Sono in acqua (o sopra il mare): la terra piu' vicina che NON e' nella tempesta."""
+    def verso_terra(self, preferita=None, entro=70):
+        """Sono in acqua (o sopra il mare): la terra piu' vicina che NON e' nella tempesta.
+        preferita = una direzione (es. dov'e' il compagno): prima cerco la terra da quella parte."""
         if not self.ok:
             return None
+        if preferita is not None:
+            vicine = {}
+            for g in range(0, 360, self.PASSO):
+                if abs(differenza(g, preferita)) <= entro:
+                    d = self.primo(g, (TERRA,), evito=(TEMPESTA,), di_fila=3)
+                    if d is not None:
+                        vicine[g] = d
+            if vicine:
+                return self._migliore(vicine)
         distanze = {}
         for g in range(0, 360, self.PASSO):
             d = self.primo(g, (TERRA,), evito=(TEMPESTA,), di_fila=3)

@@ -6,3 +6,5 @@ per controllare che il bot li legga giusti SENZA IA (hud.py). Non servono per gi
 085 = in acqua           097, 121 = nella tempesta
 109 = sulla spiaggia, tempesta a sud-est       170 = due compagni sulla bussola (lobby)
 186 = in caduta (c'e' la barra delle armi)
+040, 042 = un compagno (freccia gialla) sulla minimappa
+073 = compagni dietro (frecce in basso)      199, 205 = compagni fuori dallo schermo (frecce ai bordi)
