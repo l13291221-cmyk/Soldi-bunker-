@@ -53,6 +53,12 @@ fortnite:
   rianima_compagni: true      # con l'IA: va dal compagno a terra e lo rianima (tiene premuto E)
   tempesta_soglia_viola: 0.35 # parte dello schermo viola per dire "sono nella tempesta"
   corsa_fuori_tempesta: 10    # secondi di corsa verso la zona sicura, poi ricontrolla
+  leggi_lo_schermo: true      # bussola, minimappa e compagni letti SENZA IA (consigliato)
+  # le armi come gli "slot preferiti" di Fortnite (Impostazioni -> Gioco):
+  # 1 mitra, 2 pompa, 3 per muoversi (impulso), 4 cecchino, 5 cure
+  slot_in_mano: 1             # lo tiene sempre in mano
+  slot_pompa: 2               # quando il nemico e' vicino
+  slot_cure: 5
 
 
 # ---------------------------------------------------------------------

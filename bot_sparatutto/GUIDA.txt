@@ -89,10 +89,22 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   dal colore oro, e la punta dorata del piccone lo confonde.
 - In Fortnite attiva "Raccolta automatica delle armi" (Impostazioni del gioco):
   camminandoci sopra le armi si prendono da sole.
-- Con l'IA collegata il bot: prende l'arma se vede il piccone in mano (prova i
-  tasti 2, 3, 4...), preme E se sullo schermo c'e' "Apri", "Raccogli" o una
-  zipline, va verso la cassa che vede l'IA, e guarda la MAPPA (M) ogni minuto e
-  quando c'e' la tempesta: 3 IA dicono da che parte andare, vince la maggioranza.
+- In Fortnite imposta gli "SLOT PREFERITI" (Impostazioni -> Gioco, la parte
+  dell'inventario): il gioco mette da solo ogni arma raccolta al suo posto.
+  Per il bot:  slot 1 = mitra (SMG),  slot 2 = pompa,  slot 3 = per muoversi
+  (granate impulso...),  slot 4 = cecchino / da lontano,  slot 5 = cure.
+  Il bot tiene sempre in mano lo slot 1 e prende la pompa (2) se il nemico e'
+  vicino. (Si cambiano in impostazioni.yaml -> fortnite: slot_in_mano, slot_pompa,
+  slot_cure.)
+- SENZA IA il bot legge da solo: il NUMERO DELLA BUSSOLA in alto (sa sempre dove
+  guarda), la MINIMAPPA (tempesta viola, mare blu, terra) e i triangolini dei
+  COMPAGNI sopra la bussola. Cosi' esce dalla tempesta, torna a terra, salta dal
+  bus sopra l'isola e segue un compagno anche quando le IA non rispondono.
+  Lascia la minimappa e la bussola visibili (come sono di solito).
+- Con l'IA collegata il bot in piu': va verso le casse che vede l'IA (le sue
+  risposte diventano direzioni della bussola, cosi' valgono anche se arrivano
+  tardi), preme E se sullo schermo c'e' "Apri", "Raccogli" o una zipline, e ogni
+  tanto fa guardare la MAPPA grande (M) alle IA mentre lui continua a giocare.
 - titolo_finestra_gioco: scrivi il nome del gioco (come appare nella barra
   della finestra). Cosi' se passi a un'altra finestra il bot si ferma da solo.
   CONSIGLIATO.

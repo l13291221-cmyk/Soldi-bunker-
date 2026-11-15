@@ -1,0 +1,8 @@
+Pezzetti di schermo VERI di una partita (registrata col menu 17, novembre 2026): la bussola,
+i triangolini dei compagni, la minimappa e la barra delle armi. Servono ai test (test_bot.py)
+per controllare che il bot li legga giusti SENZA IA (hud.py). Non servono per giocare.
+
+034, 037, 184 = sul bus (034 sopra il mare, 037 e 184 sopra l'isola)
+085 = in acqua           097, 121 = nella tempesta
+109 = sulla spiaggia, tempesta a sud-est       170 = due compagni sulla bussola (lobby)
+186 = in caduta (c'e' la barra delle armi)

@@ -91,6 +91,15 @@ def righe_di_stato(cervello, vis, scritta, t):
             "%.0f" % cervello.rotta if getattr(cervello, "rotta", None) is not None else "nessuna",
             float(cervello.passi_per_giro), len(vis.nemici), len(vis.casse)),
     ]
+    lv = getattr(cervello, "lavagna", None)
+    mini = getattr(lv, "mini", None)
+    if mini is not None:
+        qui = {0: "?", 1: "terra", 2: "acqua", 3: "TEMPESTA"}.get(getattr(mini, "qui", 0), "?")
+        righe.append("SCHERMO (senza IA): bussola=%s | minimappa: %s (qui %s, tempesta %.0f%%, acqua %.0f%%) | "
+                     "barra armi=%s | bus=%s | compagni=%s" % (
+                         lv.bussola_hud, "ok" if mini.ok else "non la vedo", qui, 100 * mini.tempesta,
+                         100 * mini.acqua, "si" if lv.barra else "no", "si" if lv.bus else "no",
+                         ",".join("%.0f" % g for g in lv.compagni) or "-"))
     ia = getattr(cervello, "ia", None)
     c = ia.ultimo if ia is not None and hasattr(ia, "ultimo") else None
     if c is None:

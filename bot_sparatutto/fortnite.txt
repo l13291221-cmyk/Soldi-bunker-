@@ -267,8 +267,10 @@ RARITA' (il colore dell'alone e della cornice)
   "Raccogli" (arma o oggetto per terra) -> premi E;
   la ZIPLINE (cavo teso tra due punti alti) -> premi E per aggrapparti, scorri da
   solo fino all'altra parte; SPAZIO per staccarti prima.
-- In mano devi avere un'ARMA per sparare (tasti 2-6). Col PICCONE (tasto 1) il
-  tasto sinistro da' solo colpi di piccone. Appena atterrato premi 2.
+- In mano devi avere un'ARMA per sparare (tasti 1-5). Col PICCONE (tasto F) il
+  tasto sinistro da' solo colpi di piccone. Appena atterrato premi 1.
+- Il giocatore usa gli "slot preferiti": slot 1 = mitra (SMG), 2 = pompa,
+  3 = oggetti per muoversi (granate impulso...), 4 = cecchino, 5 = cure.
 - Consiglio: nelle impostazioni di Fortnite attiva "Raccolta automatica delle
   armi": camminandoci sopra le armi si prendono da sole.
 

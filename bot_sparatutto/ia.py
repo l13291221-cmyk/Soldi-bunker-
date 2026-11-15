@@ -446,6 +446,10 @@ def richiesta(fornitore, jpeg_base64, domanda=DOMANDA, conoscenza="", lunghezza=
     conoscenza = come funziona il gioco (fortnite.txt): va alle IA online come messaggio di
     sistema. A Ollama sul PC no: senza scheda video un testo lungo la rallenta troppo."""
     intestazioni = {"Content-Type": "application/json", "User-Agent": "BotSparatutto"}
+    if conoscenza and not fornitore.get("sistema", True):
+        # senza messaggio di sistema (Gemma) tutto va nella domanda e conta nel limite di parole
+        # al minuto: solo l'inizio di fortnite.txt (comandi, fasi, mira), se no risponde tardissimo
+        conoscenza = conoscenza[:int(fornitore.get("conoscenza_massima", 3000))]
     if fornitore["tipo"] == "google":
         # Google (Gemini, Gemma): il modo ufficiale, con la chiave nell'intestazione x-goog-api-key
         intestazioni["x-goog-api-key"] = fornitore["chiave"]
@@ -708,13 +712,16 @@ class IA:
                 self.log("IA %s: %s (riprovo tra %d s, intanto uso le altre)" % (f["nome"], e, riposo))
         return None
 
-    def chiedi_voto(self, img, domanda, quante=3, attesa=20.0):
+    def chiedi_voto(self, img, domanda, quante=3, attesa=8.0):
         """Fa la stessa domanda a piu' IA veloci INSIEME e restituisce le risposte (dizionari):
-        chi chiama decide a maggioranza. Le IA che riposano (finite le domande) non le chiede."""
+        chi chiama decide a maggioranza. Le IA che riposano (finite le domande) non le chiede.
+        Le IA lente (Gemma "pensa" anche un minuto, Ollama sul PC) solo se chi chiama puo'
+        aspettare tanto (attesa di almeno 25 secondi, es. la mappa guardata mentre il bot gioca):
+        nella partita registrata il bot restava FERMO 22 secondi ad aspettarle."""
         adesso = time.monotonic()
         pronte = [f for f in self.fornitori if self.errori.get(f["nome"], 0) <= adesso]
         veloci = [f for f in pronte if f["tipo"] != "ollama" and not f["nome"].startswith("gemma")]
-        scelte = (veloci or pronte)[:max(1, int(quante))]
+        scelte = (veloci or (pronte if attesa >= 25 else []))[:max(1, int(quante))]
         if not scelte:
             return []
         foto = jpeg_base64(img, 1024, 80)
@@ -733,6 +740,8 @@ class IA:
                     volte = self.finite.get(f["nome"], 0) + 1
                     self.finite[f["nome"]] = volte
                     self.errori[f["nome"]] = time.monotonic() + min(1800.0, 60.0 * 2 ** (volte - 1))
+                elif "500" in str(e) or "503" in str(e):
+                    self.errori[f["nome"]] = time.monotonic() + 30.0     # sovraccarica: la lascio riposare
         fili = [threading.Thread(target=chiedi_a, args=(f,), daemon=True) for f in scelte]
         for filo in fili:
             filo.start()

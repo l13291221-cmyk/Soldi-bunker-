@@ -170,7 +170,7 @@ class TestIstruzioni(unittest.TestCase):
         with open(os.path.join(QUI, "istruzioni.txt"), encoding="utf-8") as f:
             regole, errori = leggi_istruzioni(f.read(), self.m.esiste, self.macro)
         self.assertEqual(errori, [])
-        self.assertGreaterEqual(len(regole), 2)
+        self.assertGreaterEqual(len(regole), 1)
         squadra = regole[0]
         self.assertEqual(squadra.condizioni[0].tipo, "vedi")
         self.assertEqual(squadra.condizioni[0].valore, "squadra_eliminata")
@@ -1374,8 +1374,8 @@ class TestLogicaFortnite(ConCartella):
         t = time.monotonic()
         self.assertEqual(self._passo(mondo, occhi, cerv, t), "sul bus: aspetto di essere sopra l'isola")
         self.assertNotIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)          # sopra il mare: no
-        cerv.ia.c.quando = t + 50
-        self.assertEqual(self._passo(mondo, occhi, cerv, t + 50), "sul bus")          # troppo tempo: salta
+        cerv.ia.c.quando = t + 65
+        self.assertEqual(self._passo(mondo, occhi, cerv, t + 65), "sul bus")          # troppo tempo: salta
         self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
         mani, mondo, occhi, cerv = self._cervello(fase="bus", sopra_isola=True)
         self.assertEqual(self._passo(mondo, occhi, cerv), "sul bus")                  # sopra l'isola: salta
@@ -2405,10 +2405,11 @@ class TestFileUnicoSchedina(unittest.TestCase):
 class TestPilota(ConCartella):
     """IL CERVELLO NUOVO (pilota.py): un ramo alla volta, in ordine di importanza."""
 
-    def _pilota(self, **consiglio):
+    def _pilota(self, leggi_schermo=False, **consiglio):
         import ia
         from pilota import Pilota
         cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 4800})
+        cfg["fortnite"]["leggi_lo_schermo"] = leggi_schermo   # il mondo finto non ha bussola ne' minimappa
         mani = ManiFinte(cfg["tasti"])
         mondo = Mondo(mani, ppp=0.5)
         occhi = Occhi(cfg, self.base, print, universale=False)
@@ -2506,7 +2507,11 @@ class TestPilota(ConCartella):
         self.assertEqual(p.statistiche["casse_partita"], 1)
         mani, mondo, occhi, p = self._pilota(fase="playing", in_mano="pickaxe", slot=1, slot_arma=3, ha_arma=True)
         self._passo(mondo, occhi, p)
-        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)               # slot 3 = tasto 2
+        self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)               # sempre lo slot 1 (la mitra)
+        p.prossimo_cambio_arma = 0.0
+        p.ia.c.numero = 2
+        self._passo(mondo, occhi, p)
+        self.assertIn("giu tasto 0x%02X" % CODICI["2"], mani.storia)               # ancora il piccone: lo slot dell'IA
         mani, mondo, occhi, p = self._pilota(fase="playing", compagno_xy=(0.8, 0.4, "on_screen", 70.0))
         self.assertEqual(self._passo(mondo, occhi, p), "seguo il compagno")
         self.assertGreater(mani.mosso_x, 0)
@@ -2553,6 +2558,173 @@ class TestPilota(ConCartella):
         p.calibra_da = time.monotonic()
         self.assertEqual(self._passo(mondo, occhi, p), "correggo la sensibilita'")
         self.assertAlmostEqual(p.passi_per_giro, 2400, delta=50)                   # girato il doppio: dimezza
+
+
+def schermo_vero(numero, larghezza=960, altezza=540):
+    """Uno schermo nero con sopra i pezzi VERI di una partita (cartella prove_hud): bussola,
+    triangolini dei compagni, minimappa e barra delle armi, ognuno al suo posto."""
+    img = np.zeros((altezza, larghezza, 3), np.uint8)
+    cartella = os.path.join(QUI, "prove_hud")
+
+    def metti(nome, x0, y0):
+        percorso = os.path.join(cartella, "%03d_%s.jpg" % (numero, nome))
+        if not os.path.exists(percorso):
+            return
+        pezzo = cv2.imread(percorso)
+        h, w = pezzo.shape[:2]
+        img[y0:y0 + h, x0:x0 + w] = pezzo[:altezza - y0, :larghezza - x0]
+
+    cx, cy, mezzo = 0.918 * larghezza, 0.146 * altezza, 0.0656 * larghezza
+    metti("minimappa", int(round(cx - mezzo)) - 2, int(round(cy - mezzo)) - 2)
+    metti("barra", int(round(0.68 * larghezza)), int(round(0.84 * altezza)))
+    metti("triangoli", int(round(0.28 * larghezza)), 0)
+    metti("numero", int(round(0.46 * larghezza)), 0)
+    return img
+
+
+class TestHud(unittest.TestCase):
+    """Bussola, minimappa, barra delle armi, compagni: letti dallo schermo SENZA IA (hud.py),
+    su pezzi di schermo veri di una partita."""
+
+    def test_bussola_sulle_foto_vere(self):
+        import hud
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        letti = {}
+        for nome, gradi in (("foto_20261113_115752_00003.jpg", 90), ("foto_20261113_121715_00011.jpg", 178),
+                            ("foto_20261113_121723_00012.jpg", 146), ("foto_20261113_121734_00014.jpg", 165),
+                            ("foto_20261113_121739_00015.jpg", 318), ("foto_20261113_121756_00018.jpg", 332)):
+            percorso = os.path.join(cartella, nome)
+            if os.path.exists(percorso):
+                letti[nome] = (hud.leggi_bussola(cv2.imread(percorso)), gradi)
+        self.assertEqual(len(letti), 6)
+        # un'icona sopra il numero (334 coperto da un segnalino): meglio non leggerlo che sbagliare
+        self.assertIsNone(hud.leggi_bussola(cv2.imread(os.path.join(cartella, "foto_20261113_121710_00010.jpg"))))
+        for nome, (letto, giusto) in letti.items():
+            self.assertIsNotNone(letto, nome)
+            self.assertLessEqual(abs(hud.differenza(letto, giusto)), 3, nome)
+        self.assertIsNone(hud.leggi_bussola(np.zeros((540, 960, 3), np.uint8)))
+
+    def test_bussola_dalla_partita_registrata(self):
+        import hud
+        for numero, gradi in ((85, 269), (97, 346), (121, 298), (184, 353), (34, 56)):
+            letto = hud.leggi_bussola(schermo_vero(numero))
+            self.assertIsNotNone(letto, numero)
+            self.assertLessEqual(abs(hud.differenza(letto, gradi)), 3, numero)
+
+    def test_barra_delle_armi_e_bus(self):
+        import hud
+        for numero in (34, 37, 184):                       # sul bus: niente barra
+            self.assertFalse(hud.barra_armi(schermo_vero(numero)), numero)
+        for numero in (85, 97, 109, 186):
+            self.assertTrue(hud.barra_armi(schermo_vero(numero)), numero)
+
+    def test_minimappa(self):
+        import hud
+        for scala in ((960, 540), (1280, 720)):
+            def leggi(n):
+                img = schermo_vero(n)
+                if scala != (960, 540):
+                    img = cv2.resize(img, scala, interpolation=cv2.INTER_CUBIC)
+                return hud.leggi_minimappa(img)
+            sopra_mare, sopra_isola = leggi(34), leggi(184)
+            self.assertLess(sopra_mare.terra_intorno(22, 12), 0.3)
+            self.assertGreater(sopra_isola.terra_intorno(22, 12), 0.8)
+            self.assertGreater(leggi(37).terra_intorno(22, 12), 0.8)
+            mare = leggi(85)                                  # nuota: la terra e' a ovest/nord-ovest
+            self.assertEqual(mare.qui, hud.ACQUA)
+            self.assertLess(abs(hud.differenza(mare.verso_terra(), 305)), 40)
+            for n, giusta in ((97, 292), (121, 325)):         # nella tempesta: si esce a nord-ovest
+                m = leggi(n)
+                self.assertEqual(m.qui, hud.TEMPESTA, n)
+                self.assertLess(abs(hud.differenza(m.verso_fuori_tempesta(), giusta)), 30, n)
+            spiaggia = leggi(109)                             # sulla spiaggia, la tempesta e' a sud-est
+            self.assertEqual(spiaggia.qui, hud.TERRA)
+            self.assertLess(abs(hud.differenza(spiaggia.lontano_dalla_tempesta(), 300)), 40)
+            self.assertFalse(hud.leggi_minimappa(np.zeros((540, 960, 3), np.uint8)).ok)
+
+    def test_compagni_sulla_bussola(self):
+        import hud
+        self.assertEqual([round(g) for g in hud.compagni_sulla_bussola(schermo_vero(109))], [51])
+        self.assertEqual(len(hud.compagni_sulla_bussola(schermo_vero(170))), 2)
+        self.assertEqual(hud.compagni_sulla_bussola(schermo_vero(184)), [])
+
+    def test_direzione_sicura(self):
+        import hud
+        m = hud.leggi_minimappa(schermo_vero(109))
+        sicura = m.direzione_sicura(135, 10)                  # verso sud-est c'e' la tempesta: cambia
+        self.assertFalse(m.pericolo_davanti(sicura, 10))
+
+
+class TestPilotaConLoSchermo(ConCartella):
+    """Il cervello nuovo con la bussola e la minimappa vere (senza IA): bus, tempesta, acqua, compagno."""
+
+    def _pilota(self):
+        from pilota import Pilota
+        cfg = cfg_test(mira={"pixel_per_passo": 0.5, "passi_per_giro": 3600})
+        mani = ManiFinte(cfg["tasti"])
+        mondo = Mondo(mani, ppp=0.5)
+        occhi = Occhi(cfg, self.base, print, universale=False)
+        esec = Esecutore(mani, occhi, mondo, cfg, None, print, {}, {})
+        p = Pilota(cfg, mani, occhi, esec, None, print, None, mondo)
+        p.prossima_mappa_periodica = time.monotonic() + 999
+        return mani, occhi, p
+
+    def _passi(self, p, occhi, img, t, quanti=3, ogni=0.5):
+        scritta = None
+        for i in range(quanti):
+            scritta = p.passo(occhi.analizza(img), img, t + i * ogni)
+        return scritta
+
+    def test_salta_dal_bus_sopra_l_isola(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        self.assertEqual(self._passi(p, occhi, schermo_vero(34), t), "sul bus: aspetto di essere sopra l'isola")
+        self.assertNotIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        self.assertEqual(self._passi(p, occhi, schermo_vero(37), t + 2), "sul bus")
+        self.assertIn("giu tasto 0x%02X" % CODICI["spazio"], mani.storia)
+        self.assertIsNotNone(p.salto_da)
+        self.assertEqual(self._passi(p, occhi, schermo_vero(186), t + 4, 2), "cado verso terra")
+
+    def test_esce_dalla_tempesta_senza_aspettare(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        scritta = self._passi(p, occhi, schermo_vero(97), t, 4, 0.3)
+        self.assertEqual(scritta, "esco dalla tempesta")
+        self.assertTrue(mani.e_premuto("avanti") and mani.e_premuto("corri"))
+        self.assertLess(mani.mosso_x, 0)                    # guarda a 346: si gira a sinistra (verso 290)
+        self.assertLess(abs(avvolgi_test(p.rotta - 292)), 30)
+
+    def test_in_acqua_torna_a_terra(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        scritta = self._passi(p, occhi, schermo_vero(85), t, 6, 0.4)
+        self.assertEqual(scritta, "torno a terra")
+        self.assertLess(abs(avvolgi_test(p.rotta - 305)), 40)
+        self.assertTrue(mani.e_premuto("avanti"))
+
+    def test_segue_il_compagno_sulla_bussola(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        scritta = self._passi(p, occhi, schermo_vero(109), t, 4, 0.5)
+        self.assertEqual(scritta, "seguo il compagno")
+        self.assertLess(abs(avvolgi_test(p.compagno_hud - 323)), 10)          # 272 + 51
+        self.assertGreater(mani.mosso_x, 0)
+
+    def test_misura_quanto_si_gira_con_la_bussola(self):
+        mani, occhi, p = self._pilota()
+        t = 1000.0
+        vero = 1800.0                                        # nel gioco un giro e' 1800 passi, non 3600
+        gradi = 100.0
+        for i in range(8):
+            p._nuova_lettura(round(gradi) % 360, t + i * 0.6)          # due letture di fila (conferma)
+            p._nuova_lettura(round(gradi) % 360, t + i * 0.6 + 0.15)
+            mani.muovi(300, 0)                               # mi giro di 300 passi = 60 gradi veri
+            gradi += 300 * 360.0 / vero
+        self.assertAlmostEqual(p.passi_per_giro, vero, delta=120)
+
+
+def avvolgi_test(gradi):
+    return (gradi + 180.0) % 360.0 - 180.0
 
 
 class TestRegistra(ConCartella):

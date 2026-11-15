@@ -1,37 +1,49 @@
 """
-pilota.py - IL CERVELLO NUOVO (rifatto da zero, novembre 2026).
+pilota.py - IL CERVELLO NUOVO (rifatto da zero, novembre 2026; sistemato dopo la partita registrata).
 
 Fatto come i bot dei giochi fatti con Unreal Engine (Fortnite compreso): una LAVAGNA con quello
-che il bot sa adesso (dai suoi occhi veloci e dall'IA che guarda) e un ALBERO DI COMPORTAMENTI:
-un elenco di "rami" in ordine di importanza. A ogni fotogramma si prende il PRIMO ramo che serve
-e si fa SOLO quello. Niente pezzi che litigano tra loro.
+che il bot sa adesso e un ALBERO DI COMPORTAMENTI: un elenco di "rami" in ordine di importanza.
+A ogni fotogramma si prende il PRIMO ramo che serve e si fa SOLO quello.
+
+COSA HA INSEGNATO LA PARTITA REGISTRATA: le IA gratis finiscono le domande o rispondono dopo un
+minuto, e il bot restava fermo nella tempesta ad aspettarle. Adesso le cose IMPORTANTI le legge
+da solo dallo schermo, senza IA, in pochi millesimi di secondo (hud.py):
+  - la BUSSOLA (il numero in alto): sa sempre dove guarda (0 nord, 90 est, 180 sud, 270 ovest)
+    e misura da solo quanto si gira col mouse (sensibilita');
+  - la MINIMAPPA: dov'e' la tempesta (viola), il mare (blu) e la terra -> esce dalla tempesta,
+    torna a terra, non va verso il mare, salta dal bus quando sotto c'e' l'isola;
+  - la BARRA DELLE ARMI: se non c'e' ma la bussola si', e' sul bus;
+  - i COMPAGNI sulla bussola (i triangolini bianchi in alto): sa in che direzione sono.
+L'IA serve per le cose "da capire" (casse, menu, scritte) e le sue risposte diventano DIREZIONI
+DELLA BUSSOLA (es. "cassa a 250 gradi"): anche se arriva tardi, dopo che mi sono girato, so
+ancora dove andare. La mappa grande (M) la guarda l'IA mentre il bot continua a giocare.
 
 L'ORDINE (dal piu' importante):
   1. le tue istruzioni (istruzioni.txt) e il pulsante giallo "Gioca di nuovo"
   2. schermi strani: PS5 "Chi sta usando...?", PS Remote Play scollegato, desktop
-  3. fasi: menu / eliminato (guarda il compagno e poi torna alla lobby) / bus / caduta
-  4. PERICOLO: tempesta o acqua -> verso il centro della zona sicura (mappa + bussola), nient'altro
-  5. NEMICO: arma in mano, mira, spara
+  3. fasi: menu / eliminato / bus (salta sopra la terra) / caduta (verso la terra o il compagno)
+  4. PERICOLO: tempesta o acqua -> fuori, con la minimappa, SENZA FERMARSI MAI
+  5. NEMICO: arma in mano (vicino = pompa, slot 2; se no slot 1), mira, spara
   6. SCRITTA sullo schermo: Apri / Raccogli / porta / zipline -> E
-  7. ARMA in mano e CURE (gli slot giusti li dice l'IA)
-  8. SEGUO IL COMPAGNO (come i bot che si assoldano in Fortnite)
-  9. BOTTINO: la cassa (o la casa, o l'arma) che vede l'IA
- 10. VIAGGIO: verso il centro della zona sicura (la rotta), guardando la mappa ogni tanto
-
-Dove guardo lo so dalla BUSSOLA (il numero in alto, letto dall'IA) piu' quanto ho girato col
-mouse da allora. Appena atterrato misuro con la bussola quanto mi giro davvero (sensibilita').
+  7. ARMA in mano (sempre lo slot 1, la mitra) e CURE
+  8. ogni tanto: misura la sensibilita' con la bussola, guarda la mappa grande (con l'IA)
+  9. BOTTINO: la cassa vista dall'IA -> ci va, la apre (E), raccoglie, poi torna dal compagno
+ 10. SEGUO IL COMPAGNO (uno a caso, come i bot che si assoldano in Fortnite)
+ 11. VIAGGIO: lontano dalla tempesta, verso la zona sicura, mai verso il mare
 
 Il cervello vecchio (cervello.py) resta: in impostazioni.yaml -> fortnite -> cervello: vecchio
 """
 
 import math
 import random
+import threading
 import time
 from collections import Counter
 
 import cv2
 import numpy as np
 
+import hud
 import impostazioni
 from cervello import acqua, angolo_medio, mappa_con_bussola, trova_pulsante_giallo, viola
 from obiettivo import Obiettivo
@@ -39,6 +51,7 @@ from stile import STILI
 
 NOMI_COSE = {"chest": "una cassa", "weapon": "un'arma per terra", "ammo_box": "una cassa di munizioni",
              "building": "una casa (dentro ci sono le casse)"}
+LATO_GRADI = {"left": -75.0, "right": 75.0, "behind": 180.0}
 
 
 def _cfg(cfg, nome):
@@ -60,6 +73,12 @@ class Lavagna:
         self.in_tempesta = False
         self.in_acqua = False
         self.guardo = None           # gradi della bussola dove guardo (o None)
+        # letti dallo schermo senza IA (hud.py)
+        self.bussola_hud = None      # il numero della bussola letto adesso (o None)
+        self.mini = hud.Minimappa(None)
+        self.barra = False           # si vede la barra delle armi
+        self.bus = False             # bussola si', barra delle armi no: sono sul bus
+        self.compagni = []           # triangolini dei compagni sulla bussola (gradi rispetto a dove guardo)
 
 
 class Pilota:
@@ -98,6 +117,7 @@ class Pilota:
         self.ultima_partita_contata = -1000.0
         self.ultima_fase = None
         self.bus_da = None
+        self.salto_da = None              # quando sono saltato dal bus (poi cado per un po')
         self.morto_da = None
         self.prossimo_salto = 0.0
         self.prossima_correzione = 0.0
@@ -110,20 +130,45 @@ class Pilota:
         self.giallo_indice = 0
         self.prossimo_giallo = 0.0
         self.ultimo_menu = 0
+        # bussola e schermo letti senza IA
+        self.prossima_bussola = 0.0
+        self.prossima_minimappa = 0.0
+        self.lettura_prec = None          # (t, gradi, passi) dell'ultima lettura (anche non accettata)
+        self.ultima_accettata = None      # (t, gradi, passi) dell'ultima lettura accettata
+        self.ultima_bussola_hud = -1e9    # quando ho letto la bussola l'ultima volta
+        self.stime_giro = []              # quanti passi del mouse per un giro, misurati con la bussola
+        self.bus_conta = 0
+        self.storia_guardo = []           # (t, gradi): dove guardavo (per le risposte dell'IA in ritardo)
         # navigazione
-        self.rotta = None                 # gradi della bussola verso il centro della zona sicura
+        self.rotta = None                 # gradi della bussola dove voglio andare
+        self.rotta_ia = None              # la zona sicura vista dall'IA sulla mappa grande
+        self.rotta_ia_t = -1e9
         self.bussola_rif = None           # (gradi letti, passi del mouse in quel momento)
         self.storia_passi = []
         self.prossima_mappa = 0.0
         self.prossima_mappa_periodica = adesso + 30.0
-        self.fuga_fino = 0.0              # scappo da tempesta/acqua: corro sulla rotta senza fermarmi
+        self.filo_mappa = None
+        self.risposte_mappa = None        # (risposte delle IA, quando ho fatto la foto)
+        self.fuga_fino = 0.0              # dopo la tempesta/l'acqua corro ancora un po' sulla rotta
+        self.prossimo_avviso_fuga = 0.0
+        self.prossima_ricerca_terra = 0.0
+        self.prossima_svolta = 0.0
+        self.deviazione_fino = 0.0        # aggiro un ostacolo: per un po' non torno sulla rotta
         self.acqua_da = None
+        self.nuoto_da = None
         self.calibra_da = None
         self.ultima_calibrazione = -1e9
         self.bussola_sbagliata = 0
+        # mete date dall'IA, in gradi della bussola
+        self.meta_compagno = None         # (gradi, metri o None, quando era la foto)
+        self.meta_bottino = None          # (gradi, cosa, y sullo schermo, quando era la foto)
+        self.bottino_usato = None
+        self.compagno_hud = None          # il compagno che seguo (gradi), visto sulla bussola
+        self.compagno_hud_t = -1e9
         # movimento
         self.cammino_fino = 0.0           # cammino avanti fino a (verso la cassa / il compagno)
         self.cammino_cosa = ""
+        self.apri_all_arrivo = False
         self.fermo_fino = 0.0             # sto fermo accanto al compagno fino a
         self.t_mini = 0.0
         self.mini_prec = None
@@ -138,9 +183,11 @@ class Pilota:
         self.prossima_schivata = 0.0
         self.lato = "sinistra"
         self.prossimo_cambio_arma = 0.0
+        self.arma_vicina = None
         self.tentativi_arma = 0
         self.prossima_cura = 0.0
         self.prossima_scritta = 0.0
+        self.prossimo_slot = adesso + 3.0
 
     # ================================================================== utilita'
     @property
@@ -154,6 +201,14 @@ class Pilota:
         if self.apprendimento is not None:
             return float(self.apprendimento.passi_per_giro)
         return float(self.mira.get("passi_per_giro", 3600) or 3600)
+
+    def _imposta_passi_per_giro(self, nuovi):
+        if self.apprendimento is not None:
+            self.apprendimento.passi_per_giro = nuovi
+            impostazioni.salva_calibrazione(self.apprendimento.base, ["mira", "passi_per_giro"], round(nuovi))
+        else:
+            self.mira["passi_per_giro"] = nuovi
+        self.esecutore.passi_per_giro = nuovi
 
     def _mirino(self, vis):
         m = (self.cfg.get("schermo", {}) or {}).get("mirino") or [0.5, 0.5]
@@ -188,10 +243,15 @@ class Pilota:
         return (x - 0.5) * float(self.fort.get("campo_visivo_gradi", 80) or 80)
 
     def _tasto_slot(self, n):
-        """Slot dell'inventario (1 = piccone, 2-6 = armi) -> nome del tasto (F, 1-5)."""
+        """Slot contando il piccone (1 = piccone, 2-6 = armi) -> nome del tasto (F, 1-5)."""
         if not n:
             return None
         nome = "piccone" if n == 1 else "arma_%d" % (n - 1)
+        return nome if self.mani.esiste(nome) else None
+
+    def _tasto_arma(self, k):
+        """Slot delle armi come li vedi in Fortnite (1-5; il piccone e' F) -> nome del tasto."""
+        nome = "arma_%d" % int(k)
         return nome if self.mani.esiste(nome) else None
 
     # ---- bussola e rotta
@@ -203,6 +263,13 @@ class Pilota:
             return None
         gradi, passi = self.bussola_rif
         return (gradi + (self._passi_x() - passi) * 360.0 / max(1.0, self.passi_per_giro)) % 360.0
+
+    def guardo_al_tempo(self, quando):
+        """Dove guardavo in quel momento (per le risposte dell'IA che arrivano in ritardo)."""
+        for tt, g in reversed(self.storia_guardo):
+            if tt <= quando:
+                return g
+        return self.storia_guardo[0][1] if self.storia_guardo else self.guardo_verso()
 
     def _leggi_bussola(self, gradi, quando=None):
         passi = self._passi_x()
@@ -222,9 +289,13 @@ class Pilota:
         if len(self.storia_passi) > 400:
             del self.storia_passi[:100]
         self._aggiorna_lavagna(vis, img, t)
+        if self.lavagna.guardo is not None:
+            self.storia_guardo.append((t, self.lavagna.guardo))
+            if len(self.storia_guardo) > 1500:
+                del self.storia_guardo[:300]
         for ramo in (self._ramo_istruzioni, self._ramo_pulsante_giallo, self._ramo_schermi, self._ramo_fasi,
                      self._ramo_pericolo, self._ramo_nemico, self._ramo_scritta, self._ramo_arma_e_cure,
-                     self._ramo_compagno, self._ramo_bottino, self._ramo_viaggio):
+                     self._ramo_manutenzione, self._ramo_bottino, self._ramo_compagno, self._ramo_viaggio):
             scritta = ramo(vis, img, t)
             if scritta:
                 if not scritta.startswith("combatto"):
@@ -243,6 +314,7 @@ class Pilota:
                      if not (b.fondo >= 0.85 * H and 0.25 * W <= b.cx <= 0.65 * W)]
         if lv.nemici:
             self.stato["ultimo_nemico"] = t
+        self._aggiorna_hud(img, t)
         lv.consiglio, lv.nuovo = None, False
         if self.ia is not None:
             if img is not None:
@@ -250,15 +322,14 @@ class Pilota:
             c = self.ia.consiglio(t, getattr(self.ia, "validita_fase", 45))
             if c is not None and c.fase != "playing" and t - c.quando > 6.0 and not self._schermo_uguale(c, img):
                 c = None                                  # parlava di uno schermo che e' cambiato
-            if c is not None and c.fase == "playing" and t - c.quando > float(
-                    (self.cfg.get("ia", {}) or {}).get("validita_secondi", 8) or 8):
-                c = None
-            lv.consiglio = c
+            scaduto = c is not None and c.fase == "playing" and t - c.quando > float(
+                (self.cfg.get("ia", {}) or {}).get("validita_secondi", 8) or 8)
             if c is not None and c.numero != self.ultimo_numero:
                 self.ultimo_numero = c.numero
-                lv.nuovo = True
-                if c.bussola is not None:
-                    previsto = self.guardo_verso()
+                self._mete_dall_ia(c)                     # anche se e' in ritardo: diventa una direzione
+                lv.nuovo = not scaduto
+                if c.bussola is not None and t - self.ultima_bussola_hud > 10.0:
+                    previsto = self.guardo_verso()        # la bussola letta dall'IA solo se io non la leggo
                     if previsto is not None and abs(avvolgi(c.bussola - previsto)) > 60:
                         self.bussola_sbagliata += 1
                         if self.bussola_sbagliata >= 3 and self.calibra_da is None:
@@ -268,20 +339,127 @@ class Pilota:
                     else:
                         self.bussola_sbagliata = 0
                     self._leggi_bussola(c.bussola, c.quando)
+            lv.consiglio = None if scaduto else c
+        self._applica_mappa(t)
         lv.guardo = self.guardo_verso()
-        # pericoli: tempesta (l'IA, o il TERRENO viola) e acqua (la parte bassa blu)
+        # pericoli: tempesta (la minimappa, l'IA, o il TERRENO viola) e acqua (nuoto o minimappa)
         c = lv.consiglio
-        lv.in_tempesta = bool(img is not None and self.fort.get("tempesta_dal_colore", True)
-                              and viola(img) >= float(self.fort.get("tempesta_soglia_viola", 0.35) or 0.35))
+        m = lv.mini
+        if m.ok:
+            lv.in_tempesta = m.qui == hud.TEMPESTA
+        else:
+            lv.in_tempesta = bool(img is not None and self.fort.get("tempesta_dal_colore", True)
+                                  and viola(img) >= float(self.fort.get("tempesta_soglia_viola", 0.35) or 0.35))
         if c is not None and c.fase == "playing" and c.tempesta:
             lv.in_tempesta = True
-        bagnato = img is not None and self.fort.get("evita_acqua", True) and \
-            acqua(img) >= float(self.fort.get("acqua_soglia", 0.5) or 0.5)
-        if bagnato:
+        evita = self.fort.get("evita_acqua", True)
+        nuoto = bool(evita and img is not None and acqua(img) >= float(self.fort.get("acqua_soglia", 0.5) or 0.5))
+        mare = bool(evita and m.ok and m.qui == hud.ACQUA)
+        self.nuoto_da = (self.nuoto_da if self.nuoto_da is not None else t) if nuoto else None
+        if nuoto or mare:
             self.acqua_da = self.acqua_da if self.acqua_da is not None else t
         else:
             self.acqua_da = None
         lv.in_acqua = self.acqua_da is not None and t - self.acqua_da >= 1.5
+
+    def _aggiorna_hud(self, img, t):
+        """Bussola, minimappa, barra delle armi e compagni: letti dallo schermo, senza IA."""
+        lv = self.lavagna
+        if img is None or not self.fort.get("leggi_lo_schermo", True):
+            return
+        if t >= self.prossima_bussola:
+            self.prossima_bussola = t + float(self.fort.get("bussola_ogni_secondi", 0.15) or 0.15)
+            g = hud.leggi_bussola(img)
+            lv.bussola_hud = g
+            if g is not None:
+                self._nuova_lettura(g, t)
+        if t >= self.prossima_minimappa:
+            self.prossima_minimappa = t + float(self.fort.get("minimappa_ogni_secondi", 0.4) or 0.4)
+            lv.barra = hud.barra_armi(img)
+            lv.mini = hud.leggi_minimappa(img)
+            lv.compagni = hud.compagni_sulla_bussola(img) if t - self.ultima_bussola_hud < 1.0 else []
+            # sul bus: si legge la bussola, si vede la minimappa, ma la barra delle armi no
+            if t - self.ultima_bussola_hud < 1.0 and lv.mini.ok and not lv.barra:
+                self.bus_conta += 1
+            else:
+                self.bus_conta = 0
+            lv.bus = self.bus_conta >= 2
+            self._scegli_compagno(t)
+
+    def _nuova_lettura(self, gradi, t):
+        """Una lettura della bussola: la prendo se torna con i miei conti, o se due letture di fila
+        dicono la stessa cosa (cosi' un'icona sopra il numero non mi inganna)."""
+        passi = self._passi_x()
+        previsto = self.guardo_verso()
+        prec = self.lettura_prec
+        self.lettura_prec = (t, gradi, passi)
+        coerente = previsto is not None and abs(avvolgi(gradi - previsto)) <= 25
+        confermata = prec is not None and t - prec[0] <= 1.0 and abs(avvolgi(
+            gradi - prec[1] - (passi - prec[2]) * 360.0 / max(1.0, self.passi_per_giro))) <= 8
+        if not (coerente or confermata):
+            return
+        self._leggi_bussola(gradi)
+        self.ultima_bussola_hud = t
+        self._misura_giro(t, gradi, passi)
+
+    def _misura_giro(self, t, gradi, passi):
+        """Tra due letture mi sono girato col mouse: quanti passi del mouse fanno un giro intero?
+        Se tante misure dicono la stessa cosa (diversa da quella che uso) la correggo da solo."""
+        a = self.ultima_accettata
+        self.ultima_accettata = (t, gradi, passi)
+        if a is None or t - a[0] > 1.5 or not self.fort.get("calibra_con_bussola", True):
+            return
+        dp = passi - a[2]
+        dg = avvolgi(gradi - a[1])
+        if abs(dg) < 15 or abs(dg) > 150 or abs(dp) < 1:
+            return
+        stima = dp * 360.0 / dg
+        if stima <= 0:
+            return
+        self.stime_giro.append(stima)
+        del self.stime_giro[:-7]
+        if len(self.stime_giro) < 4:
+            return
+        mediana = float(np.median(self.stime_giro))
+        vicine = [s for s in self.stime_giro if abs(s - mediana) <= 0.15 * mediana]
+        vecchi = self.passi_per_giro
+        if len(vicine) >= 4 and abs(mediana - vecchi) > 0.12 * vecchi and 0.2 <= mediana / vecchi <= 5:
+            nuovi = float(np.mean(vicine))
+            self.log("Bussola: misurato quanto mi giro col mouse -> passi per un giro %.0f -> %.0f" % (vecchi, nuovi))
+            self._imposta_passi_per_giro(nuovi)
+            self.ultima_calibrazione = t
+            self.stime_giro = []
+
+    def _scegli_compagno(self, t):
+        """Il compagno da seguire, visto sulla bussola: sempre lo stesso (quello piu' vicino alla
+        direzione di prima); se lo perdo per un po' ne scelgo un altro a caso."""
+        lv = self.lavagna
+        g = self.guardo_verso()
+        if not lv.compagni or g is None:
+            return
+        assoluti = [(g + d) % 360.0 for d in lv.compagni]
+        if self.compagno_hud is not None and t - self.compagno_hud_t < 20.0:
+            vicino = min(assoluti, key=lambda a: abs(avvolgi(a - self.compagno_hud)))
+            if abs(avvolgi(vicino - self.compagno_hud)) <= 35 or t - self.compagno_hud_t > 6.0:
+                self.compagno_hud, self.compagno_hud_t = vicino, t
+            return
+        self.compagno_hud, self.compagno_hud_t = random.choice(assoluti), t
+        self.log("Scelgo un compagno da seguire: e' verso %.0f gradi" % self.compagno_hud)
+
+    def _mete_dall_ia(self, c):
+        """La risposta dell'IA (anche se arriva tardi) diventa una DIREZIONE DELLA BUSSOLA: dove
+        guardavo quando ho fatto la foto + quanto era spostato dal centro."""
+        allora = self.guardo_al_tempo(c.quando) if self.storia_guardo else None
+        if allora is None:
+            return
+        if c.compagno_xy is not None:
+            x, y, lato, metri = c.compagno_xy
+            gradi = self._gradi_schermo(x) if lato == "on_screen" else LATO_GRADI.get(lato)
+            if gradi is not None:
+                self.meta_compagno = ((allora + gradi) % 360.0, metri, c.quando)
+        if c.obiettivo is not None:
+            cosa, x, y = c.obiettivo
+            self.meta_bottino = ((allora + self._gradi_schermo(x)) % 360.0, cosa, y, c.quando)
 
     def _schermo_uguale(self, c, img):
         prima = getattr(c, "miniatura", None)
@@ -290,10 +468,13 @@ class Pilota:
         from ia import miniatura
         return float(np.mean(np.abs(miniatura(img) - prima))) < 10.0
 
+    def _in_pericolo(self, t):
+        return self.lavagna.in_tempesta or self.lavagna.in_acqua or t < self.fuga_fino
+
     # ================================================================== 1. istruzioni e "Gioca di nuovo"
     def _ramo_istruzioni(self, vis, img, t):
-        if self.istruzioni is None or t < self.prossimo_controllo_regole:
-            return None
+        if self.istruzioni is None or t < self.prossimo_controllo_regole or self._in_pericolo(t):
+            return None                  # nella tempesta o in acqua prima si scappa
         self.prossimo_controllo_regole = t + float(self.regole_cfg.get("controlla_ogni", 0.2) or 0.2)
         regola = self.istruzioni.controlla(vis, self.stato, t)
         if regola is None:
@@ -365,6 +546,11 @@ class Pilota:
         self.statistiche["partite"] = self.statistiche.get("partite", 0) + 1
         self.log("Partita finita (%d). Passo alla prossima." % self.statistiche["partite"])
         self.rotta = None
+        self.rotta_ia = None
+        self.salto_da = None
+        self.compagno_hud = None
+        self.meta_compagno = None
+        self.meta_bottino = None
         self.esecutore._fine_partita()
 
     # ================================================================== 2. schermi strani
@@ -408,61 +594,97 @@ class Pilota:
         return "non vedo il gioco"
 
     # ================================================================== 3. fasi
+    def _fase(self, c, t):
+        """La fase della partita: quella dell'IA se e' fresca, se no quella che leggo dallo schermo
+        (bus = bussola senza barra delle armi; caduta = appena saltato dal bus)."""
+        lv = self.lavagna
+        fase = c.fase if c is not None else None
+        if lv.bus and fase not in ("falling", "dead"):
+            fase = "bus"                  # nei menu la bussola non c'e': lo schermo non sbaglia
+        if fase in (None, "unknown") and self.salto_da is not None:
+            nuoto = self.nuoto_da is not None and t - self.nuoto_da >= 1.5
+            if t - self.salto_da < float(self.fort.get("caduta_secondi", 50) or 50) and not nuoto:
+                fase = "falling"
+        if fase in ("playing", "menu", "dead"):
+            self.salto_da = None
+        return fase
+
     def _ramo_fasi(self, vis, img, t):
         c = self.lavagna.consiglio
-        if c is None:
-            return None
-        if c.fase != "bus":
+        fase = self._fase(c, t)
+        if fase != "bus":
             self.bus_da = None
-        if c.fase != "dead":
+        if fase != "dead":
             self.morto_da = None
-        if c.fase == "playing" and self.ultima_fase in ("bus", "falling"):
-            self.log("Atterrato: prendo l'arma e misuro la bussola")
-            tasto = self._tasto_slot(c.slot_arma if c.slot_arma and c.slot_arma != 1 else 2)
-            if tasto:
-                self.mani.premi(tasto, 0.08)
-            self.prossima_mappa_periodica = t + 12.0
-            if t - self.ultima_calibrazione > float(self.fort.get("ricalibra_bussola_secondi", 1200) or 1200):
-                self.calibra_da = t + 2.0
-        self.ultima_fase = c.fase
-        if c.fase in ("bus", "falling", "playing"):
+        if fase not in ("bus", "falling") and self.ultima_fase in ("bus", "falling"):
+            self._atterrato(c, t)
+        self.ultima_fase = fase
+        if fase in ("bus", "falling", "playing"):
             self.in_partita = True
-        if c.fase == "bus":
+        if fase == "bus":
             return self._sul_bus(c, t)
-        if c.fase == "falling":
+        if fase == "falling":
             return self._in_caduta(c, t)
-        if c.fase in ("menu", "dead"):
+        if fase in ("menu", "dead") and c is not None:
             return self._menu_o_morto(c, vis, img, t)
         return None
 
+    def _atterrato(self, c, t):
+        self.log("Atterrato: prendo l'arma (slot 1) e controllo la bussola")
+        self.salto_da = None
+        self._prendi_arma(c, t, subito=True)
+        self.prossima_mappa_periodica = t + 12.0
+        if t - self.ultima_calibrazione > float(self.fort.get("ricalibra_bussola_secondi", 1200) or 1200):
+            self.calibra_da = t + 2.0
+
     def _sul_bus(self, c, t):
         self.ferma_tutto()
+        lv = self.lavagna
         if self.bus_da is None:
             self.bus_da = t
             self.rotta = None
-        if self.rotta is None:
-            self._guarda_mappa(t, "Sul bus")              # la rotta: il centro dell'isola
+            self.rotta_ia = None
+            self.log("Sono sul bus: salto quando sotto c'e' l'isola")
+        attesa = t - self.bus_da
+        if lv.mini.ok:
+            sopra = lv.mini.terra_intorno(22, 12) >= float(self.fort.get("bus_terra_minima", 0.7) or 0.7)
+        else:
+            sopra = c is not None and c.sopra_isola is not False
         # all'inizio il bus vola sul MARE: aspetto di essere sopra l'isola
-        if c.sopra_isola is False and t - self.bus_da < float(self.fort.get("bus_attesa_massima", 45) or 45):
+        if not sopra and attesa < float(self.fort.get("bus_attesa_massima", 60) or 60):
             return "sul bus: aspetto di essere sopra l'isola"
         if t >= self.prossimo_salto and self.mani.esiste("salta"):
             self.prossimo_salto = t + 3.0
-            self.log("Salto dal bus%s" % (" (sotto c'e' l'isola)" if c.sopra_isola else ""))
+            self.salto_da = t
+            self.log("Salto dal bus%s" % (" (sotto c'e' l'isola)" if sopra else " (non posso aspettare di piu')"))
             self.mani.premi("salta")
         return "sul bus"
 
     def _in_caduta(self, c, t):
+        """Cado: verso il compagno (atterro dove atterra lui), e MAI sul mare (minimappa)."""
         self._spara(False)
-        if self.lavagna.nuovo and t >= self.prossima_correzione:
+        lv = self.lavagna
+        m = lv.mini
+        meta, motivo = None, ""
+        compagno = self._direzione_compagno(t)
+        if compagno is not None and self.fort.get("segui_compagno", True):
+            meta, motivo = compagno, "verso il compagno"
+        if m.ok and (m.qui == hud.ACQUA or m.terra_intorno(12) < 0.5):
+            terra = m.verso_terra()
+            if terra is not None:
+                meta, motivo = terra, "verso la terra"
+        if meta is not None and lv.guardo is not None:
+            if t >= self.prossima_correzione and abs(avvolgi(meta - lv.guardo)) > 25:
+                self.prossima_correzione = t + 3.0
+                self.log("In caduta: vado %s (%.0f gradi)" % (motivo, meta))
+            self._vai_verso(meta, t)
+        elif c is not None and lv.nuovo and t >= self.prossima_correzione:
+            # senza bussola: come prima, con quello che vede l'IA sullo schermo
             gradi = None
             if c.compagno_xy is not None and c.compagno_xy[2] == "on_screen" and self.fort.get("segui_compagno", True):
                 gradi, motivo = self._gradi_schermo(c.compagno_xy[0]), "verso il compagno"
-            elif c.sopra_isola is not True and self.rotta is not None and self.lavagna.guardo is not None:
-                gradi, motivo = avvolgi(self.rotta - self.lavagna.guardo), "verso il centro dell'isola"
             elif c.obiettivo is not None and c.obiettivo[0] in ("building", "chest"):
                 gradi, motivo = self._gradi_schermo(c.obiettivo[1]), "verso le case"
-            elif self.rotta is None and c.sopra_isola is False:
-                self._guarda_mappa(t, "In caduta sopra il mare")
             if gradi is not None and abs(gradi) > 10:
                 self.prossima_correzione = t + 1.5
                 self.log("In caduta: giro %s (%.0f gradi)" % (motivo, gradi))
@@ -506,35 +728,63 @@ class Pilota:
 
     # ================================================================== 4. pericolo: tempesta / acqua
     def _ramo_pericolo(self, vis, img, t):
+        """Tempesta o acqua: corro SUBITO dalla parte giusta (minimappa) e non mi fermo mai.
+        L'IA che guarda la mappa grande aiuta solo se la minimappa non basta, e intanto corro."""
         lv = self.lavagna
-        if t < self.fuga_fino:
-            # scappo: corro sulla rotta, senza fermarmi per casse, case o compagni
-            self._tieni_rotta(t)
-            self._cammina(avanti=True, corri=True)
-            self._controlla_blocco(img, t)
-            if lv.nemici:
-                return None                      # se mi sparano mi difendo (ramo nemico)
-            return "scappo verso la zona sicura"
-        if not (lv.in_tempesta or lv.in_acqua):
+        pericolo = lv.in_tempesta or lv.in_acqua
+        if not pericolo and t >= self.fuga_fino:
             return None
-        motivo = "Sono nella tempesta" if lv.in_tempesta else "Sono in acqua"
-        scritta = self._guarda_mappa(t, motivo)
-        if scritta == "vado verso la zona sicura (mappa)":
-            self._cammina(avanti=True, corri=True)
-            return scritta                       # girato verso la zona sicura: adesso corro
-        if scritta == "sono nella zona sicura" and lv.in_tempesta and not lv.in_acqua:
-            return None                          # la tempesta era solo vicina
-        if self.rotta is not None and self.guardo_verso() is not None:
-            self._gira(avvolgi(self.rotta - self.guardo_verso()))
-            self.fuga_fino = t + float(self.fort.get("corsa_fuori_tempesta", 10) or 10)
-            self._cammina(avanti=True, corri=True)
-            return "scappo verso la zona sicura"
-        if scritta is None and lv.in_acqua and self.ia is None:
-            return self._cerca_terra(t)
-        return scritta
+        if pericolo:
+            self.fuga_fino = max(self.fuga_fino, t + float(self.fort.get("corsa_dopo_pericolo", 3) or 3))
+        rotta, perche = self._rotta_di_fuga(t)
+        if rotta is None and pericolo:
+            if self._mappa_in_sottofondo(t, "Sono nella tempesta" if lv.in_tempesta else "Sono in acqua"):
+                rotta, perche = self._rotta_di_fuga(t)
+        if rotta is not None:
+            if self.rotta is None or abs(avvolgi(rotta - self.rotta)) > 30 or t >= self.prossimo_avviso_fuga:
+                self.prossimo_avviso_fuga = t + 10.0
+                self.log("%s: %s -> vado a %.0f gradi" % (
+                    "Tempesta" if lv.in_tempesta else ("Acqua" if lv.in_acqua else "Quasi fuori"), perche, rotta))
+            self.rotta = rotta
+        elif self.rotta is None and lv.guardo is None and lv.in_acqua and t >= self.prossima_ricerca_terra:
+            self.prossima_ricerca_terra = t + 12.0
+            if self.ia is None or not hasattr(self.ia, "chiedi_voto"):
+                return self._cerca_terra(t)                # niente bussola e niente IA: guardo l'orizzonte
+        girato = self._vai_verso(self.rotta, t)
+        self._cammina(avanti=True, corri=True)
+        self._controlla_blocco(img, t)
+        if lv.nemici:
+            return None                          # se mi sparano mi difendo (ramo nemico)
+        if perche and "mappa)" in perche and "minimappa" not in perche and girato:
+            return "vado verso la zona sicura (mappa)"
+        if perche and "fuori dalla tempesta" in perche:
+            return "esco dalla tempesta"
+        if perche and "terra" in perche:
+            return "torno a terra"
+        return "scappo verso la zona sicura"
+
+    def _rotta_di_fuga(self, t):
+        """-> (gradi, perche'): dove scappare. Prima la minimappa, poi la mappa vista dall'IA."""
+        lv = self.lavagna
+        m = lv.mini
+        if m.ok:
+            if m.qui == hud.TEMPESTA or (lv.in_tempesta and m.tempesta > 0.3):
+                g = m.verso_fuori_tempesta()
+                if g is not None:
+                    return g, "fuori dalla tempesta (minimappa)"
+            if lv.in_acqua:
+                g = m.verso_terra()
+                if g is not None:
+                    return g, "la terra piu' vicina (minimappa)"
+            g = m.lontano_dalla_tempesta()
+            if g is not None and lv.in_tempesta:
+                return g, "lontano dalla tempesta (minimappa)"
+        if self.rotta_ia is not None and t - self.rotta_ia_t < float(self.fort.get("mappa_valida_secondi", 90) or 90):
+            return self.rotta_ia, "la zona sicura (mappa)"
+        return None, None
 
     def _cerca_terra(self, t):
-        """Senza IA: mi giro dove all'orizzonte c'e' meno mare e corro."""
+        """Senza bussola e senza IA: mi giro dove all'orizzonte c'e' meno mare e corro."""
         self.log("Sono in acqua: mi giro dove c'e' la terra")
         self._cammina()
         migliore, minimo = 0, None
@@ -551,11 +801,27 @@ class Pilota:
         self.fuga_fino = t + float(self.fort.get("corsa_fuori_acqua", 8) or 8)
         return "torno a terra"
 
-    def _tieni_rotta(self, t):
-        if self.rotta is None or self.lavagna.guardo is None:
+    def _vai_verso(self, gradi, t):
+        """Mi giro verso una direzione della bussola: se e' tanto di lato mi giro subito, se no
+        piano piano mentre cammino. -> True se ho girato."""
+        guardo = self.lavagna.guardo
+        if gradi is None or guardo is None or t < self.deviazione_fino:
+            return False
+        errore = avvolgi(gradi - guardo)
+        if abs(errore) > 45 and t >= self.prossima_svolta:
+            self.prossima_svolta = t + 0.8
+            self._gira(errore)
+            self.lavagna.guardo = self.guardo_verso()
+            return True
+        self._tieni_rotta(t, gradi)
+        return False
+
+    def _tieni_rotta(self, t, gradi=None):
+        gradi = self.rotta if gradi is None else gradi
+        if gradi is None or self.lavagna.guardo is None or t < self.deviazione_fino:
             return
-        errore = avvolgi(self.rotta - self.lavagna.guardo)
-        gradi_al_secondo = max(-60.0, min(60.0, errore * 1.5))
+        errore = avvolgi(gradi - self.lavagna.guardo)
+        gradi_al_secondo = max(-90.0, min(90.0, errore * 2.0))
         self.mani.mira_fluida(gradi_al_secondo * self.dt_medio * self.passi_per_giro / 360.0, 0, self.dt_medio)
 
     # ================================================================== 5. nemico
@@ -566,13 +832,18 @@ class Pilota:
         if not nemici:
             self.mirando_da = None
             self.bersaglio = None
+            self.arma_vicina = None
             if c is not None and lv.nuovo and c.nemico_xy is not None and self.comb.get("attivo", True):
                 x, y, vicino = c.nemico_xy
                 if vicino or not self._solo_vicini():
                     self.log("IA: c'e' un nemico%s -> mi giro e prendo l'arma" % (" vicino" if vicino else ""))
                     self._cammina()
-                    self._gira(self._gradi_schermo(x))
-                    self._prendi_arma(c, t, subito=True)
+                    allora = self.guardo_al_tempo(c.quando) if self.storia_guardo else None
+                    if allora is not None and lv.guardo is not None:
+                        self._gira(avvolgi(allora + self._gradi_schermo(x) - lv.guardo))
+                    else:
+                        self._gira(self._gradi_schermo(x))
+                    self._prendi_arma(c, t, subito=True, vicino=bool(vicino))
                     return "mi giro verso il nemico (IA)"
             return None
         H = vis.altezza
@@ -582,10 +853,13 @@ class Pilota:
             return None
         mx, my = self._mirino(vis)
         b = min(nemici, key=lambda b: math.hypot(b.cx - mx, b.cy - my) / (1.0 + b.h / H))
+        vicino = b.h >= float(self.fort.get("pompa_se_nemico_alto", 0.3) or 0.3) * H
         if self.bersaglio is None:
             self.mirando_da = t
             self.statistiche["combattimenti"] = self.statistiche.get("combattimenti", 0) + 1
-            self._prendi_arma(c, t, subito=True)
+            self._prendi_arma(c, t, subito=True, vicino=vicino)
+        elif vicino != self.arma_vicina:
+            self._prendi_arma(c, t, vicino=vicino)           # si e' avvicinato/allontanato: cambio arma
         ax = b.cx
         ay = b.y + float(self.mira.get("altezza_mira", 0.2)) * b.h
         self.bersaglio = (ax, ay)
@@ -616,16 +890,16 @@ class Pilota:
             return True
         return self.obiettivo.pensa_alle_casse(self.statistiche.get("casse_partita", 0))
 
-    def _prendi_arma(self, c, t, subito=False):
-        """Prende in mano l'arma: lo slot migliore detto dall'IA, altrimenti lo slot 2 (tasto 1)."""
+    def _prendi_arma(self, c, t, subito=False, vicino=False):
+        """L'arma in mano, come gli "slot preferiti": nemico vicino -> la pompa (slot 2), se no la
+        mitra (slot 1). In Fortnite uno slot vuoto non si prende: non succede niente."""
         if not self.comb.get("prendi_arma", True) or (not subito and t < self.prossimo_cambio_arma):
             return
-        if c is not None and c.slot is not None and c.slot == c.slot_arma and c.in_mano == "weapon":
-            return
-        n = c.slot_arma if c is not None and c.slot_arma and c.slot_arma != 1 else 2
-        tasto = self._tasto_slot(n)
+        k = int(self.fort.get("slot_pompa", 2) or 2) if vicino else int(self.fort.get("slot_in_mano", 1) or 1)
+        tasto = self._tasto_arma(k)
         if tasto:
             self.prossimo_cambio_arma = t + 2.0
+            self.arma_vicina = vicino
             self.mani.premi(tasto, 0.08)
 
     # ================================================================== 6. scritte sullo schermo
@@ -633,8 +907,9 @@ class Pilota:
         c = self.lavagna.consiglio
         if (c is None or not self.lavagna.nuovo or c.fase != "playing" or c.prompt not in
                 ("open", "pick_up", "zipline", "door") or not self.fort.get("usa_le_scritte", True)
-                or t < self.prossima_scritta or not self.mani.esiste("interagisci")):
-            return None
+                or t < self.prossima_scritta or not self.mani.esiste("interagisci")
+                or t - c.quando > float(self.fort.get("scritta_valida_secondi", 5) or 5)):
+            return None                  # la scritta c'e' solo finche' sono li': se la foto e' vecchia no
         self.prossima_scritta = t + 1.5
         self._cammina()
         tieni = c.prompt == "open"
@@ -646,17 +921,9 @@ class Pilota:
         finally:
             self.mani.su("interagisci")
         self.cammino_fino = 0.0
+        self.apri_all_arrivo = False
         if c.prompt == "open":
-            self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
-            self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
-            self.log("Cassa aperta! (in questa partita: %d)" % self.statistiche["casse_partita"])
-            # come in Fortnite: la cassa butta le cose per terra davanti; le raccolgo e riprendo l'arma
-            for _ in range(int(self.racc.get("raccogli_volte", 4) or 4)):
-                self.mani.premi("interagisci", 0.08)
-                self._cammina(avanti=True)
-                self.esecutore.dormi(0.15)
-                self._cammina()
-            self._prendi_arma(c, t, subito=True)
+            self._cassa_aperta(c, t)
             return "apro la cassa (IA)"
         if c.prompt == "pick_up":
             self.statistiche["armi"] = self.statistiche.get("armi", 0) + 1
@@ -666,69 +933,188 @@ class Pilota:
             return "apro la porta"
         return "prendo la zipline"
 
+    def _cassa_aperta(self, c, t):
+        self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
+        self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
+        self.log("Cassa aperta! (in questa partita: %d)" % self.statistiche["casse_partita"])
+        # come in Fortnite: la cassa butta le cose per terra davanti; le raccolgo e riprendo l'arma
+        for _ in range(int(self.racc.get("raccogli_volte", 4) or 4)):
+            self.mani.premi("interagisci", 0.08)
+            self._cammina(avanti=True)
+            self.esecutore.dormi(0.15)
+            self._cammina()
+        self._prendi_arma(c, t, subito=True)
+
     # ================================================================== 7. arma e cure
     def _ramo_arma_e_cure(self, vis, img, t):
-        c = self.lavagna.consiglio
-        if c is None or not self.lavagna.nuovo or c.fase != "playing":
+        lv = self.lavagna
+        if lv.nemici:
             return None
-        if self.lavagna.nemici:
-            return None
-        if c.poca_vita and c.slot_cura and c.slot_cura != 1 and t >= self.prossima_cura \
-                and self.fort.get("cura_con_ia", True):
-            tasto = self._tasto_slot(c.slot_cura)
+        c = lv.consiglio
+        if c is not None and lv.nuovo and c.fase == "playing":
+            if c.poca_vita and t >= self.prossima_cura and self.fort.get("cura_con_ia", True):
+                n = c.slot_cura - 1 if c.slot_cura and c.slot_cura != 1 else int(self.fort.get("slot_cure", 5) or 5)
+                tasto = self._tasto_arma(n)
+                if tasto:
+                    self.prossima_cura = t + 10.0
+                    secondi = float(self.fort.get("cura_secondi", 5) or 5)
+                    self.log("IA: ho poca vita -> mi curo (slot %d)" % n)
+                    self._cammina()
+                    self.mani.premi(tasto, 0.08)
+                    self.esecutore.dormi(0.3)
+                    self.mani.imposta("spara", True)
+                    try:
+                        self.esecutore.dormi(secondi)
+                    finally:
+                        self.mani.imposta("spara", False)
+                    self._prendi_arma(c, t, subito=True)
+                    return "mi curo"
+            # l'IA vede il piccone in mano: prendo lo slot 1; se resta il piccone, lo slot che dice lei
+            if c.in_mano in ("pickaxe", "other") and c.ha_arma is not False and t >= self.prossimo_cambio_arma:
+                self.tentativi_arma += 1
+                if self.tentativi_arma >= 2 and c.slot_arma and c.slot_arma != 1:
+                    n = c.slot_arma - 1
+                else:
+                    n = int(self.fort.get("slot_in_mano", 1) or 1)
+                tasto = self._tasto_arma(n)
+                if tasto:
+                    self.prossimo_cambio_arma = t + 2.0
+                    self.log("IA: in mano ho %s -> prendo l'arma (slot %d)" % (
+                        "il piccone" if c.in_mano == "pickaxe" else "altro", n))
+                    self.mani.premi(tasto, 0.08)
+            elif c.in_mano == "weapon":
+                self.tentativi_arma = 0
+        # SEMPRE la mitra in mano (slot 1) mentre giro, anche senza IA (se lo slot e' vuoto non cambia niente)
+        if lv.barra and not lv.bus and self.salto_da is None and t >= self.prossimo_slot \
+                and self.fort.get("tieni_arma_in_mano", True):
+            self.prossimo_slot = t + float(self.fort.get("riprendi_arma_ogni_secondi", 8) or 8)
+            tasto = self._tasto_arma(int(self.fort.get("slot_in_mano", 1) or 1))
             if tasto:
-                self.prossima_cura = t + 10.0
-                secondi = float(self.fort.get("cura_secondi", 5) or 5)
-                self.log("IA: ho poca vita -> mi curo (slot %d)" % c.slot_cura)
-                self._cammina()
-                self.mani.premi(tasto, 0.08)
-                self.esecutore.dormi(0.3)
-                self.mani.imposta("spara", True)
-                try:
-                    self.esecutore.dormi(secondi)
-                finally:
-                    self.mani.imposta("spara", False)
-                self._prendi_arma(c, t, subito=True)
-                return "mi curo"
-        # in mano il piccone (o altro) e nell'inventario c'e' un'arma: prendo quella giusta
-        sbagliato = c.in_mano in ("pickaxe", "other") or (c.slot and c.slot_arma and c.slot != c.slot_arma
-                                                          and c.slot_arma != 1)
-        if sbagliato and c.ha_arma is not False and t >= self.prossimo_cambio_arma:
-            n = c.slot_arma if c.slot_arma and c.slot_arma != 1 else [2, 3, 4, 5, 6][self.tentativi_arma % 5]
-            self.tentativi_arma += 1
-            tasto = self._tasto_slot(n)
-            if tasto:
-                self.prossimo_cambio_arma = t + 2.0
-                self.log("IA: in mano ho %s -> prendo l'arma (slot %d)" % (
-                    "il piccone" if c.in_mano == "pickaxe" else "lo slot %s" % c.slot, n))
-                self.mani.premi(tasto, 0.08)
-        elif c.in_mano == "weapon":
-            self.tentativi_arma = 0
+                self.mani.premi(tasto, 0.06)
         return None                              # cambiare arma non ferma il resto
 
-    # ================================================================== 8. seguo il compagno
+    # ================================================================== 8. ogni tanto
+    def _ramo_manutenzione(self, vis, img, t):
+        """Misuro la sensibilita' con la bussola (appena atterrato) e ogni tanto l'IA guarda la mappa."""
+        if self.lavagna.nemici:
+            return None
+        if self.calibra_da is not None and t >= self.calibra_da:
+            self.calibra_da = None
+            scritta = self._calibra_bussola(t)
+            if scritta:
+                return scritta
+        ogni = float(self.fort.get("mappa_ogni_secondi", 60) or 0)
+        if ogni > 0 and self.ia is not None and t >= self.prossima_mappa_periodica:
+            self.prossima_mappa_periodica = t + ogni
+            self._mappa_in_sottofondo(t, "Controllo")
+        if self.apprendimento is not None and img is not None:
+            self.apprendimento.forse_salva_foto(img, vis, t)
+        return None
+
+    # ================================================================== 9. bottino
+    def _ramo_bottino(self, vis, img, t):
+        lv = self.lavagna
+        if t < self.cammino_fino and self.cammino_cosa in NOMI_COSE:
+            if self.meta_bottino is not None:
+                self._vai_verso(self.meta_bottino[0], t)
+            self._cammina(avanti=True)
+            self._controlla_blocco(img, t)
+            return "vado verso %s (IA)" % NOMI_COSE[self.cammino_cosa]
+        if self.apri_all_arrivo and self.mani.esiste("interagisci"):
+            # arrivato dove l'IA vedeva la cassa: provo ad aprirla (se non c'e', E non fa niente)
+            self.apri_all_arrivo = False
+            self.cammino_cosa = ""
+            self._cammina()
+            self.log("Arrivato dove c'era la cassa: tengo premuto E")
+            self.mani.giu("interagisci")
+            try:
+                self.esecutore.dormi(float(self.racc.get("tempo_apertura_cassa", 1.2)))
+            finally:
+                self.mani.su("interagisci")
+            for _ in range(2):
+                self.mani.premi("interagisci", 0.08)
+                self.esecutore.dormi(0.1)
+            self._prendi_arma(lv.consiglio, t, subito=True)
+            return "provo ad aprire la cassa"
+        if not self.racc.get("casse", True):
+            return None
+        c = lv.consiglio
+        mb = self.meta_bottino
+        valida = float(self.fort.get("bottino_valido_secondi", 20) or 20)
+        if c is not None and lv.nuovo and c.fase == "playing" and c.obiettivo is not None:
+            cosa, x, y = c.obiettivo
+            gradi = self._gradi_schermo(x)
+            self.bottino_usato = c.quando
+        elif (mb is not None and t - mb[3] <= valida and mb[1] in ("chest", "weapon", "ammo_box")
+              and lv.guardo is not None and self.bottino_usato != mb[3]):
+            # l'IA ha risposto in ritardo ma la cassa l'ha vista: la direzione della bussola vale ancora
+            cosa, y, gradi = mb[1], mb[2], None
+            self.bottino_usato = mb[3]
+        else:
+            return None
+        if cosa == "weapon" and not self.racc.get("armi", True):
+            return None
+        if mb is not None and lv.guardo is not None:
+            self._vai_verso(mb[0], t)
+        elif gradi is not None:
+            self._gira(gradi)
+        # piu' e' in alto sullo schermo, piu' e' lontana: cammino di piu'
+        self.cammino_fino = t + 1.0 + 2.5 * max(0.0, min(1.0, (0.85 - y) / 0.5))
+        if cosa != self.cammino_cosa:
+            self.log("IA: vedo %s -> ci vado (poi torno dal compagno)" % NOMI_COSE[cosa])
+        self.cammino_cosa = cosa
+        self.apri_all_arrivo = cosa in ("chest", "ammo_box")
+        self._cammina(avanti=True)
+        return "vado verso %s (IA)" % NOMI_COSE[cosa]
+
+    # ================================================================== 10. seguo il compagno
+    def _direzione_compagno(self, t):
+        """Dove e' il compagno (gradi della bussola): detto dall'IA o visto sulla bussola."""
+        mc = self.meta_compagno
+        if mc is not None and t - mc[2] <= float(self.fort.get("segui_memoria_secondi", 12) or 12):
+            return mc[0]
+        if self.compagno_hud is not None and t - self.compagno_hud_t <= 6.0:
+            return self.compagno_hud
+        return None
+
     def _ramo_compagno(self, vis, img, t):
         if not self.fort.get("segui_compagno", True):
             return None
+        lv = self.lavagna
         if t < self.fermo_fino:
             self._cammina()
             return "sto vicino al compagno"
+        gradi = self._direzione_compagno(t) if lv.guardo is not None else None
+        if gradi is not None:
+            mc = self.meta_compagno
+            metri = mc[1] if mc is not None and t - mc[2] <= 6.0 else None
+            if metri is not None and metri <= float(self.fort.get("segui_vicino_metri", 8) or 8):
+                self._cammina()
+                self.fermo_fino = t + 2.0
+                return "sto vicino al compagno"
+            if lv.mini.ok:
+                gradi = lv.mini.direzione_sicura(gradi, 10)          # non dietro di lui nel mare
+            if self.cammino_cosa != "compagno":
+                self.log("Seguo il compagno di squadra (verso %.0f gradi%s)" % (
+                    gradi, ", %.0f metri" % metri if metri is not None else ""))
+            self.cammino_cosa = "compagno"
+            self._vai_verso(gradi, t)
+            self._cammina(avanti=True, corri=True)
+            self._controlla_blocco(img, t)
+            return "seguo il compagno"
+        # senza bussola: come prima, con quello che vede l'IA sullo schermo
         if t < self.cammino_fino and self.cammino_cosa == "compagno":
             self._cammina(avanti=True, corri=True)
             self._controlla_blocco(img, t)
             return "seguo il compagno"
-        c = self.lavagna.consiglio
-        if c is None or not self.lavagna.nuovo or c.fase != "playing" or c.compagno_xy is None:
+        c = lv.consiglio
+        if c is None or not lv.nuovo or c.fase != "playing" or c.compagno_xy is None:
             return None
         x, y, lato, metri = c.compagno_xy
-        vicino_casse = lato == "on_screen" and metri is not None and \
-            metri <= float(self.fort.get("segui_casse_entro_metri", 25) or 25)
-        if vicino_casse and c.obiettivo is not None:
-            return None                          # col compagno vicino apro prima le casse li' intorno
         if lato == "on_screen":
             gradi = self._gradi_schermo(x)
         else:
-            gradi = {"left": -75.0, "right": 75.0, "behind": 180.0}[lato]
+            gradi = LATO_GRADI[lato]
         self._gira(gradi if abs(gradi) > 8 else 0)
         if lato == "on_screen" and metri is not None and metri <= float(self.fort.get("segui_vicino_metri", 8) or 8):
             self._cammina()
@@ -741,54 +1127,31 @@ class Pilota:
         self._cammina(avanti=True, corri=True)
         return "seguo il compagno"
 
-    # ================================================================== 9. bottino
-    def _ramo_bottino(self, vis, img, t):
-        if t < self.cammino_fino and self.cammino_cosa in NOMI_COSE:
-            self._cammina(avanti=True)
-            self._controlla_blocco(img, t)
-            return "vado verso %s (IA)" % NOMI_COSE[self.cammino_cosa]
-        c = self.lavagna.consiglio
-        if (c is None or not self.lavagna.nuovo or c.fase != "playing" or c.obiettivo is None
-                or not self.racc.get("casse", True)):
-            return None
-        cosa, x, y = c.obiettivo
-        if cosa == "weapon" and not self.racc.get("armi", True):
-            return None
-        self._gira(self._gradi_schermo(x))
-        # piu' e' in alto sullo schermo, piu' e' lontana: cammino di piu' prima della prossima risposta
-        self.cammino_fino = t + 1.0 + 1.5 * max(0.0, min(1.0, (0.85 - y) / 0.5))
-        if cosa != self.cammino_cosa:
-            self.log("IA: vedo %s -> ci vado" % NOMI_COSE[cosa])
-        self.cammino_cosa = cosa
-        self._cammina(avanti=True)
-        return "vado verso %s (IA)" % NOMI_COSE[cosa]
-
-    # ================================================================== 10. viaggio
+    # ================================================================== 11. viaggio
     def _ramo_viaggio(self, vis, img, t):
-        if self.calibra_da is not None and t >= self.calibra_da:
-            self.calibra_da = None
-            scritta = self._calibra_bussola(t)
-            if scritta:
-                return scritta
-        ogni = float(self.fort.get("mappa_ogni_secondi", 60) or 0)
-        if ogni > 0 and self.ia is not None and t >= self.prossima_mappa_periodica:
-            self.prossima_mappa_periodica = t + ogni
-            scritta = self._guarda_mappa(t, "Controllo")
-            if scritta and scritta != "sono nella zona sicura":
-                return scritta
-        if self.apprendimento is not None and img is not None:
-            self.apprendimento.forse_salva_foto(img, vis, t)
-        # verso il centro della zona sicura (se lo so), altrimenti dritto
-        if self.rotta is not None and self.lavagna.guardo is not None:
-            errore = avvolgi(self.rotta - self.lavagna.guardo)
-            if abs(errore) > 100 and t - self.ultimo_sblocco > 6.0:
-                self.log("Riprendo la rotta verso il centro della zona sicura (giro di %.0f gradi)" % errore)
-                self._gira(errore)
-            else:
-                self._tieni_rotta(t)
-            stato = "vado verso il centro della zona sicura"
-        else:
-            stato = "esploro"
+        lv = self.lavagna
+        m = lv.mini
+        stato = "esploro"
+        lontano = m.lontano_dalla_tempesta() if m.ok else None
+        if lontano is not None:
+            self.rotta = lontano
+            stato = "mi allontano dalla tempesta"
+        elif self.rotta_ia is not None and t - self.rotta_ia_t < float(self.fort.get("mappa_valida_secondi", 90) or 90):
+            self.rotta = self.rotta_ia
+        if self.rotta is not None and lv.guardo is not None:
+            voluta = m.direzione_sicura(self.rotta, 10) if m.ok else self.rotta
+            errore = avvolgi(voluta - lv.guardo)
+            if abs(errore) > 100 and t - self.ultimo_sblocco > 6.0 and t >= self.prossima_svolta:
+                self.log("Riprendo la rotta (giro di %.0f gradi)" % errore)
+            self._vai_verso(voluta, t)
+            if stato == "esploro":
+                stato = "vado verso il centro della zona sicura"
+        elif lv.guardo is not None and m.ok and m.pericolo_davanti(lv.guardo, 10):
+            nuova = m.direzione_sicura(lv.guardo, 10)
+            if t >= self.prossima_svolta:
+                self.log("Davanti c'e' il mare: giro verso %.0f gradi" % nuova)
+            self._vai_verso(nuova, t)
+            stato = "giro: davanti c'e' il mare"
         if self.espl.get("rimetti_visuale_dritta", True) and abs(self.pitch) > 3:
             self.mani.muovi(0, -self.pitch * 0.15)
             self.pitch *= 0.85
@@ -798,8 +1161,9 @@ class Pilota:
 
     # ================================================================== bloccato
     def _controlla_blocco(self, img, t):
-        """Se cammino ma i LATI dello schermo non cambiano sono bloccato: salto; se ancora, giro;
-        la terza volta sfondo col piccone (F)."""
+        """Se cammino ma i LATI dello schermo non cambiano sono bloccato: salto; se ancora, mi giro
+        di lato e faccio qualche passo (poi la bussola mi rimette sulla mia strada); a volte
+        sfondo col piccone (F)."""
         if img is None or t - self.t_mini < 0.25:
             return False
         self.t_mini = t
@@ -827,7 +1191,7 @@ class Pilota:
             if self.mani.esiste("salta"):
                 self.mani.premi("salta")
             return True
-        if self.fort.get("piccona_i_muri", True) and self.mani.esiste("piccone") and random.random() < 0.5:
+        if self.fort.get("piccona_i_muri", True) and self.mani.esiste("piccone") and random.random() < 0.35:
             self.log("Sono ancora bloccato: sfondo col piccone")
             self.mani.premi("piccone", 0.08)
             self.mani.imposta("spara", True)
@@ -838,13 +1202,24 @@ class Pilota:
             self._prendi_arma(self.lavagna.consiglio, t, subito=True)
             return True
         self.verso_sblocco = -self.verso_sblocco
-        self.log("Sono ancora bloccato: salto e giro")
+        self.log("Sono ancora bloccato: mi giro di lato, faccio qualche passo e poi torno sulla mia strada")
         if self.mani.esiste("salta"):
             self.mani.premi("salta")
-        self.esecutore.gira(self.verso_sblocco * random.uniform(60, 110))
+        self.esecutore.gira(self.verso_sblocco * random.uniform(60, 100))
+        self.deviazione_fino = t + float(self.fort.get("aggira_secondi", 1.8) or 1.8)
         return True
 
     # ================================================================== mappa e bussola
+    def _bussola_ferma(self):
+        """Leggo la bussola da una foto nuova (senza IA); se non ci riesco la chiedo all'IA."""
+        for _ in range(3):
+            foto = self.esecutore.foto_fresca()
+            g = hud.leggi_bussola(foto) if foto is not None else None
+            if g is not None:
+                return float(g)
+            self.esecutore.dormi(0.1)
+        return self._leggi_bussola_ia(self.esecutore.foto_fresca())
+
     def _leggi_bussola_ia(self, foto):
         from ia import DOMANDA_BUSSOLA
         if foto is None or self.ia is None or not hasattr(self.ia, "chiedi_voto"):
@@ -854,7 +1229,7 @@ class Pilota:
         striscia = cv2.resize(striscia, (1024, max(1, int(striscia.shape[0] * 1024 / float(striscia.shape[1])))),
                               interpolation=cv2.INTER_CUBIC)
         gradi = []
-        for r in self.ia.chiedi_voto(striscia, DOMANDA_BUSSOLA, 3, attesa=12.0):
+        for r in self.ia.chiedi_voto(striscia, DOMANDA_BUSSOLA, 3, attesa=8.0):
             try:
                 g = float(r.get("heading"))
             except (TypeError, ValueError):
@@ -868,17 +1243,17 @@ class Pilota:
 
     def _calibra_bussola(self, t):
         """Misuro QUANTO MI GIRO DAVVERO: bussola, giro di 60 gradi secondo i miei conti, bussola."""
-        if self.ia is None or not hasattr(self.ia, "chiedi_voto") or not self.fort.get("calibra_con_bussola", True):
+        if not self.fort.get("calibra_con_bussola", True):
             return None
         self.ferma_tutto()
-        prima = self._leggi_bussola_ia(self.esecutore.foto_fresca())
+        prima = self._bussola_ferma()
         if prima is None:
             self.calibra_da = t + 30.0
-            return "leggo la bussola"
+            return None
         voluti = float(self.fort.get("calibra_bussola_gradi", 60) or 60)
         self.esecutore.gira(voluti, durata=0.3)
-        self.esecutore.dormi(0.5)
-        dopo = self._leggi_bussola_ia(self.esecutore.foto_fresca())
+        self.esecutore.dormi(0.4)
+        dopo = self._bussola_ferma()
         if dopo is None:
             self.calibra_da = t + 30.0
             return "leggo la bussola"
@@ -890,7 +1265,7 @@ class Pilota:
             return "leggo la bussola"
         vecchi = self.passi_per_giro
         nuovi = vecchi * voluti / girati
-        if abs(girati - voluti) <= 8:
+        if abs(girati - voluti) <= 6:
             self.log("Bussola: giro giusto (%.0f gradi su %.0f): la sensibilita' va bene" % (girati, voluti))
             return "leggo la bussola"
         if not 0.25 <= nuovi / vecchi <= 4.0:
@@ -898,35 +1273,52 @@ class Pilota:
             return "leggo la bussola"
         self.log("Bussola: volevo girarmi di %.0f gradi e mi sono girato di %.0f -> correggo la sensibilita' "
                  "(passi per un giro: %.0f -> %.0f)" % (voluti, girati, vecchi, nuovi))
-        if self.apprendimento is not None:
-            self.apprendimento.passi_per_giro = nuovi
-            impostazioni.salva_calibrazione(self.apprendimento.base, ["mira", "passi_per_giro"], round(nuovi))
-        else:
-            self.mira["passi_per_giro"] = nuovi
-        self.esecutore.passi_per_giro = nuovi
+        self._imposta_passi_per_giro(nuovi)
         return "correggo la sensibilita'"
 
-    def _guarda_mappa(self, t, motivo):
-        """Leggo la bussola (fuori dalla mappa), apro la mappa (M), foto, la chiudo. A piu' IA chiedo
-        il numero della bussola e da che parte e' il centro della zona sicura SULLA MAPPA (nord in
-        alto): vince la maggioranza. La rotta e il giro li calcolo io."""
+    def _mappa_in_sottofondo(self, t, motivo):
+        """Apro la mappa grande (M) un attimo, faccio la foto e la richiudo: le IA la guardano
+        mentre IO CONTINUO A GIOCARE. Quando rispondono, la loro direzione diventa la rotta.
+        -> True se le risposte sono gia' arrivate."""
         if (self.ia is None or not hasattr(self.ia, "chiedi_voto") or not self.mani.esiste("mappa")
-                or not self.fort.get("guarda_mappa", True) or t < self.prossima_mappa):
-            return None
-        from ia import BUSSOLA, DOMANDA_MAPPA, _si
-        self.prossima_mappa = t + float(self.fort.get("mappa_non_prima_di_secondi", 15) or 15)
-        self.log("%s: guardo la mappa per capire dov'e' la zona sicura" % motivo)
-        self.ferma_tutto()
+                or not self.fort.get("guarda_mappa", True) or t < self.prossima_mappa
+                or (self.filo_mappa is not None and self.filo_mappa.is_alive())):
+            return False
+        from ia import DOMANDA_MAPPA
+        self.prossima_mappa = t + float(self.fort.get("mappa_non_prima_di_secondi", 20) or 20)
+        self.log("%s: guardo la mappa (l'IA risponde mentre continuo a giocare)" % motivo)
         gioco = self.esecutore.foto_fresca()
         self.mani.premi("mappa", 0.1)
         self.esecutore.dormi(float(self.fort.get("mappa_attesa_secondi", 1.3) or 1.3))
         mappa = self.esecutore.foto_fresca()
         self.mani.premi("mappa", 0.1)
-        self.esecutore.dormi(0.4)
+        self.esecutore.dormi(0.3)
         if mappa is None:
-            return None
-        risposte = self.ia.chiedi_voto(mappa_con_bussola(mappa, gioco), DOMANDA_MAPPA,
-                                       int(self.fort.get("mappa_quante_ia", 3) or 3))
+            return False
+        foto = mappa_con_bussola(mappa, gioco)
+        quante = int(self.fort.get("mappa_quante_ia", 3) or 3)
+        attesa = float(self.fort.get("mappa_attesa_ia_secondi", 30) or 30)
+
+        def chiedi():
+            try:
+                risposte = self.ia.chiedi_voto(foto, DOMANDA_MAPPA, quante, attesa=attesa)
+            except Exception as e:
+                self.log("Mappa: %s" % e)
+                risposte = []
+            self.risposte_mappa = (risposte, t)
+
+        self.filo_mappa = threading.Thread(target=chiedi, daemon=True)
+        self.filo_mappa.start()
+        self.filo_mappa.join(0.2)                 # se rispondono subito le uso subito
+        return self._applica_mappa(t)
+
+    def _applica_mappa(self, t):
+        """Le risposte delle IA sulla mappa (appena arrivate): vince la maggioranza."""
+        if self.risposte_mappa is None:
+            return False
+        from ia import BUSSOLA, _si
+        risposte, quando = self.risposte_mappa
+        self.risposte_mappa = None
         dentro = [_si(r.get("inside")) for r in risposte if "inside" in r]
         bordo = [_si(r.get("near_edge")) for r in risposte if "near_edge" in r]
         sicura = [str(r.get("safe", "")).strip().upper() for r in risposte]
@@ -939,28 +1331,21 @@ class Pilota:
                 continue
             if 0 <= g <= 360:
                 letti.append(g % 360)
-        if letti:
-            self._leggi_bussola(angolo_medio(letti))
+        if letti and t - self.ultima_bussola_hud > 10.0:
+            self._leggi_bussola(angolo_medio(letti), quando)       # solo se io non la leggo da solo
             self.lavagna.guardo = self.guardo_verso()
         scelta = Counter(sicura).most_common(1)[0][0] if sicura else None
         if scelta == "HERE":
             self.log("Mappa: sono al centro della zona sicura")
-            self.rotta = None
-            return "sono nella zona sicura"
-        if scelta is None or not letti:
-            self.log("Mappa: le IA non capiscono da che parte andare (%d risposte)" % len(risposte))
-            return "guardo la mappa"
-        self.rotta = float(BUSSOLA[scelta])
+            self.rotta_ia = None
+            return True
+        if scelta is None:
+            self.log("Mappa: le IA non hanno risposto (%d risposte): continuo con la minimappa" % len(risposte))
+            return False
+        self.rotta_ia = float(BUSSOLA[scelta])
+        self.rotta_ia_t = t
         sono_dentro = bool(dentro) and sum(dentro) * 2 > len(dentro)
         al_bordo = bool(bordo) and sum(bordo) * 2 > len(bordo)
-        if sono_dentro and not al_bordo:
-            self.log("Mappa: sono dentro la zona sicura; vado piano verso il centro (%s)" % scelta)
-            return "sono nella zona sicura"
-        giro = avvolgi(self.rotta - self.guardo_verso())
-        self.log("Mappa: la zona sicura e' a %s (voti: %s), guardo a %.0f gradi -> giro di %.0f e corro" % (
-            scelta, ", ".join(sicura), angolo_medio(letti), giro))
-        self._gira(giro)
-        self.fuga_fino = t + float(self.fort.get("corsa_fuori_tempesta", 10) or 10)
-        self.cammino_fino = 0.0
-        self.mini_prec = None
-        return "vado verso la zona sicura (mappa)"
+        self.log("Mappa: la zona sicura e' a %s (voti: %s)%s" % (
+            scelta, ", ".join(sicura), "; ci sono dentro" if sono_dentro and not al_bordo else ""))
+        return True

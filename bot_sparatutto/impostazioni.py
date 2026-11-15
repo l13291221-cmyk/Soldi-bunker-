@@ -24,7 +24,26 @@ PREDEFINITE = {
         "segui_vicino_metri": 8,         # piu' vicino di cosi': si ferma accanto a lui
         "segui_casse_entro_metri": 25,   # col compagno entro questi metri apre le casse li' intorno
         "segui_memoria_secondi": 12,
-        "bus_attesa_massima": 45,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
+        "bus_attesa_massima": 60,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
+        "bus_terra_minima": 0.7,         # salta quando sulla minimappa, intorno al bus, c'e' almeno 70% di terra
+        "caduta_secondi": 50,            # dopo il salto cade per circa questi secondi (verso la terra)
+        "leggi_lo_schermo": True,        # bussola, minimappa, barra delle armi letti SENZA IA (hud.py)
+        "bussola_ogni_secondi": 0.15,
+        "minimappa_ogni_secondi": 0.4,
+        # le armi come gli "slot preferiti" di Fortnite: 1 mitra, 2 pompa, 3 per muoversi
+        # (impulso...), 4 cecchino, 5 cure. Il bot tiene sempre in mano lo slot 1
+        "slot_in_mano": 1,
+        "slot_pompa": 2,                 # nemico vicino (alto almeno pompa_se_nemico_alto dello schermo)
+        "pompa_se_nemico_alto": 0.3,
+        "slot_cure": 5,
+        "tieni_arma_in_mano": True,
+        "riprendi_arma_ogni_secondi": 8,
+        "bottino_valido_secondi": 20,    # una cassa vista dall'IA (anche in ritardo) vale questi secondi
+        "scritta_valida_secondi": 5,     # "Apri"/"Raccogli": solo se la foto e' di poco fa
+        "corsa_dopo_pericolo": 3,        # fuori da tempesta/acqua corre ancora un po'
+        "aggira_secondi": 1.8,           # bloccato: si gira di lato e cammina questi secondi, poi torna sulla rotta
+        "mappa_valida_secondi": 90,      # la direzione della zona sicura detta dall'IA vale questi secondi
+        "mappa_attesa_ia_secondi": 30,   # la mappa la guardano le IA mentre il bot gioca: le aspetta fino a 30 s
         "calibra_con_bussola": True,     # appena atterrato misura con la bussola quanto si gira davvero
         "calibra_bussola_gradi": 60,
         "ricalibra_bussola_secondi": 1200,
@@ -36,7 +55,7 @@ PREDEFINITE = {
         "campo_visivo_gradi": 80,        # quanto si vede da sinistra a destra (per girarsi verso le casse)
         "guarda_mappa": True,            # con l'IA: apre la mappa (M) per capire dov'e' la zona sicura
         "mappa_ogni_secondi": 60,        # ogni quanto la controlla anche se va tutto bene (0 = solo tempesta)
-        "mappa_non_prima_di_secondi": 15,
+        "mappa_non_prima_di_secondi": 20,
         "mappa_attesa_secondi": 1.3,     # quanto aspetta che la mappa si apra prima della foto
         "mappa_quante_ia": 3,            # quante IA guardano la mappa insieme: vince la maggioranza
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
@@ -57,7 +76,8 @@ PREDEFINITE = {
     # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
     "ia": {
         "attiva": False,
-        "ogni_secondi": 4,               # ogni quanto le manda una foto (Gemini gratis: circa 15 al minuto)
+        "ogni_secondi": 8,               # ogni quanto le manda una foto (le domande gratis al giorno sono
+                                         # poche: con 4 secondi finivano in un'ora e mezza)
         "validita_secondi": 8,           # casse, muri, tempesta: dopo questo tempo il consiglio e' vecchio
         "validita_fase_secondi": 45,     # bus, caduta, menu: cambiano piu' piano
         "fidati_delle_casse": True,      # se l'IA non vede casse, quelle trovate col colore sono finte

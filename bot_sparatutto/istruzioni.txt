@@ -67,7 +67,9 @@ QUANDO vedi squadra_eliminata FAI aspetta 3, clicca gioca_ancora, aspetta 5, con
 # QUANDO vita sotto 30 e vedi nemico FAI scatola
 
 # Se e' bloccato da tanto: salta, gira e va avanti.
-QUANDO fermo da 6 secondi FAI premi salta, girati, tieni avanti 1
+# (spenta: il cervello nuovo lo fa gia' da solo, e questa regola partiva anche nella lobby e
+#  nei menu e lo faceva girare al contrario della sua strada)
+# QUANDO fermo da 6 secondi FAI premi salta, girati, tieni avanti 1
 
 # Se non vede nemici da 2 minuti, apre la mappa e la richiude (esempio).
 # QUANDO nessun nemico da 120 secondi FAI premi m, aspetta 2, premi m
