@@ -1727,6 +1727,7 @@ class TestPulsanteGiallo(ConCartella):
         t = time.monotonic()
         scritte = []
         for i in range(10):
+            mani.muovi(37, 0)                  # in partita lo schermo cambia sempre (non dipende da quanto e' veloce il PC)
             img = mondo.foto()
             scritte.append(cerv.passo(occhi.analizza(img), img, t + i * 1.0))
         self.assertNotIn("clicco Gioca di nuovo", scritte)

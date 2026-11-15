@@ -496,6 +496,10 @@ class Pilota:
         un'altra velocita' del cursore e me la ricordo."""
         if img is None or not self.fort.get("pulsante_giallo", True) or t < self.prossimo_giallo:
             return None
+        lv = self.lavagna
+        if lv.barra or (lv.bussola_hud is not None and t - self.ultima_bussola_hud < 2.0):
+            self.giallo_visto = None
+            return None                  # c'e' la bussola o la barra delle armi: sto giocando, non e' un menu
         self.prossimo_giallo = t + 1.0
         from ia import miniatura
         trovato = trova_pulsante_giallo(img)
