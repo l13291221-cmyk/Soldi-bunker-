@@ -524,7 +524,8 @@ def autotest():
     from pilota import Pilota
     mani2 = ManiFinte(cfg.get("tasti"), log)
     esecutore2, istruzioni2 = prepara(cfg, mani2, occhi, schermo, controllo, {})
-    pilota = Pilota(cfg, mani2, occhi, esecutore2, None, log)
+    cfg_finta = dict(cfg, fortnite=dict(cfg.get("fortnite", {}) or {}, leggi_lo_schermo=False))
+    pilota = Pilota(cfg_finta, mani2, occhi, esecutore2, None, log)
     t0 = time.monotonic()
     scritta = ""
     for i in range(15):                  # il "sospetto" si riempie in qualche decimo di secondo

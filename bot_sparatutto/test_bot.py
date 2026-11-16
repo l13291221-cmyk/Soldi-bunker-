@@ -2627,6 +2627,7 @@ def schermo_vero(numero, larghezza=960, altezza=540):
     metti("destra", int(round(0.978 * larghezza)), int(round(0.15 * altezza)))
     metti("sotto", int(round(0.25 * larghezza)), int(round(0.962 * altezza)))
     metti("vita", int(round(0.03 * larghezza)), int(round(0.885 * altezza)))
+    metti("spettatore", int(round(0.38 * larghezza)), 0)
     return img
 
 
@@ -2730,6 +2731,16 @@ class TestHud(unittest.TestCase):
                      "foto_20261113_121822_00022.jpg"):                    # niente scritta / fine partita
             self.assertFalse(hud.scritta_interazione(cv2.imread(os.path.join(cartella, nome))), nome)
 
+    def test_spettatore_e_tipo_di_scritta(self):
+        import hud
+        self.assertTrue(hud.spettatore(schermo_vero(133)))
+        for numero in (85, 97, 109, 184):
+            self.assertFalse(hud.spettatore(schermo_vero(numero)), numero)
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        for nome in ("foto_20261113_115752_00003.jpg", "foto_20261113_140859_00000.jpg"):   # col tasto SPAZIO
+            self.assertEqual(hud.tipo_di_scritta(cv2.imread(os.path.join(cartella, nome))), "spazio", nome)
+        self.assertIsNone(hud.tipo_di_scritta(cv2.imread(os.path.join(cartella, "foto_20261113_122640_00104.jpg"))))
+
     def test_direzione_sicura(self):
         import hud
         m = hud.leggi_minimappa(schermo_vero(109))
@@ -2815,8 +2826,9 @@ class TestPilotaConLoSchermo(ConCartella):
         p.lavagna.compagni_mini = [(300.0, 0.3)]                  # e' andato via: lo seguo
         p._scegli_compagno(t + 1.4)
         self.assertEqual(p._ramo_compagno(None, img, t + 1.5), "seguo il compagno")
-        p.lavagna.compagni_mini = []                              # sparito (e' davanti a me): lo aspetto
-        self.assertEqual(p._ramo_compagno(None, img, t + 3.5), "sto vicino al compagno")
+        p.lavagna.compagni_mini = []                              # sparito (e' davanti a me sullo schermo):
+        self.assertEqual(p._ramo_compagno(None, img, t + 3.5), "seguo il compagno")   # cammino ancora un po'...
+        self.assertEqual(p._ramo_compagno(None, img, t + 6.5), "sto vicino al compagno")   # ...poi lo aspetto
 
     def test_tempesta_tutta_viola_va_dal_compagno(self):
         mani, occhi, p = self._pilota()
@@ -2832,6 +2844,18 @@ class TestPilotaConLoSchermo(ConCartella):
         p.compagno_hud = None
         p.salvo_memo = (250.0, t)
         self.assertEqual(p._rotta_di_fuga(t + 1.0)[0], 250.0)
+
+    def test_nei_menu_sta_fermo_e_da_morto_guarda(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        menu = np.full((540, 960, 3), (120, 60, 30), np.uint8)               # niente bussola ne' barra
+        self.assertEqual(self._passi(p, occhi, menu, t), "non sono in partita: aspetto")
+        self.assertFalse(mani.e_premuto("avanti"))
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        # sul bus: la scritta "MIRA / Spazio PER SALTARE" (anche se la bussola non si legge)
+        bus = cv2.imread(os.path.join(cartella, "foto_20261113_140859_00000.jpg"))
+        p2 = self._pilota()[2]
+        self.assertTrue(self._passi(p2, occhi, bus, t, 4, 0.4).startswith("sul bus"))
 
     def test_cerca_il_nemico_sparito(self):
         mani, occhi, p = self._pilota()

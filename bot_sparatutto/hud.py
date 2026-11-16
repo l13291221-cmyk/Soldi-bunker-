@@ -224,12 +224,45 @@ def compagni_sulla_minimappa(img):
 
 
 # ------------------------------------------------------------------ la scritta "E Apri" / "Raccogli"
+def _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=200, area=3):
+    H, W = img.shape[:2]
+    c = img[int(round(y0 * H)):int(round(y1 * H)), int(round(x0 * W)):int(round(x1 * W))]
+    if c.size == 0:
+        return []
+    c = cv2.resize(c, (max(1, int(round((x1 - x0) * 960))), max(1, int(round((y1 - y0) * 540)))),
+                   interpolation=cv2.INTER_AREA)
+    m = (c.min(axis=2) > soglia).astype(np.uint8)
+    n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
+    return [tuple(int(v) for v in st[k]) for k in range(1, n) if st[k][4] >= area]
+
+
+def tipo_di_scritta(img):
+    """La scritta di interazione a destra del mirino: None se non c'e'; "spazio" se il tasto e'
+    SPAZIO (sul bus "PER SALTARE", in caduta "ENTRA IN CADUTA LIBERA"...: sono in aria); "e" se e'
+    un'altra (davanti a una cassa "E Apri", "Raccogli", "Rianima", "Assolda"...)."""
+    if img is None:
+        return None
+    riga = _riga_della_scritta(img)
+    if riga is None:
+        return None
+    alto, basso = riga
+    # "Spazio" e' una parola di lettere piccole a sinistra della scritta; la E e' un tasto solo
+    piccole = [p for p in _pezzi_bianchi_tutti(img, 0.50, 0.80, 0.48, 0.66, soglia=160, area=2)
+               if 66 <= p[0] <= 106 and p[3] <= 8 and alto - 3 <= p[1] + p[3] / 2.0 <= basso + 3]
+    return "spazio" if len(piccole) >= 3 else "e"
+
+
 def scritta_interazione(img):
     """C'e' una scritta di interazione a destra del mirino (es. "E Apri" vicino a una cassa,
-    "Raccogli", "Rianima", "Assolda", "Spazio PER SALTARE")? Cerco una RIGA di lettere bianche
-    tutte alte uguali, che comincia poco a destra del centro."""
+    "Raccogli", "Rianima", "Assolda", "Spazio PER SALTARE")?"""
+    return _riga_della_scritta(img) is not None
+
+
+def _riga_della_scritta(img):
+    """Cerco una RIGA di lettere bianche tutte alte uguali, che comincia poco a destra del centro.
+    -> (y alto, y basso) della riga (su uno schermo 960x540, dentro la striscia) oppure None."""
     if img is None:
-        return False
+        return None
     x0, x1, y0, y1 = 0.50, 0.80, 0.48, 0.66
     lettere = [p for p in _pezzi_bianchi(img, x0, x1, y0, y1, soglia=200)
                if 5 <= p[3] <= 8 and 1 <= p[2] <= 12 and p[4] >= 5]
@@ -248,8 +281,22 @@ def scritta_interazione(img):
         if len(catena) > len(migliore):
             migliore = catena
     if len(migliore) < 4 or migliore[-1][0] + migliore[-1][2] - migliore[0][0] < 15:
+        return None
+    if not 85 <= migliore[0][0] <= 165:      # la scritta comincia tra 0.59 e 0.67 della larghezza
+        return None
+    return min(p[1] for p in migliore), max(p[1] + p[3] for p in migliore)
+
+
+def spettatore(img):
+    """In alto al centro c'e' la scritta grande "SPETTATORE" (sono stato eliminato e guardo un
+    compagno)? Una riga di almeno 7 lettere grandi dove di solito c'e' il numero della bussola."""
+    if img is None:
         return False
-    return 85 <= migliore[0][0] <= 165       # la scritta comincia tra 0.59 e 0.67 della larghezza
+    grandi = [p for p in _pezzi_bianchi(img, 0.38, 0.62, 0.0, 0.09) if 9 <= p[3] <= 13 and p[2] <= 12]
+    for p in grandi:
+        if sum(1 for q in grandi if abs(q[1] - p[1]) <= 2) >= 7:
+            return True
+    return False
 
 
 # ------------------------------------------------------------------ vita e scudo

@@ -82,6 +82,7 @@ class Lavagna:
         self.compagni_bordi = []     # frecce dei compagni ai bordi / dietro (gradi rispetto a dove guardo)
         self.compagni_mini = []      # frecce gialle sulla minimappa: (gradi della bussola, distanza 0-1)
         self.scritta = False         # c'e' la scritta "E Apri" / "Raccogli" / ... a destra del mirino
+        self.spettatore = False      # in alto c'e' "SPETTATORE": sono stato eliminato, guardo un compagno
         self.vita = None             # vita e scudo letti dalle barre in basso a sinistra (0-100)
         self.scudo = None
 
@@ -140,7 +141,9 @@ class Pilota:
         self.prossima_minimappa = 0.0
         self.lettura_prec = None          # (t, gradi, passi) dell'ultima lettura (anche non accettata)
         self.ultima_accettata = None      # (t, gradi, passi) dell'ultima lettura accettata
-        self.ultima_bussola_hud = -1e9    # quando ho letto la bussola l'ultima volta
+        self.ultima_bussola_hud = -1e9    # quando ho preso per buona una lettura della bussola
+        self.ultima_bussola_letta = -1e9  # quando ho visto il numero della bussola (anche se non lo uso)
+        self.in_aria_t = -1e9             # quando ho visto la scritta col tasto SPAZIO (bus / caduta)
         self.stime_giro = []              # quanti passi del mouse per un giro, misurati con la bussola
         self.bus_conta = 0
         self.storia_guardo = []           # (t, gradi): dove guardavo (per le risposte dell'IA in ritardo)
@@ -317,7 +320,7 @@ class Pilota:
             if len(self.storia_guardo) > 1500:
                 del self.storia_guardo[:300]
         for ramo in (self._ramo_istruzioni, self._ramo_pulsante_giallo, self._ramo_schermi, self._ramo_fasi,
-                     self._ramo_pericolo, self._ramo_nemico, self._ramo_scritta, self._ramo_arma_e_cure,
+                     self._ramo_fuori_partita, self._ramo_pericolo, self._ramo_nemico, self._ramo_scritta, self._ramo_arma_e_cure,
                      self._ramo_rianima, self._ramo_manutenzione, self._ramo_cassa_vista, self._ramo_bottino,
                      self._ramo_compagno, self._ramo_viaggio):
             scritta = ramo(vis, img, t)
@@ -396,14 +399,21 @@ class Pilota:
             g = hud.leggi_bussola(img)
             lv.bussola_hud = g
             if g is not None:
+                self.ultima_bussola_letta = t
                 self._nuova_lettura(g, t)
-            lv.scritta = bool(lv.barra and hud.scritta_interazione(img))
+            tipo = hud.tipo_di_scritta(img) if (lv.barra or t - self.ultima_bussola_letta < 2.0) else None
+            if tipo == "spazio":
+                self.in_aria_t = t                  # "Spazio PER SALTARE", "ENTRA IN CADUTA LIBERA"...
+            lv.scritta = bool(lv.barra and tipo == "e" and t - self.in_aria_t > 3.0)
         if t >= self.prossima_minimappa:
             self.prossima_minimappa = t + float(self.fort.get("minimappa_ogni_secondi", 0.4) or 0.4)
             lv.barra = hud.barra_armi(img)
+            lv.spettatore = hud.spettatore(img)
             lv.mini = hud.leggi_minimappa(img)
+            if not (lv.barra or t - self.ultima_bussola_letta < 2.0):
+                lv.mini = hud.Minimappa(None)       # nei menu non c'e' la minimappa: non la invento
             lv.vita, lv.scudo = hud.leggi_vita(img) if lv.barra else (None, None)
-            in_gioco = lv.barra and t - self.ultima_bussola_hud < 1.0
+            in_gioco = lv.barra and t - self.ultima_bussola_letta < 1.0 and not lv.spettatore
             lv.compagni = hud.compagni_sulla_bussola(img) if in_gioco else []
             lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
             lv.compagni_mini = hud.compagni_sulla_minimappa(img) if in_gioco else []
@@ -412,7 +422,7 @@ class Pilota:
                 if g is not None:
                     self.salvo_memo = (g, t)        # me lo ricordo per quando la minimappa e' tutta viola
             # sul bus: si legge la bussola, si vede la minimappa, ma la barra delle armi no
-            if t - self.ultima_bussola_hud < 1.0 and lv.mini.ok and not lv.barra:
+            if t - self.ultima_bussola_letta < 1.0 and lv.mini.ok and not lv.barra:
                 self.bus_conta += 1
             else:
                 self.bus_conta = 0
@@ -653,8 +663,13 @@ class Pilota:
         (bus = bussola senza barra delle armi; caduta = appena saltato dal bus)."""
         lv = self.lavagna
         fase = c.fase if c is not None else None
-        if lv.bus and fase not in ("falling", "dead"):
+        if lv.spettatore and fase in (None, "unknown", "playing"):
+            fase = "spettatore"           # in alto c'e' "SPETTATORE": sono stato eliminato
+        if lv.bus and fase not in ("falling", "dead", "spettatore"):
             fase = "bus"                  # nei menu la bussola non c'e': lo schermo non sbaglia
+        in_aria = t - self.in_aria_t < 3.0
+        if fase in (None, "unknown") and in_aria:
+            fase = "falling" if lv.barra else "bus"     # la scritta col tasto SPAZIO: bus o caduta
         if fase in (None, "unknown") and self.salto_da is not None:
             nuoto = self.nuoto_da is not None and t - self.nuoto_da >= 1.5
             if t - self.salto_da < float(self.fort.get("caduta_secondi", 50) or 50) and not nuoto:
@@ -681,7 +696,27 @@ class Pilota:
             return self._in_caduta(c, t)
         if fase in ("menu", "dead") and c is not None:
             return self._menu_o_morto(c, vis, img, t)
+        if fase == "spettatore":
+            self.ferma_tutto()
+            if self.in_partita:
+                self.log("Sono stato eliminato: resto a guardare i compagni fino alla fine (per il token)")
+                self._partita_finita(t, sicuro=True)
+            return "eliminato: guardo i compagni fino alla fine della partita"
         return None
+
+    def _ramo_fuori_partita(self, vis, img, t):
+        """Senza la barra delle armi e senza la bussola non sono in partita (menu, caricamento,
+        schermate finali): sto fermo, non cammino e non salto nei menu."""
+        if img is None or not self.fort.get("leggi_lo_schermo", True):
+            return None
+        lv = self.lavagna
+        if lv.barra or t - self.ultima_bussola_letta < 2.0:
+            return None
+        c = lv.consiglio
+        if c is not None and c.fase == "playing":
+            return None                  # l'IA (fresca) dice che sto giocando
+        self.ferma_tutto()
+        return "non sono in partita: aspetto"
 
     def _atterrato(self, c, t):
         self.log("Atterrato: prendo l'arma (slot 1) e controllo la bussola")
@@ -1126,7 +1161,8 @@ class Pilota:
                 and t - self.stato.get("ultimo_nemico", 0) >= 3.0 and t >= self.prossima_cura
                 and self.fort.get("cura_da_sola", True)):
             poca_vita = lv.vita < float(self.fort.get("cura_sotto_vita", 70) or 70)
-            poco_scudo = lv.scudo is not None and lv.scudo < float(self.fort.get("cura_sotto_scudo", 50) or 0)
+            # lo scudo solo se c'era e si e' consumato (0 = non ho mai avuto scudi: niente da bere)
+            poco_scudo = lv.scudo is not None and 0 < lv.scudo < float(self.fort.get("cura_sotto_scudo", 50) or 0)
             if poca_vita or poco_scudo:
                 return self._usa_le_cure(t, lv.vita, lv.scudo)
         # SEMPRE la mitra in mano (slot 1) mentre giro, anche senza IA (se lo slot e' vuoto non cambia niente)
@@ -1430,8 +1466,9 @@ class Pilota:
                     vicino = dist <= float(limite or 0.08)
                 else:
                     # non so quanto e' lontano: se da un po' non lo vedo piu' ne' ai bordi ne' sopra la
-                    # bussola, vuol dire che e' davanti a me sullo schermo: lo aspetto qui
-                    vicino = not ia_fresca and visto > 1.5
+                    # bussola, e' davanti a me sullo schermo: cammino ancora un po' verso di lui (per
+                    # raggiungerlo) e poi lo aspetto qui
+                    vicino = not ia_fresca and visto > 1.5 + float(self.fort.get("raggiungi_compagno_secondi", 3) or 3)
                 if vicino:
                     if not fermo:
                         self.log("Sono vicino al compagno: resto qui e mi guardo intorno")
