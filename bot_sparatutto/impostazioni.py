@@ -36,7 +36,8 @@ PREDEFINITE = {
         "ricordo_zona_secondi": 180,     # minimappa tutta viola: vado dove ricordo che finiva la tempesta
         "bus_attesa_massima": 60,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
         "bus_terra_minima": 0.7,         # salta quando sulla minimappa, intorno al bus, c'e' almeno 70% di terra
-        "caduta_secondi": 50,            # dopo il salto cade per circa questi secondi (verso la terra)
+        "caduta_secondi": 60,            # dopo il salto cade al massimo per questi secondi (verso la terra);
+                                         # di solito capisce prima che e' atterrato (sparisce la scritta SPAZIO)
         "leggi_lo_schermo": True,        # bussola, minimappa, barra delle armi letti SENZA IA (hud.py)
         "bussola_ogni_secondi": 0.15,
         "minimappa_ogni_secondi": 0.4,
@@ -46,6 +47,9 @@ PREDEFINITE = {
         "slot_pompa": 2,                 # nemico vicino (alto almeno pompa_se_nemico_alto dello schermo)
         "pompa_se_nemico_alto": 0.3,
         "slot_cure": 5,
+        "slot_impulso": 3,               # la granata impulso (o un altro oggetto per muoversi)
+        "usa_impulso": True,             # la lancia ai piedi se la tempesta finisce lontano o il compagno e' lontano
+        "impulso_ogni_secondi": 25,
         "tieni_arma_in_mano": True,
         "riprendi_arma_ogni_secondi": 8,
         "bottino_valido_secondi": 20,    # una cassa vista dall'IA (anche in ritardo) vale questi secondi

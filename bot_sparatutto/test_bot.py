@@ -2894,6 +2894,27 @@ class TestPilotaConLoSchermo(ConCartella):
         self.assertIn("giu tasto 0x%02X" % CODICI["5"], mani.storia)
         self.assertEqual(p.cure_fallite, 0)
 
+    def test_impulso_nella_tempesta_lontana(self):
+        mani, occhi, p = self._pilota()
+        p.esecutore.dormi = lambda s: None
+        t = time.monotonic() + 100
+        img = schermo_vero(121)                                   # nella tempesta, uscita a nord-ovest
+        for i in range(3):
+            p.passo(occhi.analizza(img), img, t + i * 0.3)
+        p.rotta, p.lavagna.guardo = 330.0, 330.0
+        p.lavagna.mini.ok = False                                  # la minimappa e' tutta viola
+        self.assertTrue(p._uscita_lontana(t + 1))
+        p.prossimo_impulso = 0.0
+        p.lavagna.vita = 16
+        self.assertFalse(p._lancio_impulso(t + 1, "prova"))       # poca vita: col danno da caduta morirei
+        p.lavagna.vita = 80
+        prima = len(mani.storia)
+        self.assertTrue(p._lancio_impulso(t + 1, "prova"))
+        dopo = mani.storia[prima:]
+        self.assertIn("giu tasto 0x%02X" % CODICI["3"], dopo)     # slot 3
+        self.assertIn("giu mouse 1", dopo)                         # la lancia
+        self.assertFalse(p._lancio_impulso(t + 2, "prova"))       # non subito un'altra
+
     def test_misura_quanto_si_gira_con_la_bussola(self):
         mani, occhi, p = self._pilota()
         t = 1000.0

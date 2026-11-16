@@ -301,6 +301,8 @@ def avvia(modo=None):
     fermo_prima = False
     scritta_prec = ""
     t_fotogramma = time.monotonic()
+    errori_passo = 0
+    prossimo_errore = 0.0
     if ia.attiva:
         ia.avvia()
     try:
@@ -315,12 +317,27 @@ def avvia(modo=None):
             if fermo_prima:
                 fermo_prima = False
                 cervello.t_prec = time.monotonic()
-            img = schermo.foto()
-            vis = occhi.analizza(img)
             try:
+                img = schermo.foto()
+                vis = occhi.analizza(img)
                 scritta = cervello.passo(vis, img)
             except Interrotto:
                 cervello.ferma_tutto()
+                continue
+            except Exception as e:
+                # un errore imprevisto non deve chiudere il bot (deve giocare per ore da solo):
+                # lo scrivo (una volta al minuto), mollo i tasti e riparto dal fotogramma dopo
+                errori_passo += 1
+                if time.monotonic() >= prossimo_errore:
+                    prossimo_errore = time.monotonic() + 60
+                    import traceback
+                    log("ERRORE nel cervello (%d finora), continuo a giocare: %s" % (errori_passo, e))
+                    log("".join(traceback.format_exc().splitlines(True)[-4:]).strip())
+                try:
+                    cervello.ferma_tutto()
+                except Exception:
+                    pass
+                time.sleep(0.2)
                 continue
             if scritta != scritta_prec and scritta and not scritta.startswith(("combatto", "vado verso", "esploro")):
                 log(scritta)

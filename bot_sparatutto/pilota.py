@@ -213,6 +213,7 @@ class Pilota:
         self.cassa_ultima = None          # (x, y) sullo schermo (0-1) e quando l'ho vista
         self.casse_ignorate = []          # (gradi della bussola, fino a quando): "casse" che non si aprono
         self.casse_sbagliate = []         # quando ho trovato "casse" finte
+        self.prossimo_impulso = adesso + 20.0
         self.casse_pausa_fino = 0.0
 
     # ================================================================== utilita'
@@ -671,8 +672,13 @@ class Pilota:
         if fase in (None, "unknown") and in_aria:
             fase = "falling" if lv.barra else "bus"     # la scritta col tasto SPAZIO: bus o caduta
         if fase in (None, "unknown") and self.salto_da is not None:
+            # in aria c'e' sempre la scritta col tasto SPAZIO: quando sparisce sono atterrato
             nuoto = self.nuoto_da is not None and t - self.nuoto_da >= 1.5
-            if t - self.salto_da < float(self.fort.get("caduta_secondi", 50) or 50) and not nuoto:
+            ancora = t - self.salto_da < 8.0 or (in_aria and t - self.salto_da < float(
+                self.fort.get("caduta_secondi", 60) or 60))
+            if not self.fort.get("leggi_lo_schermo", True):
+                ancora = t - self.salto_da < float(self.fort.get("caduta_secondi", 60) or 60)
+            if ancora and not nuoto:
                 fase = "falling"
         if fase in ("playing", "menu", "dead"):
             self.salto_da = None
@@ -846,6 +852,9 @@ class Pilota:
         girato = self._vai_verso(self.rotta, t)
         self._cammina(avanti=True, corri=True)
         self._controlla_blocco(img, t)
+        if lv.in_tempesta and not lv.in_acqua and not lv.nemici and self._uscita_lontana(t):
+            if self._lancio_impulso(t, "la tempesta finisce lontano"):
+                return "volo con l'impulso fuori dalla tempesta"
         if lv.nemici:
             return None                          # se mi sparano mi difendo (ramo nemico)
         if perche and "mappa)" in perche and "minimappa" not in perche and girato:
@@ -855,6 +864,46 @@ class Pilota:
         if perche and "terra" in perche:
             return "torno a terra"
         return "scappo verso la zona sicura"
+
+    def _uscita_lontana(self, t):
+        """L'uscita dalla tempesta e' lontana (sulla minimappa, davanti a me, la tempesta continua per
+        piu' di meta' della minimappa) o non la vedo proprio."""
+        m = self.lavagna.mini
+        if self.rotta is None or self.lavagna.guardo is None or abs(avvolgi(self.rotta - self.lavagna.guardo)) > 25:
+            return False                 # prima mi giro dalla parte giusta
+        if not m.ok:
+            return True
+        d = m.primo(self.rotta, (hud.TERRA, hud.ACQUA), di_fila=3)
+        return d is None or d > 16
+
+    def _lancio_impulso(self, t, perche):
+        """LA GRANATA IMPULSO (slot 3 negli slot preferiti) ai miei piedi mentre corro: mi sbalza in
+        avanti. Guardo per terra, la lancio, rialzo lo sguardo e salto; poi riprendo l'arma."""
+        if not self.fort.get("usa_impulso", True) or t < self.prossimo_impulso or self.salto_da is not None:
+            return False
+        if self.lavagna.vita is not None and self.lavagna.vita < 25:
+            return False                 # l'impulso non toglie i danni da caduta
+        tasto = self._tasto_arma(int(self.fort.get("slot_impulso", 3) or 3))
+        if not tasto or not self.mani.esiste("spara"):
+            return False
+        self.prossimo_impulso = t + float(self.fort.get("impulso_ogni_secondi", 25) or 25)
+        self.log("%s: lancio la granata impulso ai miei piedi (slot 3) per volare avanti" % perche.capitalize())
+        self.mani.premi(tasto, 0.08)
+        self.esecutore.dormi(0.35)
+        giu = self.passi_per_giro * 75.0 / 360.0
+        self.mani.muovi(0, giu)                  # guardo per terra
+        self.esecutore.dormi(0.08)
+        self._cammina(avanti=True, corri=True)
+        self.mani.imposta("spara", True)
+        self.esecutore.dormi(0.08)
+        self.mani.imposta("spara", False)
+        self.esecutore.dormi(0.2)
+        self.mani.muovi(0, -giu)                 # di nuovo dritto
+        if self.mani.esiste("salta"):
+            self.mani.premi("salta")
+        self.esecutore.dormi(1.0)
+        self._prendi_arma(self.lavagna.consiglio, t, subito=True)
+        return True
 
     def _rotta_di_fuga(self, t):
         """-> (gradi, perche'): dove scappare. Prima la minimappa, poi la mappa vista dall'IA."""
@@ -1485,10 +1534,15 @@ class Pilota:
                         gradi, ", %.0f metri" % metri if metri is not None else
                         (", sulla minimappa a %.0f%% dal centro" % (100 * dist) if dist is not None else "")))
                 self.cammino_cosa = "compagno"
-                self._vai_verso(gradi, t)
+                girato = self._vai_verso(gradi, t)
                 corri = dist is None or dist > float(self.fort.get("guinzaglio_corri", 0.25) or 0.25)
                 self._cammina(avanti=True, corri=corri)
                 self._controlla_blocco(img, t)
+                lontano = (dist is not None and dist >= 0.7) or (metri is not None and metri >= 80) or \
+                    (self.compagno_fonte == "bussola" and visto <= 1.5)
+                if lontano and not girato and lv.guardo is not None and abs(avvolgi(gradi - lv.guardo)) < 20 \
+                        and not lv.in_acqua and self._lancio_impulso(t, "il compagno e' lontano"):
+                    return "volo con l'impulso verso il compagno"
                 return "seguo il compagno"
         if t < self.fermo_fino:
             self._cammina()

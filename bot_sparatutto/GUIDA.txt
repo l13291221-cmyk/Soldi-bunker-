@@ -122,6 +122,15 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   "Gioca di nuovo".
 - CAMBIA IL PICCONE con uno SENZA luce dorata: quello di adesso ha la punta che
   brilla e il bot la scambia per una cassa.
+- CASSE CHE VEDE: appena vede la luce dorata di una cassa la mette nel mirino e ci
+  va incontro; davanti compare "E Apri" e la apre. Se in 7 secondi non si apre non
+  era una cassa (alberi gialli, fiori): la lascia stare.
+- GRANATA IMPULSO (slot 3): se e' nella tempesta e l'uscita e' lontana, o se il
+  compagno e' lontano, la lancia ai suoi piedi correndo per volare avanti (al
+  massimo una ogni 25 secondi, mai con poca vita: l'impulso non toglie i danni
+  da caduta). Si spegne con fortnite -> usa_impulso: false.
+- NEI MENU sta fermo (senza bussola e senza barra delle armi non e' in partita).
+  Sul bus salta da solo quando sotto c'e' l'isola, anche senza IA.
 - Con l'IA collegata il bot in piu': va verso le casse che vede l'IA (le sue
   risposte diventano direzioni della bussola, cosi' valgono anche se arrivano
   tardi), preme E se sullo schermo c'e' "Apri", "Raccogli" o una zipline, e ogni
