@@ -2741,6 +2741,15 @@ class TestHud(unittest.TestCase):
             self.assertEqual(hud.tipo_di_scritta(cv2.imread(os.path.join(cartella, nome))), "spazio", nome)
         self.assertIsNone(hud.tipo_di_scritta(cv2.imread(os.path.join(cartella, "foto_20261113_122640_00104.jpg"))))
 
+    def test_nome_sopra_la_testa_e_un_compagno(self):
+        """In una partita vera: sopra il compagno c'e' il suo nome (rombo giallo + nome bianco)."""
+        import hud
+        foto = cv2.imread(os.path.join(QUI, "foto_per_ia", "images", "foto_20261113_141114_00008.jpg"))
+        H, W = foto.shape[:2]
+        self.assertTrue(hud.nome_sopra(foto, 0.60 * W, 0.36 * H, 0.04 * W, 0.12 * H))      # il compagno
+        for x, y in ((0.3, 0.6), (0.45, 0.5), (0.75, 0.55)):                              # nessun nome sopra
+            self.assertFalse(hud.nome_sopra(foto, x * W, y * H, 0.04 * W, 0.12 * H), (x, y))
+
     def test_direzione_sicura(self):
         import hud
         m = hud.leggi_minimappa(schermo_vero(109))

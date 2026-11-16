@@ -340,6 +340,11 @@ class Pilota:
         # i nemici visti dagli occhi veloci, senza il mio personaggio (in basso al centro, di spalle)
         lv.nemici = [b for b in vis.nemici
                      if not (b.fondo >= 0.85 * H and 0.25 * W <= b.cx <= 0.65 * W)]
+        if lv.nemici and img is not None and self.fort.get("leggi_lo_schermo", True) \
+                and self.fort.get("non_sparare_ai_compagni", True):
+            # chi ha il NOME sopra la testa e' un compagno (i nemici in Fortnite non hanno il nome)
+            sx, sy = img.shape[1] / float(W), img.shape[0] / float(H)
+            lv.nemici = [b for b in lv.nemici if not hud.nome_sopra(img, b.x * sx, b.y * sy, b.w * sx, b.h * sy)]
         if lv.nemici:
             self.stato["ultimo_nemico"] = t
         self._aggiorna_hud(img, t)

@@ -287,6 +287,36 @@ def _riga_della_scritta(img):
     return min(p[1] for p in migliore), max(p[1] + p[3] for p in migliore)
 
 
+def nome_sopra(img, x, y, w, h):
+    """Sopra questa persona (rettangolo in pixel) c'e' un NOME scritto (es. "◆AgreeableEmu3207")?
+    In Fortnite i nomi si vedono solo sopra i COMPAGNI (e i personaggi del gioco): i nemici no.
+    Cerco una riga di almeno 4 lettere bianche appena sopra la testa."""
+    if img is None:
+        return False
+    H, W = img.shape[:2]
+    cx = x + w / 2.0
+    x0 = max(0.0, (cx - max(0.09 * W, 0.8 * w)) / W)
+    x1 = min(1.0, (cx + max(0.09 * W, 0.8 * w)) / W)
+    y0 = max(0.0, (y - 0.08 * H) / H)
+    y1 = min(1.0, (y + 0.03 * H) / H)
+    if x1 - x0 < 0.02 or y1 - y0 < 0.02:
+        return False
+    lettere = [p for p in _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=175, area=4)
+               if 4 <= p[3] <= 9 and 1 <= p[2] <= 12]
+    for l in lettere:
+        riga = sorted((q for q in lettere if abs(q[1] + q[3] - l[1] - l[3]) <= 2), key=lambda q: q[0])
+        catena = 1
+        for a, b in zip(riga, riga[1:]):
+            catena = catena + 1 if b[0] - (a[0] + a[2]) <= 9 else 1
+            if catena >= 5:
+                # non la scritta "E Apri" / "Spazio ..." a destra del mirino
+                gx = x0 + (b[0] / 960.0)
+                gy = y0 + (b[1] / 540.0)
+                if not (0.55 <= gx <= 0.82 and 0.50 <= gy <= 0.62):
+                    return True
+    return False
+
+
 def spettatore(img):
     """In alto al centro c'e' la scritta grande "SPETTATORE" (sono stato eliminato e guardo un
     compagno)? Una riga di almeno 7 lettere grandi dove di solito c'e' il numero della bussola."""
