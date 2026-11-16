@@ -24,8 +24,15 @@ PREDEFINITE = {
         "segui_vicino_metri": 8,         # piu' vicino di cosi': si ferma accanto a lui
         "segui_casse_entro_metri": 25,   # col compagno entro questi metri apre le casse li' intorno
         "segui_memoria_secondi": 12,
-        "guinzaglio_vicino": 0.12,       # sulla minimappa il compagno e' piu' vicino di cosi': resto accanto a lui
+        # il GUINZAGLIO come i compagni assoldati (Epic: "stare tra 5 e 10 metri"): due raggi
+        "guinzaglio_vicino": 0.08,       # sulla minimappa piu' vicino di cosi': mi fermo accanto a lui
+        "guinzaglio_lontano": 0.18,      # ...e riparto solo quando e' piu' lontano di cosi'
+        "guinzaglio_metri_vicino": 5,    # lo stesso in metri (quando la distanza la dice l'IA)
+        "guinzaglio_metri_lontano": 10,
         "guinzaglio_corri": 0.25,        # piu' lontano di cosi': corro (scatto) per raggiungerlo
+        "aspetta_compagno_secondi": 12,  # non lo vedo piu' (e' davanti a me): lo aspetto guardandomi intorno
+        "guarda_intorno_gradi": 60,      # vicino al compagno mi guardo intorno di +-60 gradi...
+        "guarda_intorno_secondi": 8,     # ...in 8 secondi
         "ricordo_zona_secondi": 180,     # minimappa tutta viola: vado dove ricordo che finiva la tempesta
         "bus_attesa_massima": 60,        # sul bus aspetta di essere sopra l'isola (al massimo questi secondi)
         "bus_terra_minima": 0.7,         # salta quando sulla minimappa, intorno al bus, c'e' almeno 70% di terra

@@ -2431,7 +2431,10 @@ class TestPilota(ConCartella):
     def test_combatte_e_ignora_il_suo_personaggio(self):
         mani, mondo, occhi, p = self._pilota()
         mondo.oggetti.append((420, 120, 30, 80, ROSSO))                            # nemico a destra
-        self.assertTrue(self._passo(mondo, occhi, p).startswith("combatto"))
+        t = time.monotonic()
+        scritte = [self._passo(mondo, occhi, p, t + i * 0.1) for i in range(5)]
+        self.assertFalse(scritte[0].startswith("combatto"))                         # prima il sospetto...
+        self.assertTrue(any(s.startswith("combatto") for s in scritte))             # ...poi attacca
         self.assertGreater(mani.mosso_x, 0)
         self.assertIn("giu tasto 0x%02X" % CODICI["1"], mani.storia)                # prende l'arma (slot 2)
         mani, mondo, occhi, p = self._pilota()
@@ -2521,6 +2524,16 @@ class TestPilota(ConCartella):
         mani, mondo, occhi, p = self._pilota(fase="playing", obiettivo=("chest", 0.2, 0.6))
         self.assertEqual(self._passo(mondo, occhi, p), "vado verso una cassa (IA)")
         self.assertLess(mani.mosso_x, 0)
+
+    def test_rianima_il_compagno(self):
+        mani, mondo, occhi, p = self._pilota(fase="playing", compagno="close")
+        p.esecutore.dormi = lambda s: None
+        self.assertEqual(self._passo(mondo, occhi, p), "rianimo un compagno")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        mani, mondo, occhi, p = self._pilota(fase="playing", compagno="left")
+        self.assertEqual(self._passo(mondo, occhi, p), "vado dal compagno a terra")
+        self.assertLess(mani.mosso_x, 0)
+        self.assertTrue(mani.e_premuto("corri"))
 
     def test_viaggia_verso_il_centro_e_si_sblocca(self):
         mani, mondo, occhi, p = self._pilota()
@@ -2746,6 +2759,14 @@ class TestPilotaConLoSchermo(ConCartella):
         p._scegli_compagno(t + 1.0)
         self.assertEqual(p._ramo_compagno(None, img, t + 1.1), "sto vicino al compagno")
         self.assertFalse(mani.e_premuto("avanti"))
+        p.lavagna.compagni_mini = [(300.0, 0.13)]                 # un po' piu' in la': resto (due raggi)
+        p._scegli_compagno(t + 1.2)
+        self.assertEqual(p._ramo_compagno(None, img, t + 1.3), "sto vicino al compagno")
+        p.lavagna.compagni_mini = [(300.0, 0.3)]                  # e' andato via: lo seguo
+        p._scegli_compagno(t + 1.4)
+        self.assertEqual(p._ramo_compagno(None, img, t + 1.5), "seguo il compagno")
+        p.lavagna.compagni_mini = []                              # sparito (e' davanti a me): lo aspetto
+        self.assertEqual(p._ramo_compagno(None, img, t + 3.5), "sto vicino al compagno")
 
     def test_tempesta_tutta_viola_va_dal_compagno(self):
         mani, occhi, p = self._pilota()
@@ -2761,6 +2782,16 @@ class TestPilotaConLoSchermo(ConCartella):
         p.compagno_hud = None
         p.salvo_memo = (250.0, t)
         self.assertEqual(p._rotta_di_fuga(t + 1.0)[0], 250.0)
+
+    def test_cerca_il_nemico_sparito(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        img = schermo_vero(109)
+        for i in range(2):
+            p.passo(occhi.analizza(img), img, t + i * 0.3)
+        p.nemico_gradi = ((p.guardo_verso() + 90) % 360, t + 0.5)        # era a destra, poi e' sparito
+        self.assertEqual(p._ramo_nemico(occhi.analizza(img), img, t + 1.0), "cerco il nemico")
+        self.assertIsNone(p._ramo_nemico(occhi.analizza(img), img, t + 5.0))
 
     def test_misura_quanto_si_gira_con_la_bussola(self):
         mani, occhi, p = self._pilota()

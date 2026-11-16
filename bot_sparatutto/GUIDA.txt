@@ -101,6 +101,14 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   COMPAGNI sopra la bussola. Cosi' esce dalla tempesta, torna a terra, salta dal
   bus sopra l'isola e segue un compagno anche quando le IA non rispondono.
   Lascia la minimappa e la bussola visibili (come sono di solito).
+- IL COMPAGNO "AL GUINZAGLIO" (come i personaggi che si assoldano in Fortnite):
+  il bot sceglie un compagno a caso e lo trova da solo sullo schermo (freccia
+  gialla sulla minimappa, triangolini sopra la bussola, frecce ai bordi < > e v
+  quando e' dietro). Lontano: corre da lui. Vicino (5-10 metri): resta li' e si
+  guarda intorno per vedere i nemici. Se il compagno e' a terra (con l'IA) corre
+  da lui e lo rianima. Le casse viste dall'IA le apre prima, poi torna da lui.
+  Prima di sparare aspetta di essere sicuro che sia un nemico (mezzo secondo);
+  se il nemico sparisce lo cerca per 2-3 secondi dove l'ha visto.
 - Con l'IA collegata il bot in piu': va verso le casse che vede l'IA (le sue
   risposte diventano direzioni della bussola, cosi' valgono anche se arrivano
   tardi), preme E se sullo schermo c'e' "Apri", "Raccogli" o una zipline, e ogni

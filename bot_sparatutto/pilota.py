@@ -194,6 +194,12 @@ class Pilota:
         self.prossima_cura = 0.0
         self.prossima_scritta = 0.0
         self.prossimo_slot = adesso + 3.0
+        # come le guardie di Fortnite: il "sospetto" si riempie prima di attaccare; poi, se il
+        # nemico sparisce, lo cerco per un po' dove l'ho visto
+        self.sospetto = 0.0
+        self.t_sospetto = adesso
+        self.nemico_gradi = None          # (gradi della bussola, quando) dell'ultimo nemico
+        self.al_guinzaglio_fermo = False  # sono vicino al compagno e lo aspetto
 
     # ================================================================== utilita'
     @property
@@ -301,7 +307,8 @@ class Pilota:
                 del self.storia_guardo[:300]
         for ramo in (self._ramo_istruzioni, self._ramo_pulsante_giallo, self._ramo_schermi, self._ramo_fasi,
                      self._ramo_pericolo, self._ramo_nemico, self._ramo_scritta, self._ramo_arma_e_cure,
-                     self._ramo_manutenzione, self._ramo_bottino, self._ramo_compagno, self._ramo_viaggio):
+                     self._ramo_rianima, self._ramo_manutenzione, self._ramo_bottino, self._ramo_compagno,
+                     self._ramo_viaggio):
             scritta = ramo(vis, img, t)
             if scritta:
                 if not scritta.startswith("combatto"):
@@ -872,6 +879,18 @@ class Pilota:
         lv = self.lavagna
         nemici = lv.nemici
         c = lv.consiglio
+        H = vis.altezza
+        # IL SOSPETTO (come le guardie di Fortnite): vedo qualcosa -> si riempie (piu' in fretta se e'
+        # grande, cioe' vicino); quando e' pieno attacco. Cosi' non inseguo le cose finte.
+        dt = max(0.0, min(0.25, t - self.t_sospetto))
+        self.t_sospetto = t
+        if nemici:
+            grande = max(b.h for b in nemici) / float(H)
+            self.sospetto = min(1.0, self.sospetto + dt * (6.0 if grande >= 0.22 else 3.0 if grande >= 0.1 else 1.5))
+            if grande >= float(self.fort.get("pompa_se_nemico_alto", 0.3) or 0.3):
+                self.sospetto = 1.0                       # vicinissimo: niente dubbi
+        else:
+            self.sospetto = max(0.0, self.sospetto - dt * 0.7)
         if not nemici:
             self.mirando_da = None
             self.bersaglio = None
@@ -888,8 +907,19 @@ class Pilota:
                         self._gira(self._gradi_schermo(x))
                     self._prendi_arma(c, t, subito=True, vicino=bool(vicino))
                     return "mi giro verso il nemico (IA)"
+            # il nemico e' sparito (dietro a un muro, o mi sono girato): lo cerco dove l'ho visto
+            ng = self.nemico_gradi
+            if ng is not None and lv.guardo is not None and \
+                    t - ng[1] <= float(self.comb.get("cerca_nemico_secondi", 2.5) or 2.5):
+                self._vai_verso(ng[0], t)
+                if t >= self.prossima_schivata:
+                    self.prossima_schivata = t + random.uniform(0.4, 0.9)
+                    self.lato = "destra" if self.lato == "sinistra" else "sinistra"
+                self._cammina(sinistra=self.lato == "sinistra", destra=self.lato == "destra")
+                return "cerco il nemico"
             return None
-        H = vis.altezza
+        if self.bersaglio is None and self.sospetto < 1.0:
+            return None                          # vedo qualcosa: aspetto di esserne sicuro
         if self._solo_vicini() and all(b.h < float(self.comb.get("nemico_vicino", 0.22)) * H for b in nemici):
             return None                          # obiettivo casse: i nemici lontani li lascio stare
         if not self.comb.get("attivo", True):
@@ -906,6 +936,8 @@ class Pilota:
         ax = b.cx
         ay = b.y + float(self.mira.get("altezza_mira", 0.2)) * b.h
         self.bersaglio = (ax, ay)
+        if lv.guardo is not None:
+            self.nemico_gradi = ((lv.guardo + self._gradi_schermo(b.cx / float(vis.larghezza))) % 360.0, t)
         ex, ey = ax - mx, ay - my
         forza = float(self.mira.get("forza", 0.6) or 0.6) * self.stile.forza
         dy = ey / self.ppp * forza
@@ -1036,6 +1068,47 @@ class Pilota:
                 self.mani.premi(tasto, 0.06)
         return None                              # cambiare arma non ferma il resto
 
+    # ================================================================== 7b. rianimo il compagno
+    def _ramo_rianima(self, vis, img, t):
+        """Come i compagni assoldati (comando "Rianima"): un compagno a terra -> corro da lui e
+        tengo premuto E finche' non si rialza."""
+        lv = self.lavagna
+        if not self.fort.get("rianima_compagni", True) or lv.nemici:
+            return None
+        if t < self.cammino_fino and self.cammino_cosa == "rianima":
+            self._cammina(avanti=True, corri=True)
+            self._controlla_blocco(img, t)
+            return "vado dal compagno a terra"
+        c = lv.consiglio
+        a_terra = getattr(c, "compagno", "none") if c is not None else "none"
+        if c is None or not lv.nuovo or c.fase != "playing" or a_terra in (None, "none"):
+            return None
+        if a_terra == "close":
+            if not self.mani.esiste("interagisci"):
+                return None
+            self.log("IA: un compagno e' a terra qui vicino -> lo rianimo (tengo premuto E)")
+            self._cammina()
+            self.mani.giu("interagisci")
+            try:
+                self.esecutore.dormi(float(self.fort.get("rianima_secondi", 10) or 10))
+            finally:
+                self.mani.su("interagisci")
+            self.statistiche["rianimati"] = self.statistiche.get("rianimati", 0) + 1
+            return "rianimo un compagno"
+        gradi = {"left": -35.0, "center": 0.0, "right": 35.0}.get(a_terra)
+        if gradi is None:
+            return None
+        allora = self.guardo_al_tempo(c.quando) if self.storia_guardo else None
+        if allora is not None and lv.guardo is not None:
+            self._gira(avvolgi(allora + gradi - lv.guardo))
+        else:
+            self._gira(gradi)
+        self.log("IA: un compagno e' a terra (%s) -> corro da lui" % a_terra)
+        self.cammino_cosa = "rianima"
+        self.cammino_fino = t + 2.0
+        self._cammina(avanti=True, corri=True)
+        return "vado dal compagno a terra"
+
     # ================================================================== 8. ogni tanto
     def _ramo_manutenzione(self, vis, img, t):
         """Misuro la sensibilita' con la bussola (appena atterrato) e ogni tanto l'IA guarda la mappa."""
@@ -1121,36 +1194,61 @@ class Pilota:
         return None
 
     def _ramo_compagno(self, vis, img, t):
+        """IL GUINZAGLIO, come i compagni assoldati in Fortnite (nell'esempio di Epic: "stare tra 5 e
+        10 metri"): oltre il raggio esterno corro da lui; dentro quello interno resto li' e mi guardo
+        intorno (come le guardie). Due raggi diversi, cosi' non faccio avanti e indietro."""
         if not self.fort.get("segui_compagno", True):
             return None
         lv = self.lavagna
+        if lv.guardo is not None:
+            mc = self.meta_compagno
+            ia_fresca = mc is not None and t - mc[2] <= float(self.fort.get("segui_memoria_secondi", 12) or 12)
+            visto = t - self.compagno_hud_t
+            if ia_fresca:
+                gradi = mc[0]
+            elif self.compagno_hud is not None and visto <= float(self.fort.get("aspetta_compagno_secondi", 12) or 12):
+                gradi = self.compagno_hud
+            else:
+                gradi = None
+            if gradi is not None:
+                metri = mc[1] if mc is not None and t - mc[2] <= 6.0 else None
+                dist = self.compagno_dist if t - self.compagno_dist_t <= 2.0 else None
+                fermo = self.al_guinzaglio_fermo
+                if metri is not None:
+                    limite = self.fort.get("guinzaglio_metri_lontano", 10) if fermo else \
+                        self.fort.get("guinzaglio_metri_vicino", 5)
+                    vicino = metri <= float(limite or 5)
+                elif dist is not None:
+                    limite = self.fort.get("guinzaglio_lontano", 0.18) if fermo else self.fort.get("guinzaglio_vicino", 0.08)
+                    vicino = dist <= float(limite or 0.08)
+                else:
+                    # non so quanto e' lontano: se da un po' non lo vedo piu' ne' ai bordi ne' sopra la
+                    # bussola, vuol dire che e' davanti a me sullo schermo: lo aspetto qui
+                    vicino = not ia_fresca and visto > 1.5
+                if vicino:
+                    if not fermo:
+                        self.log("Sono vicino al compagno: resto qui e mi guardo intorno")
+                    self.al_guinzaglio_fermo = True
+                    self.cammino_cosa = ""
+                    self._cammina()
+                    self._pattuglia(t, gradi)
+                    return "sto vicino al compagno"
+                self.al_guinzaglio_fermo = False
+                if lv.mini.ok:
+                    gradi = lv.mini.direzione_sicura(gradi, 10)      # non dietro di lui nel mare
+                if self.cammino_cosa != "compagno":
+                    self.log("Seguo il compagno di squadra (verso %.0f gradi%s)" % (
+                        gradi, ", %.0f metri" % metri if metri is not None else
+                        (", sulla minimappa a %.0f%% dal centro" % (100 * dist) if dist is not None else "")))
+                self.cammino_cosa = "compagno"
+                self._vai_verso(gradi, t)
+                corri = dist is None or dist > float(self.fort.get("guinzaglio_corri", 0.25) or 0.25)
+                self._cammina(avanti=True, corri=corri)
+                self._controlla_blocco(img, t)
+                return "seguo il compagno"
         if t < self.fermo_fino:
             self._cammina()
             return "sto vicino al compagno"
-        gradi = self._direzione_compagno(t) if lv.guardo is not None else None
-        if gradi is not None:
-            # IL GUINZAGLIO (come i compagni assoldati): lontano -> corro da lui; vicino -> resto li'
-            mc = self.meta_compagno
-            metri = mc[1] if mc is not None and t - mc[2] <= 6.0 else None
-            dist = self.compagno_dist if t - self.compagno_dist_t <= 2.0 else None
-            vicino = (metri is not None and metri <= float(self.fort.get("segui_vicino_metri", 8) or 8)) or \
-                (dist is not None and dist <= float(self.fort.get("guinzaglio_vicino", 0.12) or 0.12))
-            if vicino:
-                self._cammina()
-                self.fermo_fino = t + 1.5
-                return "sto vicino al compagno"
-            if lv.mini.ok:
-                gradi = lv.mini.direzione_sicura(gradi, 10)          # non dietro di lui nel mare
-            if self.cammino_cosa != "compagno":
-                self.log("Seguo il compagno di squadra (verso %.0f gradi%s)" % (
-                    gradi, ", %.0f metri" % metri if metri is not None else
-                    (", sulla minimappa a %.0f%% dal centro" % (100 * dist) if dist is not None else "")))
-            self.cammino_cosa = "compagno"
-            self._vai_verso(gradi, t)
-            corri = dist is None or dist > float(self.fort.get("guinzaglio_corri", 0.25) or 0.25)
-            self._cammina(avanti=True, corri=corri)
-            self._controlla_blocco(img, t)
-            return "seguo il compagno"
         # senza bussola: come prima, con quello che vede l'IA sullo schermo
         if t < self.cammino_fino and self.cammino_cosa == "compagno":
             self._cammina(avanti=True, corri=True)
@@ -1175,6 +1273,15 @@ class Pilota:
         self.cammino_fino = t + (2.5 if metri is None or metri > 30 else 1.2)
         self._cammina(avanti=True, corri=True)
         return "seguo il compagno"
+
+    def _pattuglia(self, t, centro):
+        """Vicino al compagno mi guardo intorno piano (come le guardie): cosi' vedo i nemici che
+        arrivano e, se lui si sposta, lo ritrovo ai bordi dello schermo."""
+        if self.lavagna.guardo is None:
+            return
+        ampiezza = float(self.fort.get("guarda_intorno_gradi", 60) or 60)
+        periodo = float(self.fort.get("guarda_intorno_secondi", 8) or 8)
+        self._tieni_rotta(t, centro + ampiezza * math.sin(2.0 * math.pi * t / periodo))
 
     # ================================================================== 11. viaggio
     def _ramo_viaggio(self, vis, img, t):

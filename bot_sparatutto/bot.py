@@ -525,7 +525,13 @@ def autotest():
     mani2 = ManiFinte(cfg.get("tasti"), log)
     esecutore2, istruzioni2 = prepara(cfg, mani2, occhi, schermo, controllo, {})
     pilota = Pilota(cfg, mani2, occhi, esecutore2, None, log)
-    if not pilota.passo(occhi.analizza(img), img).startswith("combatto") or mani2.mosso_x <= 0:
+    t0 = time.monotonic()
+    scritta = ""
+    for i in range(15):                  # il "sospetto" si riempie in qualche decimo di secondo
+        scritta = pilota.passo(occhi.analizza(img), img, t0 + i * 0.1)
+        if scritta.startswith("combatto"):
+            break
+    if not scritta.startswith("combatto") or mani2.mosso_x <= 0:
         log("AUTOTEST: il cervello nuovo non ha mirato verso il nemico (mosso_x=%s)" % mani2.mosso_x)
         ok = False
     # l'occhio universale (se i modelli ci sono) deve caricarsi e funzionare
