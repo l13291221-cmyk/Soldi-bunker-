@@ -73,6 +73,9 @@ PREDEFINITE = {
         "resta_fino_alla_fine": True,    # eliminato in squadra: resta a guardare i compagni fino alla fine
                                          # (se un compagno trova il token vale anche per te, se resti collegato)
         "apri_con_la_scritta": True,     # senza IA: se a destra del mirino c'e' una scritta (E Apri...) tiene E
+        "vai_alle_casse_viste": True,    # senza IA: appena vede una cassa (luce dorata) ci va incontro
+        "cassa_conferma_volte": 2,       # la deve vedere in questi fotogrammi di fila
+        "cassa_secondi_massimi": 7,      # se in questo tempo non si apre, non era una cassa: la ignora
         "spacca_cassa_dopo_aperta": True,  # dopo averla aperta spacca la cassa col piccone (si dice che dia
                                            # un secondo tiro per il token: NON confermato da Epic)
         "spacca_cassa_secondi": 1.2,

@@ -2538,6 +2538,33 @@ class TestPilota(ConCartella):
         self.assertLess(mani.mosso_x, 0)
         self.assertTrue(mani.e_premuto("corri"))
 
+    def test_va_incontro_alla_cassa_che_vede(self):
+        mani, mondo, occhi, p = self._pilota()
+        mondo.oggetti.append((470, 200, 30, 22, ORO))                              # cassa a destra, per terra
+        t = time.monotonic()
+        scritte = [self._passo(mondo, occhi, p, t + i * 0.1) for i in range(6)]
+        self.assertIn("vado verso la cassa che vedo", scritte)
+        self.assertGreater(mani.mosso_x, 0)                                         # si gira verso di lei
+        self.assertGreater(mani.mosso_y, 0)                                         # e guarda un po' in basso
+        self.assertTrue(mani.e_premuto("avanti"))
+        # una cassa VERA in una foto di una partita (sotto un portico, a destra): la vede
+        import types
+        from pilota import Pilota
+        foto = cv2.imread(os.path.join(QUI, "foto_per_ia", "images", "foto_20261113_141428_00019.jpg"))
+        cfg = impostazioni.carica(QUI)
+        cfg["rilevatore_universale"]["attivo"] = False
+        vis = Occhi(cfg, self.base, lambda *a: None, universale=False).analizza(foto)
+        finto = types.SimpleNamespace(lavagna=types.SimpleNamespace(guardo=None), casse_ignorate=[],
+                                      _gradi_schermo=lambda x: 0.0, _e_un_nome=Pilota._e_un_nome)
+        casse = Pilota._casse_buone(finto, vis, 0.0, foto)
+        self.assertEqual(len(casse), 1)
+        self.assertAlmostEqual(casse[0].cx / vis.larghezza, 0.81, delta=0.03)
+        # la punta dorata del piccone (in basso a destra del mirino) NON e' una cassa
+        mani, mondo, occhi, p = self._pilota()
+        mondo.fissi.append((345, 200, 14, 12, ORO))
+        scritte = [self._passo(mondo, occhi, p, t + i * 0.1) for i in range(6)]
+        self.assertNotIn("vado verso la cassa che vedo", scritte)
+
     def test_viaggia_verso_il_centro_e_si_sblocca(self):
         mani, mondo, occhi, p = self._pilota()
         p.rotta = 0.0

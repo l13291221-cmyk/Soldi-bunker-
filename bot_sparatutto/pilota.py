@@ -204,6 +204,13 @@ class Pilota:
         self.nemico_gradi = None          # (gradi della bussola, quando) dell'ultimo nemico
         self.al_guinzaglio_fermo = False  # sono vicino al compagno e lo aspetto
         self.cure_fallite = 0
+        # casse viste dagli occhi (luce dorata): ci vado incontro e la metto nel mirino
+        self.cassa_conta = 0              # quante volte di fila ho visto una cassa
+        self.cassa_da = None              # da quando sto andando verso una cassa
+        self.cassa_ultima = None          # (x, y) sullo schermo (0-1) e quando l'ho vista
+        self.casse_ignorate = []          # (gradi della bussola, fino a quando): "casse" che non si aprono
+        self.casse_sbagliate = []         # quando ho trovato "casse" finte
+        self.casse_pausa_fino = 0.0
 
     # ================================================================== utilita'
     @property
@@ -311,8 +318,8 @@ class Pilota:
                 del self.storia_guardo[:300]
         for ramo in (self._ramo_istruzioni, self._ramo_pulsante_giallo, self._ramo_schermi, self._ramo_fasi,
                      self._ramo_pericolo, self._ramo_nemico, self._ramo_scritta, self._ramo_arma_e_cure,
-                     self._ramo_rianima, self._ramo_manutenzione, self._ramo_bottino, self._ramo_compagno,
-                     self._ramo_viaggio):
+                     self._ramo_rianima, self._ramo_manutenzione, self._ramo_cassa_vista, self._ramo_bottino,
+                     self._ramo_compagno, self._ramo_viaggio):
             scritta = ramo(vis, img, t)
             if scritta:
                 if not scritta.startswith("combatto"):
@@ -1044,6 +1051,10 @@ class Pilota:
         self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
         self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
         self.log("Fatto (cassa aperta o oggetto preso: %d in questa partita)" % self.statistiche["casse_partita"])
+        self.cassa_da = None
+        self.cassa_ultima = None
+        self.cassa_conta = 0
+        self.casse_sbagliate = []
         if self.fort.get("spacca_cassa_dopo_aperta", True) and self.mani.esiste("piccone"):
             self.mani.premi("piccone", 0.08)
             self.mani.imposta("spara", True)
@@ -1216,6 +1227,112 @@ class Pilota:
         if self.apprendimento is not None and img is not None:
             self.apprendimento.forse_salva_foto(img, vis, t)
         return None
+
+    # ================================================================== 9a. la cassa che vedo
+    @staticmethod
+    def _e_un_nome(img, b):
+        """La macchia gialla e' il rombo di un NOME (es. "◆deandombo" sopra un compagno)? A destra
+        c'e' una riga di lettere bianche."""
+        if img is None:
+            return False
+        H, W = img.shape[:2]
+        sx, sy = img.shape[1] / float(W), img.shape[0] / float(H)
+        x0 = int(b.x + b.w + 1)
+        x1 = int(min(W, b.x + b.w + 0.08 * W))
+        y0 = int(max(0, b.cy - 0.012 * H))
+        y1 = int(min(H, b.cy + 0.012 * H))
+        pezzo = img[int(y0 * sy):int(y1 * sy), int(x0 * sx):int(x1 * sx)]
+        return pezzo.size > 0 and int((pezzo.min(axis=2) > 200).sum()) >= 15
+
+    def _casse_buone(self, vis, t, img=None):
+        """Le casse viste dagli occhi (luce dorata), senza quelle finte: la punta del piccone in mano,
+        le icone e le scritte dello schermo, la minimappa, le "casse" che ho gia' provato ad aprire."""
+        W, H = float(vis.larghezza), float(vis.altezza)
+        guardo = self.lavagna.guardo
+        self.casse_ignorate = [(g, f) for g, f in self.casse_ignorate if f > t]
+        buone = []
+        for b in vis.casse:
+            x, y, w = b.cx / W, b.cy / H, b.w / W
+            if 0.51 <= x <= 0.60 and 0.52 <= y <= 0.72:
+                continue                  # la punta del piccone che ho in mano
+            if y < 0.30 or y > 0.86 or (x > 0.80 and y < 0.32) or (x < 0.25 and y > 0.55):
+                continue                  # cielo e scritte in alto, minimappa, compagni, uccisioni
+            if not 0.012 <= w <= 0.15:
+                continue                  # troppo piccola (fiori gialli, scintille) o troppo grande
+            if self._e_un_nome(img, b):
+                continue                  # il rombo giallo davanti al nome di un compagno
+            if guardo is not None:
+                gradi = (guardo + self._gradi_schermo(x)) % 360.0
+                if any(abs(avvolgi(gradi - g)) <= 12 for g, f in self.casse_ignorate):
+                    continue
+            buone.append(b)
+        if len(buone) > 3:
+            return []                     # tante macchie dorate insieme: fiori, tramonto, non casse
+        return buone
+
+    def _ramo_cassa_vista(self, vis, img, t):
+        """APPENA VEDO UNA CASSA CI VADO INCONTRO: la metto al centro del mirino (anche guardando un
+        po' in basso) e cammino. Quando sono davanti compare "E Apri" e il ramo delle scritte tiene E.
+        Se in 7 secondi non succede niente non era una cassa: per un po' la ignoro."""
+        lv = self.lavagna
+        if (not self.racc.get("casse", True) or not self.fort.get("vai_alle_casse_viste", True) or lv.nemici
+                or not (lv.barra or not self.fort.get("leggi_lo_schermo", True)) or lv.bus or self.salto_da is not None
+                or t < self.casse_pausa_fino):
+            self.cassa_conta = 0
+            self.cassa_da = None
+            return None
+        buone = self._casse_buone(vis, t, img)
+        W, H = float(vis.larghezza), float(vis.altezza)
+        mx, my = self._mirino(vis)
+        if self.cassa_da is None:
+            self.cassa_conta = self.cassa_conta + 1 if buone else 0
+            if self.cassa_conta < int(self.fort.get("cassa_conferma_volte", 2) or 2):
+                return None
+            self.cassa_da = t
+            self.cassa_ultima = None
+            self.log("Vedo una cassa: ci vado incontro e la apro")
+        # la cassa da seguire: la piu' vicina a dove era (all'inizio la piu' grande, cioe' la piu' vicina)
+        if buone:
+            if self.cassa_ultima is not None and t - self.cassa_ultima[2] < 1.5:
+                px, py = self.cassa_ultima[0] * W, self.cassa_ultima[1] * H
+                b = min(buone, key=lambda q: math.hypot(q.cx - px, q.cy - py))
+            else:
+                b = max(buone, key=lambda q: q.w * q.h)
+            self.cassa_ultima = (b.cx / W, b.cy / H, t)
+        b_xy = self.cassa_ultima
+        if b_xy is None or t - b_xy[2] > 1.5 or t - self.cassa_da > float(self.fort.get("cassa_secondi_massimi", 7) or 7):
+            # persa o non si apre: provo E una volta (se sono gia' davanti) e poi la lascio stare
+            if lv.guardo is not None and b_xy is not None:
+                self.casse_ignorate.append(((lv.guardo + self._gradi_schermo(b_xy[0])) % 360.0, t + 60.0))
+            self.casse_sbagliate = [x for x in self.casse_sbagliate if t - x < 40.0] + [t]
+            if len(self.casse_sbagliate) >= 2:
+                self.casse_pausa_fino = t + 20.0   # due "casse" finte di fila: per un po' non ci credo
+                self.casse_sbagliate = []
+            self.cassa_da = None
+            self.cassa_ultima = None
+            self.cassa_conta = 0
+            self._cammina()
+            if self.mani.esiste("interagisci"):
+                self.mani.giu("interagisci")
+                try:
+                    self.esecutore.dormi(float(self.racc.get("tempo_apertura_cassa", 1.2)))
+                finally:
+                    self.mani.su("interagisci")
+            return "provo ad aprire la cassa"
+        if t - b_xy[2] < 0.3:                      # appena vista: la metto nel mirino
+            ex, ey = b_xy[0] * W - mx, b_xy[1] * H - my
+            forza = 0.5
+            dy = ey / self.ppp * forza
+            limite = self.passi_per_giro / 6.0          # al massimo un po' in basso (le casse sono per terra)
+            dy = max(-limite - self.pitch, min(limite - self.pitch, dy))
+            self.mani.mira_fluida(ex / self.ppp * forza, dy, max(0.02, self.dt_medio))
+            self.pitch += dy
+            dritto = abs(ex) < 0.15 * W
+        else:
+            dritto = True                          # non la vedo (e' sotto il mirino): vado avanti
+        self._cammina(avanti=dritto)
+        self._controlla_blocco(img, t)
+        return "vado verso la cassa che vedo"
 
     # ================================================================== 9. bottino
     def _ramo_bottino(self, vis, img, t):
