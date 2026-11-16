@@ -70,6 +70,15 @@ PREDEFINITE = {
         "mappa_quante_ia": 3,            # quante IA guardano la mappa insieme: vince la maggioranza
         "partite_in_loop": True,         # finita una partita clicca da solo per la prossima
         "aspetta_riavvio_secondi": 90,   # eliminato in squadra: aspetta che lo riportino col furgone, poi esce
+        "resta_fino_alla_fine": True,    # eliminato in squadra: resta a guardare i compagni fino alla fine
+                                         # (se un compagno trova il token vale anche per te, se resti collegato)
+        "apri_con_la_scritta": True,     # senza IA: se a destra del mirino c'e' una scritta (E Apri...) tiene E
+        "spacca_cassa_dopo_aperta": True,  # dopo averla aperta spacca la cassa col piccone (si dice che dia
+                                           # un secondo tiro per il token: NON confermato da Epic)
+        "spacca_cassa_secondi": 1.2,
+        "cura_da_sola": True,            # senza IA: legge vita e scudo dalle barre e si cura (slot_cure)
+        "cura_sotto_vita": 70,
+        "cura_sotto_scudo": 50,
         "pulsante_giallo": True,         # clicca il pulsante grande e giallo "Gioca di nuovo" (senza IA)
         "usa_veicoli": True,             # sale in macchina se e' vicina (per girare la mappa e la tempesta)
         "guida_secondi_massimi": 25,     # poi scende (o prima, se vede una cassa o un nemico)

@@ -81,6 +81,9 @@ class Lavagna:
         self.compagni = []           # triangolini dei compagni sulla bussola (gradi rispetto a dove guardo)
         self.compagni_bordi = []     # frecce dei compagni ai bordi / dietro (gradi rispetto a dove guardo)
         self.compagni_mini = []      # frecce gialle sulla minimappa: (gradi della bussola, distanza 0-1)
+        self.scritta = False         # c'e' la scritta "E Apri" / "Raccogli" / ... a destra del mirino
+        self.vita = None             # vita e scudo letti dalle barre in basso a sinistra (0-100)
+        self.scudo = None
 
 
 class Pilota:
@@ -200,6 +203,7 @@ class Pilota:
         self.t_sospetto = adesso
         self.nemico_gradi = None          # (gradi della bussola, quando) dell'ultimo nemico
         self.al_guinzaglio_fermo = False  # sono vicino al compagno e lo aspetto
+        self.cure_fallite = 0
 
     # ================================================================== utilita'
     @property
@@ -386,10 +390,12 @@ class Pilota:
             lv.bussola_hud = g
             if g is not None:
                 self._nuova_lettura(g, t)
+            lv.scritta = bool(lv.barra and hud.scritta_interazione(img))
         if t >= self.prossima_minimappa:
             self.prossima_minimappa = t + float(self.fort.get("minimappa_ogni_secondi", 0.4) or 0.4)
             lv.barra = hud.barra_armi(img)
             lv.mini = hud.leggi_minimappa(img)
+            lv.vita, lv.scudo = hud.leggi_vita(img) if lv.barra else (None, None)
             in_gioco = lv.barra and t - self.ultima_bussola_hud < 1.0
             lv.compagni = hud.compagni_sulla_bussola(img) if in_gioco else []
             lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
@@ -744,6 +750,10 @@ class Pilota:
                 self.apprendimento.forse_salva_foto(img, vis, t)
         if self.in_partita:
             self._partita_finita(t, sicuro=True)
+        if c.fase == "dead" and c.osservo and self.fort.get("resta_fino_alla_fine", True):
+            # come per il token: se un compagno lo trova vale anche per me, ma solo se resto in
+            # partita (collegato) fino alla fine. Il pulsante "Gioca di nuovo" lo clicco alla fine.
+            return "eliminato: guardo i compagni fino alla fine della partita"
         if c.fase == "dead" and c.osservo and \
                 t - self.morto_da < float(self.fort.get("aspetta_riavvio_secondi", 90) or 0):
             return "eliminato: guardo un compagno, aspetto il furgone del riavvio"
@@ -979,6 +989,11 @@ class Pilota:
 
     # ================================================================== 6. scritte sullo schermo
     def _ramo_scritta(self, vis, img, t):
+        lv = self.lavagna
+        if (lv.scritta and lv.barra and not lv.bus and self.salto_da is None and not lv.nemici
+                and self.fort.get("apri_con_la_scritta", True) and t >= self.prossima_scritta
+                and self.mani.esiste("interagisci")):
+            return self._premi_e_sulla_scritta(t)
         c = self.lavagna.consiglio
         if (c is None or not self.lavagna.nuovo or c.fase != "playing" or c.prompt not in
                 ("open", "pick_up", "zipline", "door") or not self.fort.get("usa_le_scritte", True)
@@ -1007,6 +1022,42 @@ class Pilota:
             self._cammina(avanti=True)
             return "apro la porta"
         return "prendo la zipline"
+
+    def _premi_e_sulla_scritta(self, t):
+        """SENZA IA: a destra del mirino c'e' una scritta (davanti a una cassa c'e' "E Apri"; poi
+        "Raccogli", "Rianima", "Assolda"...): tengo premuto E. Se la scritta sparisce ha funzionato:
+        raccolgo quello che e' uscito (e, se e' una cassa, la spacco col piccone: si dice che cosi'
+        si tira una seconda volta per il token, ma Epic non l'ha mai confermato)."""
+        self.prossima_scritta = t + 2.0
+        self._cammina()
+        self.log("Vedo una scritta (Apri / Raccogli / ...): tengo premuto E")
+        self.mani.giu("interagisci")
+        try:
+            self.esecutore.dormi(float(self.racc.get("tempo_apertura_cassa", 1.2)))
+        finally:
+            self.mani.su("interagisci")
+        self.statistiche["scritte_e"] = self.statistiche.get("scritte_e", 0) + 1
+        dopo = self.esecutore.foto_fresca()
+        if dopo is not None and hud.scritta_interazione(dopo):
+            self.prossima_scritta = t + 6.0                 # non e' servito: non insisto
+            return "premo E sulla scritta"
+        self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
+        self.statistiche["casse_partita"] = self.statistiche.get("casse_partita", 0) + 1
+        self.log("Fatto (cassa aperta o oggetto preso: %d in questa partita)" % self.statistiche["casse_partita"])
+        if self.fort.get("spacca_cassa_dopo_aperta", True) and self.mani.esiste("piccone"):
+            self.mani.premi("piccone", 0.08)
+            self.mani.imposta("spara", True)
+            try:
+                self.esecutore.dormi(float(self.fort.get("spacca_cassa_secondi", 1.2) or 1.2))
+            finally:
+                self.mani.imposta("spara", False)
+        for _ in range(int(self.racc.get("raccogli_volte", 4) or 4)):
+            self.mani.premi("interagisci", 0.08)
+            self._cammina(avanti=True)
+            self.esecutore.dormi(0.15)
+            self._cammina()
+        self._prendi_arma(self.lavagna.consiglio, t, subito=True)
+        return "apro la cassa / raccolgo"
 
     def _cassa_aperta(self, c, t):
         self.statistiche["casse"] = self.statistiche.get("casse", 0) + 1
@@ -1059,6 +1110,14 @@ class Pilota:
                     self.mani.premi(tasto, 0.08)
             elif c.in_mano == "weapon":
                 self.tentativi_arma = 0
+        # SENZA IA: leggo la vita e lo scudo dalle barre; se sono bassi e non ci sono nemici, mi curo
+        if (lv.vita is not None and lv.barra and not lv.bus and self.salto_da is None
+                and t - self.stato.get("ultimo_nemico", 0) >= 3.0 and t >= self.prossima_cura
+                and self.fort.get("cura_da_sola", True)):
+            poca_vita = lv.vita < float(self.fort.get("cura_sotto_vita", 70) or 70)
+            poco_scudo = lv.scudo is not None and lv.scudo < float(self.fort.get("cura_sotto_scudo", 50) or 0)
+            if poca_vita or poco_scudo:
+                return self._usa_le_cure(t, lv.vita, lv.scudo)
         # SEMPRE la mitra in mano (slot 1) mentre giro, anche senza IA (se lo slot e' vuoto non cambia niente)
         if lv.barra and not lv.bus and self.salto_da is None and t >= self.prossimo_slot \
                 and self.fort.get("tieni_arma_in_mano", True):
@@ -1067,6 +1126,37 @@ class Pilota:
             if tasto:
                 self.mani.premi(tasto, 0.06)
         return None                              # cambiare arma non ferma il resto
+
+    def _usa_le_cure(self, t, vita, scudo):
+        """Prendo lo slot delle cure (5, come negli slot preferiti), tengo premuto e poi controllo se
+        vita o scudo sono saliti. Se due volte non succede niente, nello slot non ci sono cure: per
+        un paio di minuti non ci riprovo."""
+        n = int(self.fort.get("slot_cure", 5) or 5)
+        tasto = self._tasto_arma(n)
+        if not tasto:
+            return None
+        self.prossima_cura = t + 15.0
+        secondi = float(self.fort.get("cura_secondi", 5) or 5)
+        self.log("Ho %d di vita e %s di scudo: uso le cure (slot %d)" % (vita, scudo if scudo is not None else "?", n))
+        self._cammina()
+        self.mani.premi(tasto, 0.08)
+        self.esecutore.dormi(0.3)
+        self.mani.imposta("spara", True)
+        try:
+            self.esecutore.dormi(secondi)
+        finally:
+            self.mani.imposta("spara", False)
+        v2, s2 = hud.leggi_vita(self.esecutore.foto_fresca())
+        if v2 is not None and v2 <= vita and (s2 or 0) <= (scudo or 0):
+            self.cure_fallite += 1
+            if self.cure_fallite >= 2:
+                self.cure_fallite = 0
+                self.prossima_cura = t + 120.0
+                self.log("Nello slot %d non ci sono cure (o sono finite): riprovo tra 2 minuti" % n)
+        else:
+            self.cure_fallite = 0
+        self._prendi_arma(self.lavagna.consiglio, t, subito=True)
+        return "mi curo"
 
     # ================================================================== 7b. rianimo il compagno
     def _ramo_rianima(self, vis, img, t):

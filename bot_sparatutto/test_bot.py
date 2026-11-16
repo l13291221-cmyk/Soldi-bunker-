@@ -2467,10 +2467,13 @@ class TestPilota(ConCartella):
         mani, mondo, occhi, p = self._pilota(fase="dead", osservo=True, pulsante=(0.5, 0.9))
         t = time.monotonic()
         p.in_partita = True
-        self.assertTrue(self._passo(mondo, occhi, p, t).startswith("eliminato: guardo un compagno"))
+        # per il token: resta collegato a guardare i compagni fino alla fine
+        self.assertTrue(self._passo(mondo, occhi, p, t).startswith("eliminato: guardo i compagni fino alla fine"))
         self.assertEqual(p.statistiche["partite"], 1)
         p.ia.c.quando = t + 95
-        self.assertEqual(self._passo(mondo, occhi, p, t + 95), "clicco per la partita dopo")
+        self.assertTrue(self._passo(mondo, occhi, p, t + 95).startswith("eliminato: guardo i compagni"))
+        p.fort["resta_fino_alla_fine"] = False                                     # come prima: 90 secondi
+        self.assertEqual(self._passo(mondo, occhi, p, t + 96), "clicco per la partita dopo")
 
     def test_ps5_e_remote_play(self):
         from remote_play import PCFinto
@@ -2596,6 +2599,7 @@ def schermo_vero(numero, larghezza=960, altezza=540):
     metti("sinistra", 0, int(round(0.15 * altezza)))
     metti("destra", int(round(0.978 * larghezza)), int(round(0.15 * altezza)))
     metti("sotto", int(round(0.25 * larghezza)), int(round(0.962 * altezza)))
+    metti("vita", int(round(0.03 * larghezza)), int(round(0.885 * altezza)))
     return img
 
 
@@ -2679,6 +2683,25 @@ class TestHud(unittest.TestCase):
             self.assertLess(abs(hud.differenza(trovati[0][0], gradi)), 15, numero)
         for numero in (85, 97, 109, 121, 184, 34):
             self.assertEqual(hud.compagni_sulla_minimappa(schermo_vero(numero)), [], numero)
+
+    def test_vita_e_scudo(self):
+        import hud
+        for numero, vita, scudo in ((91, 73, 0), (97, 18, 0), (121, 16, 0), (133, 100, 100)):
+            v, sc = hud.leggi_vita(schermo_vero(numero))
+            self.assertLessEqual(abs(v - vita), 2, numero)
+            self.assertLessEqual(abs(sc - scudo), 2, numero)
+        self.assertEqual(hud.leggi_vita(np.zeros((540, 960, 3), np.uint8)), (None, None))
+
+    def test_scritta_e_apri(self):
+        """La scritta di interazione a destra del mirino (qui "Spazio ENTRA IN CADUTA LIBERA" e
+        "MIRA Spazio PER SALTARE": davanti a una cassa e' "E Apri" nello stesso posto)."""
+        import hud
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        for nome in ("foto_20261113_115752_00003.jpg", "foto_20261113_140859_00000.jpg"):
+            self.assertTrue(hud.scritta_interazione(cv2.imread(os.path.join(cartella, nome))), nome)
+        for nome in ("foto_20261113_121710_00010.jpg", "foto_20261113_122640_00104.jpg",
+                     "foto_20261113_121822_00022.jpg"):                    # niente scritta / fine partita
+            self.assertFalse(hud.scritta_interazione(cv2.imread(os.path.join(cartella, nome))), nome)
 
     def test_direzione_sicura(self):
         import hud
@@ -2792,6 +2815,33 @@ class TestPilotaConLoSchermo(ConCartella):
         p.nemico_gradi = ((p.guardo_verso() + 90) % 360, t + 0.5)        # era a destra, poi e' sparito
         self.assertEqual(p._ramo_nemico(occhi.analizza(img), img, t + 1.0), "cerco il nemico")
         self.assertIsNone(p._ramo_nemico(occhi.analizza(img), img, t + 5.0))
+
+    def test_scritta_tiene_premuto_e(self):
+        mani, occhi, p = self._pilota()
+        p.esecutore.dormi = lambda s: None
+        t = time.monotonic()
+        img = schermo_vero(109)
+        p.passo(occhi.analizza(img), img, t)
+        p.lavagna.scritta = True
+        p.lavagna.barra = True
+        p.esecutore.foto_fresca = lambda: np.zeros((540, 960, 3), np.uint8)    # dopo: la scritta e' sparita
+        self.assertEqual(p._ramo_scritta(occhi.analizza(img), img, t + 0.1), "apro la cassa / raccolgo")
+        self.assertIn("giu tasto 0x%02X" % CODICI["e"], mani.storia)
+        self.assertEqual(p.statistiche["casse_partita"], 1)
+
+    def test_si_cura_da_solo(self):
+        mani, occhi, p = self._pilota()
+        p.esecutore.dormi = lambda s: None
+        t = time.monotonic() + 10
+        img = schermo_vero(97)
+        p.passo(occhi.analizza(img), img, t - 5)
+        p.lavagna.vita, p.lavagna.scudo, p.lavagna.barra = 18, 0, True
+        p.lavagna.nemici = []
+        p.stato["ultimo_nemico"] = t - 10
+        p.esecutore.foto_fresca = lambda: schermo_vero(91)                     # dopo: 73 di vita
+        self.assertEqual(p._ramo_arma_e_cure(occhi.analizza(img), img, t), "mi curo")
+        self.assertIn("giu tasto 0x%02X" % CODICI["5"], mani.storia)
+        self.assertEqual(p.cure_fallite, 0)
 
     def test_misura_quanto_si_gira_con_la_bussola(self):
         mani, occhi, p = self._pilota()

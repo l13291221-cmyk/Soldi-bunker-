@@ -109,6 +109,19 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   da lui e lo rianima. Le casse viste dall'IA le apre prima, poi torna da lui.
   Prima di sparare aspetta di essere sicuro che sia un nemico (mezzo secondo);
   se il nemico sparisce lo cerca per 2-3 secondi dove l'ha visto.
+- CASSE SENZA IA: quando a destra del mirino compare la scritta (davanti a una
+  cassa "E Apri"; anche "Raccogli", "Rianima", "Assolda") il bot tiene premuto E,
+  poi raccoglie quello che esce. Dopo una cassa la spacca col piccone (si dice che
+  dia un secondo tiro per il token: NON e' confermato da Epic; si spegne con
+  fortnite -> spacca_cassa_dopo_aperta: false).
+- CURE SENZA IA: legge vita e scudo dalle barre in basso a sinistra. Se la vita e'
+  sotto 70 (o lo scudo sotto 50) e non ci sono nemici usa lo slot 5 (le cure).
+- TOKEN: quando e' eliminato in squadra resta a guardare i compagni fino alla fine
+  della partita (se un compagno trova il token, a quanto si legge, vale per tutta
+  la squadra, anche per chi e' gia' morto, se resta collegato). Poi clicca da solo
+  "Gioca di nuovo".
+- CAMBIA IL PICCONE con uno SENZA luce dorata: quello di adesso ha la punta che
+  brilla e il bot la scambia per una cassa.
 - Con l'IA collegata il bot in piu': va verso le casse che vede l'IA (le sue
   risposte diventano direzioni della bussola, cosi' valgono anche se arrivano
   tardi), preme E se sullo schermo c'e' "Apri", "Raccogli" o una zipline, e ogni

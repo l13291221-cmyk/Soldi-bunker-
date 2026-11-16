@@ -223,6 +223,73 @@ def compagni_sulla_minimappa(img):
     return trovati
 
 
+# ------------------------------------------------------------------ la scritta "E Apri" / "Raccogli"
+def scritta_interazione(img):
+    """C'e' una scritta di interazione a destra del mirino (es. "E Apri" vicino a una cassa,
+    "Raccogli", "Rianima", "Assolda", "Spazio PER SALTARE")? Cerco una RIGA di lettere bianche
+    tutte alte uguali, che comincia poco a destra del centro."""
+    if img is None:
+        return False
+    x0, x1, y0, y1 = 0.50, 0.80, 0.48, 0.66
+    lettere = [p for p in _pezzi_bianchi(img, x0, x1, y0, y1, soglia=200)
+               if 5 <= p[3] <= 8 and 1 <= p[2] <= 12 and p[4] >= 5]
+    migliore = []
+    for l in lettere:
+        riga = sorted((q for q in lettere if abs(q[1] - l[1]) <= 1 and abs(q[1] + q[3] - l[1] - l[3]) <= 1),
+                      key=lambda q: q[0])
+        catena = [riga[0]]
+        for q in riga[1:]:
+            if q[0] - (catena[-1][0] + catena[-1][2]) <= 9:
+                catena.append(q)
+            else:
+                if len(catena) > len(migliore):
+                    migliore = catena
+                catena = [q]
+        if len(catena) > len(migliore):
+            migliore = catena
+    if len(migliore) < 4 or migliore[-1][0] + migliore[-1][2] - migliore[0][0] < 15:
+        return False
+    return 85 <= migliore[0][0] <= 165       # la scritta comincia tra 0.59 e 0.67 della larghezza
+
+
+# ------------------------------------------------------------------ vita e scudo
+def _riempita(img, y, colore):
+    H, W = img.shape[:2]
+    r = img[max(0, int(round((y - 0.006) * H))):int(round((y + 0.006) * H)) + 1,
+            int(round(0.034 * W)):int(round(0.2125 * W))]
+    if r.size == 0:
+        return 0
+    r = cv2.resize(r, (171, 3), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(r, cv2.COLOR_BGR2HSV)
+    h, s, v = (hsv[..., k].astype(np.int16) for k in range(3))
+    if colore == "vita":                  # verde (o rosso quando e' quasi finita)
+        piena = ((h >= 22) & (h <= 85) & (s >= 110) & (v >= 120)) | \
+            (((h <= 8) | (h >= 165)) & (s >= 110) & (v >= 110))
+    else:                                 # scudo: azzurro
+        piena = (h >= 90) & (h <= 112) & (s >= 110) & (v >= 150)
+    colonne = piena.mean(axis=0) >= 0.5
+    ultima, buco = -1, 0
+    for i, c in enumerate(colonne):
+        if c:
+            ultima, buco = i, 0
+        else:
+            buco += 1
+            if buco > 6:
+                break
+    return int(round(100.0 * (ultima + 1) / len(colonne)))
+
+
+def leggi_vita(img):
+    """La vita e lo scudo (0-100) dalle barre in basso a sinistra. -> (vita, scudo); vita None se
+    la barra non si vede (menu, schermate)."""
+    if img is None:
+        return None, None
+    vita = _riempita(img, 0.93, "vita")
+    if vita <= 0:
+        return None, None
+    return vita, _riempita(img, 0.897, "scudo")
+
+
 # ------------------------------------------------------------------ la barra delle armi
 def barra_armi(img):
     """C'e' la barra delle armi in basso a destra (il quadrato grigio del piccone)?

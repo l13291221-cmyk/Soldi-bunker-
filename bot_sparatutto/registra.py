@@ -96,10 +96,11 @@ def righe_di_stato(cervello, vis, scritta, t):
     if mini is not None:
         qui = {0: "?", 1: "terra", 2: "acqua", 3: "TEMPESTA"}.get(getattr(mini, "qui", 0), "?")
         righe.append("SCHERMO (senza IA): bussola=%s | minimappa: %s (qui %s, tempesta %.0f%%, acqua %.0f%%) | "
-                     "barra armi=%s | bus=%s | compagni=%s" % (
+                     "barra armi=%s | bus=%s | vita %s scudo %s | scritta E=%s" % (
                          lv.bussola_hud, "ok" if mini.ok else "non la vedo", qui, 100 * mini.tempesta,
                          100 * mini.acqua, "si" if lv.barra else "no", "si" if lv.bus else "no",
-                         ",".join("%.0f" % g for g in lv.compagni) or "-"))
+                         getattr(lv, "vita", None), getattr(lv, "scudo", None),
+                         "si" if getattr(lv, "scritta", False) else "no"))
         righe.append("COMPAGNO: seguo quello verso %s (%s%s) | minimappa: %s | bordi: %s | sospetto nemico %.0f%%" % (
             "%.0f" % cervello.compagno_hud if getattr(cervello, "compagno_hud", None) is not None else "nessuno",
             getattr(cervello, "compagno_fonte", ""),

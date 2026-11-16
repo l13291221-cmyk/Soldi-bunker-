@@ -8,3 +8,4 @@ per controllare che il bot li legga giusti SENZA IA (hud.py). Non servono per gi
 186 = in caduta (c'e' la barra delle armi)
 040, 042 = un compagno (freccia gialla) sulla minimappa
 073 = compagni dietro (frecce in basso)      199, 205 = compagni fuori dallo schermo (frecce ai bordi)
+091, 097, 121, 133 = la barra della vita e dello scudo (73, 18, 16 di vita; 100 vita e 100 scudo)
