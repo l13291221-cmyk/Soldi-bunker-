@@ -48,6 +48,8 @@ PREDEFINITE = {
         "pompa_se_nemico_alto": 0.3,
         "slot_cure": 5,
         "non_sparare_ai_compagni": True, # chi ha il nome sopra la testa e' un compagno: non gli spara
+        "sblocca_schermi_fermi": True,   # fuori partita su uno schermo fermo da 4 minuti: INVIO (ogni tanto ESC)
+        "schermo_fermo_secondi": 240,
         "slot_impulso": 3,               # la granata impulso (o un altro oggetto per muoversi)
         "usa_impulso": True,             # la lancia ai piedi se la tempesta finisce lontano o il compagno e' lontano
         "impulso_ogni_secondi": 25,

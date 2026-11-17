@@ -335,8 +335,9 @@ RARITA' (il colore dell'alone e della cornice)
 
 
 ---------------------------------------------------------------------
-14. QUESTA STAGIONE: "CACCIATORI DI TESORI" (TREASURE HUNTERS)
-    dal 1 novembre al 5 dicembre 2026 (fonte: Fortnite Wiki)
+14. (STAGIONE) "CACCIATORI DI TESORI" (TREASURE HUNTERS)
+    dal 1 novembre al 5 dicembre 2026 (fonte: Fortnite Wiki). DOPO questa data
+    questa parte NON vale piu': guarda la parte 15 (stagioni nuove).
 ---------------------------------------------------------------------
 - Isola pirata (Crossbones Isle). Posti: Arlong Park, Busy Bay (Baia Baccano),
   Cursed Cavern, Lantern Landing, Lil' Uzi's Stronghold (prima Fortune's Fort),
@@ -351,9 +352,12 @@ RARITA' (il colore dell'alone e della cornice)
   DORATA lunga = il GETTONE DEL NEGOZIO DEI PIRATI ("Pirate Shop Access": per 14
   giorni il Negozio e' gratis). Se lo trova un compagno lo prendono TUTTI quelli
   della squadra.
-- IMPORTANTE: per tenere il premio bisogna RESTARE nella partita finche' si viene
-  eliminati o finisce. Se si esce dal menu da vivi o ci si scollega, il premio si
-  perde. Da eliminati si puo' tornare alla lobby.
+- IMPORTANTE: per tenere il premio bisogna RESTARE nella partita: non uscire dal
+  menu e non scollegarsi. Anche da ELIMINATI conviene restare a guardare i
+  compagni (SPETTATORE) fino alla fine: se un compagno trova il gettone dopo, si
+  dice che vale anche per te solo se sei ancora collegato. Poi "Gioca di nuovo".
+  (La regola "vale per tutta la squadra" la riportano i siti dei giocatori, Epic
+  non l'ha scritta.)
 - Probabilita' del gettone: circa 1 su 137.500 casse (1 su 68.750 nelle "Ore del
   tesoro", quando il gioco lo annuncia). E' rarissimo: servono tantissime casse.
 - SPIRITELLI: piccoli aiutanti (si equipaggiano nella lobby, scheda Spiritelli, e
@@ -366,3 +370,26 @@ RARITA' (il colore dell'alone e della cornice)
   Throttled Tactical SMG (mitraglietta), Flint-Knock Pistol (pistola), Shock
   Rocket di A$AP Rocky, fionda di Usopp e altre armi di One Piece.
 - Frutti del diavolo: Frutto Gom Gom, Frutto Foco Foco (poteri speciali).
+
+
+---------------------------------------------------------------------
+15. STAGIONI E CAPITOLI NUOVI (cosa cambia e cosa resta uguale)
+---------------------------------------------------------------------
+Fortnite cambia STAGIONE circa ogni 2-3 mesi e CAPITOLO circa una volta l'anno.
+CAMBIANO: l'isola (nomi dei posti, forma), le armi e gli oggetti, i personaggi
+(NPC), i premi della stagione, a volte i colori e la grandezza dell'interfaccia,
+a volte i tasti predefiniti (es. il piccone e' passato a F e le armi a 1-5).
+RESTANO UGUALI (quasi sempre):
+- il bus all'inizio, il salto, la caduta libera e il deltaplano;
+- la TEMPESTA viola che si restringe verso la ZONA SICURA (il cerchio bianco);
+- le CASSE normali: legno con bordi dorati e LUCE DORATA che brilla, con un
+  suono; si aprono tenendo premuto il tasto di interazione (E);
+- le casse delle munizioni (piccole, grigie/verdi), le armi per terra con la luce
+  del loro colore (grigio, verde, blu, viola, oro = rarita');
+- vita (verde) e scudo (blu) in basso a sinistra, inventario in basso a destra,
+  minimappa in alto a destra (nord in alto), bussola in alto al centro;
+- i compagni col nome sopra la testa; il furgone del riavvio; rianimare tenendo E.
+QUINDI: se non riconosci un nome o un oggetto nuovo, descrivi quello che VEDI
+(forma, colore, posizione) invece di indovinare il nome. Una cosa che brilla di
+dorato per terra o su un mobile e' quasi sempre una cassa o un'arma rara.
+

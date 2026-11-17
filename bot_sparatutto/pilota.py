@@ -221,6 +221,12 @@ class Pilota:
         self.foto_hud = []                # qualche foto recente per cercare la grandezza giusta
         self.prossima_foto_hud = 0.0
         self.prossima_ricerca_hud = 0.0
+        # fuori dalla partita su uno schermo fermo (es. la PS5 chiede chi gioca): provo INVIO / ESC
+        self.fuori_da = None
+        self.fermo_fuori_da = None
+        self.mini_fuori = None
+        self.prossimo_tasto_fuori = 0.0
+        self.volte_tasto_fuori = 0
         self.casse_pausa_fino = 0.0
 
     # ================================================================== utilita'
@@ -758,15 +764,43 @@ class Pilota:
         """Senza la barra delle armi e senza la bussola non sono in partita (menu, caricamento,
         schermate finali): sto fermo, non cammino e non salto nei menu."""
         if img is None or not self.fort.get("leggi_lo_schermo", True) or self.hud_perso:
+            self.fuori_da = None
             return None
         lv = self.lavagna
         if lv.barra or t - self.ultima_bussola_letta < 2.0:
+            self.fuori_da = None
             return None
         c = lv.consiglio
         if c is not None and c.fase == "playing":
             return None                  # l'IA (fresca) dice che sto giocando
         self.ferma_tutto()
-        return "non sono in partita: aspetto"
+        return self._sblocca_schermo_fermo(img, t) or "non sono in partita: aspetto"
+
+    def _sblocca_schermo_fermo(self, img, t):
+        """Fuori dalla partita da tanto e lo schermo non si muove (la PS5 chiede "Chi sta usando
+        questo controller?", un avviso, una schermata ferma): provo INVIO, ogni tanto ESC. Le
+        schermate di Fortnite che si muovono (lobby, ricerca della partita) non le tocco."""
+        if self.fuori_da is None:
+            self.fuori_da = t
+            self.fermo_fuori_da = t
+            self.mini_fuori = None
+        mini = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (64, 36), interpolation=cv2.INTER_AREA)
+        if self.mini_fuori is not None and float(np.mean(cv2.absdiff(mini, self.mini_fuori))) > 4.0:
+            self.fermo_fuori_da = t          # lo schermo e' cambiato
+        self.mini_fuori = mini
+        dopo = float(self.fort.get("schermo_fermo_secondi", 240) or 240)
+        if not self.fort.get("sblocca_schermi_fermi", True) or t - self.fermo_fuori_da < dopo \
+                or t < self.prossimo_tasto_fuori:
+            return None
+        self.prossimo_tasto_fuori = t + 60.0
+        self.volte_tasto_fuori += 1
+        tasto = "esc" if self.volte_tasto_fuori % 4 == 0 else "invio"
+        if not self.mani.esiste(tasto):
+            return None
+        self.log("Sono fuori dalla partita su uno schermo fermo da %d minuti: premo %s" % (
+            int((t - self.fermo_fuori_da) / 60), tasto.upper()))
+        self.mani.premi(tasto, 0.1)
+        return "schermo fermo: premo %s" % tasto
 
     def _atterrato(self, c, t):
         self.log("Atterrato: prendo l'arma (slot 1) e controllo la bussola")

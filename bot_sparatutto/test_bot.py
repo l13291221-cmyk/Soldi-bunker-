@@ -2892,6 +2892,17 @@ class TestPilotaConLoSchermo(ConCartella):
         p2 = self._pilota()[2]
         self.assertTrue(self._passi(p2, occhi, bus, t, 4, 0.4).startswith("sul bus"))
 
+    def test_schermo_fermo_fuori_partita_preme_invio(self):
+        mani, occhi, p = self._pilota()
+        t = 1000.0
+        fermo = np.full((540, 960, 3), (90, 90, 90), np.uint8)
+        cv2.putText(fermo, "Chi sta usando questo controller?", (200, 270), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        self.assertEqual(p.passo(occhi.analizza(fermo), fermo, t), "non sono in partita: aspetto")
+        self.assertEqual(p.passo(occhi.analizza(fermo), fermo, t + 100), "non sono in partita: aspetto")
+        self.assertEqual(p.passo(occhi.analizza(fermo), fermo, t + 250), "schermo fermo: premo invio")
+        self.assertIn("giu tasto 0x%02X" % CODICI["invio"], mani.storia)
+        self.assertEqual(p.passo(occhi.analizza(fermo), fermo, t + 260), "non sono in partita: aspetto")  # una al minuto
+
     def test_cerca_il_nemico_sparito(self):
         mani, occhi, p = self._pilota()
         t = time.monotonic()
