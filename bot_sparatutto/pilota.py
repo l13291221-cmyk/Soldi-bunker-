@@ -214,6 +214,13 @@ class Pilota:
         self.casse_ignorate = []          # (gradi della bussola, fino a quando): "casse" che non si aprono
         self.casse_sbagliate = []         # quando ho trovato "casse" finte
         self.prossimo_impulso = adesso + 20.0
+        # STAGIONI NUOVE: se l'interfaccia cambia grandezza la cerco da solo (hud.cerca_scala)
+        hud.imposta_scala(float((cfg.get("hud", {}) or {}).get("scala", 1.0) or 1.0))
+        self.hud_visto_t = adesso         # l'ultima volta che ho riconosciuto barra o bussola
+        self.hud_perso = False            # non la trovo proprio: gioco senza (non mi blocco)
+        self.foto_hud = []                # qualche foto recente per cercare la grandezza giusta
+        self.prossima_foto_hud = 0.0
+        self.prossima_ricerca_hud = 0.0
         self.casse_pausa_fino = 0.0
 
     # ================================================================== utilita'
@@ -421,6 +428,7 @@ class Pilota:
             lv.vita, lv.scudo = hud.leggi_vita(img) if lv.barra else (None, None)
             in_gioco = lv.barra and t - self.ultima_bussola_letta < 1.0 and not lv.spettatore
             lv.compagni = hud.compagni_sulla_bussola(img) if in_gioco else []
+            self._controlla_interfaccia(img, t)
             lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
             lv.compagni_mini = hud.compagni_sulla_minimappa(img) if in_gioco else []
             if lv.mini.ok and 0.05 <= lv.mini.tempesta <= 0.9:
@@ -434,6 +442,37 @@ class Pilota:
                 self.bus_conta = 0
             lv.bus = self.bus_conta >= 2
             self._scegli_compagno(t)
+
+    def _controlla_interfaccia(self, img, t):
+        """Se per un po' non riconosco piu' ne' la barra delle armi ne' la bussola (stagione nuova,
+        "Scala HUD" cambiata...), provo le grandezze dell'interfaccia sulle ultime foto e uso quella
+        che si legge meglio. Se non la trovo, gioco come se non ci fosse (non mi fermo)."""
+        lv = self.lavagna
+        if lv.barra or t - self.ultima_bussola_letta < 1.0:
+            self.hud_visto_t = t
+            if self.hud_perso:
+                self.log("Rivedo l'interfaccia di Fortnite: torno a leggerla")
+            self.hud_perso = False
+        if t >= self.prossima_foto_hud:
+            self.prossima_foto_hud = t + float(self.fort.get("interfaccia_foto_ogni_secondi", 15) or 15)
+            self.foto_hud.append(cv2.resize(img, (960, 540), interpolation=cv2.INTER_AREA))
+            del self.foto_hud[:-12]
+        dopo = float(self.fort.get("interfaccia_cerca_dopo_secondi", 300) or 300)
+        if t - self.hud_visto_t < dopo or t < self.prossima_ricerca_hud or len(self.foto_hud) < 6:
+            return
+        self.prossima_ricerca_hud = t + dopo
+        scala, punti = hud.cerca_scala(self.foto_hud)
+        if punti >= 2.0 and abs(scala - hud.SCALA) >= 0.02:
+            self.log("L'interfaccia di Fortnite e' cambiata grandezza (scala %.2f -> %.2f): la uso e me la "
+                     "ricordo" % (hud.SCALA, scala))
+            hud.imposta_scala(scala)
+            if self.apprendimento is not None:
+                impostazioni.salva_calibrazione(self.apprendimento.base, ["hud", "scala"], round(scala, 3))
+            self.hud_visto_t = t
+        elif punti < 2.0 and not self.hud_perso:
+            self.log("Da %d minuti non riconosco l'interfaccia di Fortnite (stagione nuova?): gioco lo stesso, "
+                     "senza leggerla. Se succede sempre, fai una registrazione (menu 17)" % int((t - self.hud_visto_t) / 60))
+            self.hud_perso = True
 
     def _nuova_lettura(self, gradi, t):
         """Una lettura della bussola: la prendo se torna con i miei conti, o se due letture di fila
@@ -718,7 +757,7 @@ class Pilota:
     def _ramo_fuori_partita(self, vis, img, t):
         """Senza la barra delle armi e senza la bussola non sono in partita (menu, caricamento,
         schermate finali): sto fermo, non cammino e non salto nei menu."""
-        if img is None or not self.fort.get("leggi_lo_schermo", True):
+        if img is None or not self.fort.get("leggi_lo_schermo", True) or self.hud_perso:
             return None
         lv = self.lavagna
         if lv.barra or t - self.ultima_bussola_letta < 2.0:

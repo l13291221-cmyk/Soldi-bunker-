@@ -129,6 +129,12 @@ A) LE IMPOSTAZIONI (impostazioni.yaml, con Blocco note)
   compagno e' lontano, la lancia ai suoi piedi correndo per volare avanti (al
   massimo una ogni 25 secondi, mai con poca vita: l'impulso non toglie i danni
   da caduta). Si spegne con fortnite -> usa_impulso: false.
+- STAGIONI E CAPITOLI NUOVI: la mappa (tempesta, mare, terra) la legge dai colori,
+  quindi va bene anche un'isola nuova. Se l'interfaccia cambia grandezza (o cambi
+  "Scala HUD" nelle impostazioni di Fortnite) e per 5 minuti non la riconosce, il
+  bot prova da solo le grandezze, usa quella giusta e la scrive in
+  calibrazione.yaml. Se non la trova proprio gioca lo stesso, senza fermarsi, e
+  te lo scrive: allora fai una registrazione (menu 17) e mandala.
 - NEI MENU sta fermo (senza bussola e senza barra delle armi non e' in partita).
   Sul bus salta da solo quando sotto c'e' l'isola, anche senza IA.
 - Con l'IA collegata il bot in piu': va verso le casse che vede l'IA (le sue

@@ -2604,32 +2604,39 @@ class TestPilota(ConCartella):
         self.assertAlmostEqual(p.passi_per_giro, 2400, delta=50)                   # girato il doppio: dimezza
 
 
-def schermo_vero(numero, larghezza=960, altezza=540):
+def schermo_vero(numero, larghezza=960, altezza=540, scala=1.0):
     """Uno schermo nero con sopra i pezzi VERI di una partita (cartella prove_hud): bussola,
-    triangolini dei compagni, minimappa e barra delle armi, ognuno al suo posto."""
+    triangolini dei compagni, minimappa e barra delle armi, ognuno al suo posto. scala = come la
+    "Scala HUD" di Fortnite: ogni pezzo si stringe verso il suo angolo."""
     img = np.zeros((altezza, larghezza, 3), np.uint8)
     cartella = os.path.join(QUI, "prove_hud")
 
-    def metti(nome, x0, y0):
+    def metti(nome, x0, y0, ancora):
         percorso = os.path.join(cartella, "%03d_%s.jpg" % (numero, nome))
         if not os.path.exists(percorso):
             return
         pezzo = cv2.imread(percorso)
+        if scala != 1.0:
+            pezzo = cv2.resize(pezzo, (max(1, int(round(pezzo.shape[1] * scala))),
+                                       max(1, int(round(pezzo.shape[0] * scala)))), interpolation=cv2.INTER_AREA)
+        ax, ay = ancora[0] * larghezza, ancora[1] * altezza
+        x0 = int(round(ax + (x0 - ax) * scala))
+        y0 = int(round(ay + (y0 - ay) * scala))
         h, w = pezzo.shape[:2]
-        img[y0:y0 + h, x0:x0 + w] = pezzo[:altezza - y0, :larghezza - x0]
+        x0, y0 = max(0, min(larghezza - w, x0)), max(0, min(altezza - h, y0))
+        img[y0:y0 + h, x0:x0 + w] = pezzo
 
     cx, cy, mezzo = 0.918 * larghezza, 0.146 * altezza, 0.0656 * larghezza
-    metti("minimappa", int(round(cx - mezzo)) - 2, int(round(cy - mezzo)) - 2)
-    metti("barra", int(round(0.68 * larghezza)), int(round(0.84 * altezza)))
-    metti("triangoli", int(round(0.28 * larghezza)), 0)
-    metti("numero", int(round(0.46 * larghezza)), 0)
-    metti("sinistra", 0, int(round(0.15 * altezza)))
-    metti("destra", int(round(0.978 * larghezza)), int(round(0.15 * altezza)))
-    metti("sotto", int(round(0.25 * larghezza)), int(round(0.962 * altezza)))
-    metti("vita", int(round(0.03 * larghezza)), int(round(0.885 * altezza)))
-    metti("spettatore", int(round(0.38 * larghezza)), 0)
+    metti("minimappa", int(round(cx - mezzo)) - 2, int(round(cy - mezzo)) - 2, (1.0, 0.0))
+    metti("barra", int(round(0.68 * larghezza)), int(round(0.84 * altezza)), (1.0, 1.0))
+    metti("triangoli", int(round(0.28 * larghezza)), 0, (0.5, 0.0))
+    metti("numero", int(round(0.46 * larghezza)), 0, (0.5, 0.0))
+    metti("sinistra", 0, int(round(0.15 * altezza)), (0.0, 0.5))
+    metti("destra", int(round(0.978 * larghezza)), int(round(0.15 * altezza)), (1.0, 0.5))
+    metti("sotto", int(round(0.25 * larghezza)), int(round(0.962 * altezza)), (0.5, 1.0))
+    metti("vita", int(round(0.03 * larghezza)), int(round(0.885 * altezza)), (0.0, 1.0))
+    metti("spettatore", int(round(0.38 * larghezza)), 0, (0.5, 0.0))
     return img
-
 
 class TestHud(unittest.TestCase):
     """Bussola, minimappa, barra delle armi, compagni: letti dallo schermo SENZA IA (hud.py),
@@ -2749,6 +2756,25 @@ class TestHud(unittest.TestCase):
         self.assertTrue(hud.nome_sopra(foto, 0.60 * W, 0.36 * H, 0.04 * W, 0.12 * H))      # il compagno
         for x, y in ((0.3, 0.6), (0.45, 0.5), (0.75, 0.55)):                              # nessun nome sopra
             self.assertFalse(hud.nome_sopra(foto, x * W, y * H, 0.04 * W, 0.12 * H), (x, y))
+
+    def test_si_adatta_alla_scala_dell_interfaccia(self):
+        """Stagione nuova o "Scala HUD" cambiata: l'interfaccia e' piu' piccola o piu' grande. Il bot
+        prova le grandezze e trova quella giusta; poi legge di nuovo bussola, barra e minimappa."""
+        import hud
+        normale = [schermo_vero(n) for n in (85, 97, 109, 186)]
+        self.assertAlmostEqual(hud.cerca_scala(normale)[0], 1.0, delta=0.026)
+        for scala in (0.8, 1.15):
+            foto = [schermo_vero(n, scala=scala) for n in (85, 97, 109, 186)]
+            trovata, punti = hud.cerca_scala(foto)
+            self.assertAlmostEqual(trovata, scala, delta=0.026, msg=scala)
+            self.assertGreater(punti, 3.0)
+            try:
+                hud.imposta_scala(trovata)
+                self.assertLessEqual(abs(hud.differenza(hud.leggi_bussola(foto[0]), 269)), 12)
+                self.assertTrue(hud.barra_armi(foto[0]))
+                self.assertEqual(hud.leggi_minimappa(foto[1]).qui, hud.TEMPESTA)
+            finally:
+                hud.imposta_scala(1.0)
 
     def test_direzione_sicura(self):
         import hud
@@ -2923,6 +2949,25 @@ class TestPilotaConLoSchermo(ConCartella):
         self.assertIn("giu tasto 0x%02X" % CODICI["3"], dopo)     # slot 3
         self.assertIn("giu mouse 1", dopo)                         # la lancia
         self.assertFalse(p._lancio_impulso(t + 2, "prova"))       # non subito un'altra
+
+    def test_interfaccia_piu_piccola_la_trova_da_sola(self):
+        """Stagione nuova: l'interfaccia e' piu' piccola (scala 0.8). All'inizio il bot non la
+        riconosce; dopo qualche minuto prova le grandezze, trova 0.8 e torna a leggerla."""
+        import hud
+        mani, occhi, p = self._pilota()
+        p.fort["interfaccia_cerca_dopo_secondi"] = 120
+        t = 1000.0
+        p.hud_visto_t = t
+        try:
+            foto = [schermo_vero(n, scala=0.8) for n in (85, 97, 109, 186)]
+            for i in range(14):
+                img = foto[i % 4]
+                p.passo(occhi.analizza(img), img, t + i * 16.0)
+            self.assertAlmostEqual(hud.SCALA, 0.8, delta=0.03)
+            p.passo(occhi.analizza(foto[0]), foto[0], t + 300)
+            self.assertTrue(p.lavagna.barra)
+        finally:
+            hud.imposta_scala(1.0)
 
     def test_misura_quanto_si_gira_con_la_bussola(self):
         mani, occhi, p = self._pilota()

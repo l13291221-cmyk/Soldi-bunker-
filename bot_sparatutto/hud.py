@@ -14,6 +14,10 @@ a rispondere (e' successo nella partita registrata: fermo nella tempesta ad aspe
   da quanto sono spostati dal centro capisco in che direzione sono.
 
 Tutte le misure sono in proporzione allo schermo (16:9): funziona a 720p, 1080p, 540p...
+
+STAGIONI NUOVE: se Fortnite cambia la grandezza dell'interfaccia (o tu cambi "Scala HUD" nelle
+impostazioni), ogni pezzo si rimpicciolisce/ingrandisce verso il suo angolo. SCALA dice di quanto:
+il bot, se non trova piu' bussola, barra e minimappa, la cerca da solo (cerca_scala) e la ricorda.
 """
 
 import math
@@ -22,6 +26,39 @@ import cv2
 import numpy as np
 
 from cifre_bussola import CIFRE
+
+# ------------------------------------------------------------------ la scala dell'interfaccia
+SCALA = 1.0
+
+
+def imposta_scala(scala):
+    global SCALA
+    SCALA = max(0.4, min(1.6, float(scala)))
+
+
+def _zona(x0, x1, y0, y1, ancora):
+    """Un pezzo dell'interfaccia (frazioni dello schermo con la scala 1) con la scala di adesso: si
+    stringe o si allarga verso il suo angolo (ancora)."""
+    if ancora is None:
+        return x0, x1, y0, y1
+    ax, ay = ancora
+    return ax + (x0 - ax) * SCALA, ax + (x1 - ax) * SCALA, ay + (y0 - ay) * SCALA, ay + (y1 - ay) * SCALA
+
+
+def _taglia(img, x0, x1, y0, y1, ancora=None, nominale=True):
+    """Il pezzo di schermo (con la scala dell'interfaccia), riportato alla grandezza "normale"
+    (come su uno schermo 960x540 con la scala 1). None se e' vuoto."""
+    H, W = img.shape[:2]
+    zx0, zx1, zy0, zy1 = _zona(x0, x1, y0, y1, ancora)
+    c = img[max(0, int(round(zy0 * H))):max(0, int(round(zy1 * H))),
+            max(0, int(round(zx0 * W))):max(0, int(round(zx1 * W)))]
+    if c.size == 0:
+        return None
+    if nominale:
+        c = cv2.resize(c, (max(1, int(round((x1 - x0) * 960))), max(1, int(round((y1 - y0) * 540)))),
+                       interpolation=cv2.INTER_AREA)
+    return c
+
 
 # ------------------------------------------------------------------ la bussola
 # la striscia col numero, riportata sempre alla stessa grandezza (come su uno schermo 960x540)
@@ -38,9 +75,8 @@ PIXEL_PER_GRADO = 1.78                   # sulla bussola (schermo largo 960): 45
 
 
 def _striscia_bussola(img):
-    H, W = img.shape[:2]
-    c = img[0:max(1, int(round(B_Y1 * H))), int(round(B_X0 * W)):int(round(B_X1 * W))]
-    if c.size == 0:
+    c = _taglia(img, B_X0, B_X1, 0.0, B_Y1, (0.5, 0.0), nominale=False)
+    if c is None:
         return None
     c = cv2.resize(c, (B_LARGO, B_ALTO), interpolation=cv2.INTER_AREA)
     return c.min(axis=2).astype(np.float32)          # quanto e' bianco (bianco = alto in tutti i colori)
@@ -60,6 +96,9 @@ def _riga_del_numero(g):
         return None, []
     y0 = int(np.median([p[1] for p in grandi]))
     y1 = int(np.median([p[1] + p[3] for p in grandi]))
+    alto, basso = min(p[1] for p in grandi), max(p[1] + p[3] for p in grandi)   # una cifra puo' spezzarsi
+    if not (9 <= alto <= 12 and 7 <= basso - alto <= 10):
+        return None, []          # cifre troppo piccole/grandi o fuori posto: la scala dell'interfaccia e' un'altra
     scelti = [p for p in pezzi if p[1] >= y0 - 2 and p[1] + p[3] <= y1 + 2]
     return (y0, y1), scelti
 
@@ -129,13 +168,10 @@ def compagni_sulla_bussola(img):
     -> lista di gradi rispetto a dove guardo (negativo = a sinistra)."""
     if img is None:
         return []
-    H, W = img.shape[:2]
     x0, x1, y1 = 0.28, 0.72, 0.034
-    c = img[0:max(1, int(round(y1 * H))), int(round(x0 * W)):int(round(x1 * W))]
-    if c.size == 0:
+    c = _taglia(img, x0, x1, 0.0, y1, (0.5, 0.0))
+    if c is None:
         return []
-    largo = int(round((x1 - x0) * 960))
-    c = cv2.resize(c, (largo, int(round(y1 * 540))), interpolation=cv2.INTER_AREA)
     m = (c.min(axis=2) > 200).astype(np.uint8)
     n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
     gradi = []
@@ -154,18 +190,9 @@ def compagni_sulla_bussola(img):
     return sorted(gradi)
 
 
-def _pezzi_bianchi(img, x0, x1, y0, y1, soglia=205):
+def _pezzi_bianchi(img, x0, x1, y0, y1, soglia=205, ancora=None):
     """I pezzi bianchi in una striscia dello schermo, misurati come su uno schermo 960x540."""
-    H, W = img.shape[:2]
-    c = img[int(round(y0 * H)):int(round(y1 * H)), int(round(x0 * W)):int(round(x1 * W))]
-    if c.size == 0:
-        return []
-    largo = max(1, int(round((x1 - x0) * 960)))
-    alto = max(1, int(round((y1 - y0) * 540)))
-    c = cv2.resize(c, (largo, alto), interpolation=cv2.INTER_AREA)
-    m = (c.min(axis=2) > soglia).astype(np.uint8)
-    n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
-    return [tuple(int(v) for v in st[k]) for k in range(1, n) if st[k][4] >= 8]
+    return _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=soglia, area=8, ancora=ancora)
 
 
 def compagni_ai_bordi(img):
@@ -174,11 +201,11 @@ def compagni_ai_bordi(img):
     if img is None:
         return []
     gradi = []
-    for x0, x1, verso in ((0.0, 0.022, -100.0), (0.978, 1.0, 100.0)):
-        for x, y, w, h, a in _pezzi_bianchi(img, x0, x1, 0.15, 0.85):
+    for x0, x1, verso, ancora in ((0.0, 0.022, -100.0, (0.0, 0.5)), (0.978, 1.0, 100.0, (1.0, 0.5))):
+        for x, y, w, h, a in _pezzi_bianchi(img, x0, x1, 0.15, 0.85, ancora=ancora):
             if 3 <= w <= 9 and 9 <= h <= 16:
                 gradi.append(verso)
-    for x, y, w, h, a in _pezzi_bianchi(img, 0.25, 0.68, 0.962, 0.995):
+    for x, y, w, h, a in _pezzi_bianchi(img, 0.25, 0.68, 0.962, 0.995, ancora=(0.5, 1.0)):
         if 4 <= y <= 8 and 5 <= h <= 9 and 9 <= w <= 27:
             quanti = max(1, int(round(w / 12.5)))
             for i in range(quanti):
@@ -193,14 +220,10 @@ def compagni_sulla_minimappa(img):
     lontano. -> lista di (gradi della bussola, distanza 0-1 dove 1 = bordo della minimappa)."""
     if img is None:
         return []
-    H, W = img.shape[:2]
-    cx, cy, mezzo = MM_X * W, MM_Y * H, MM_MEZZO * W
-    c = img[max(0, int(round(cy - mezzo))):int(round(cy + mezzo)),
-            max(0, int(round(cx - mezzo))):int(round(cx + mezzo))]
-    if c.size == 0:
-        return []
     lato = 128
-    c = cv2.resize(c, (lato, lato), interpolation=cv2.INTER_AREA)
+    c = _ritaglio_minimappa(img, lato)
+    if c is None:
+        return []
     hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
     h, s, v = (hsv[..., k].astype(np.int16) for k in range(3))
     giallo = ((h >= 21) & (h <= 35) & (s >= 140) & (v >= 190)).astype(np.uint8)
@@ -224,13 +247,10 @@ def compagni_sulla_minimappa(img):
 
 
 # ------------------------------------------------------------------ la scritta "E Apri" / "Raccogli"
-def _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=200, area=3):
-    H, W = img.shape[:2]
-    c = img[int(round(y0 * H)):int(round(y1 * H)), int(round(x0 * W)):int(round(x1 * W))]
-    if c.size == 0:
+def _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=200, area=3, ancora=None):
+    c = _taglia(img, x0, x1, y0, y1, ancora)
+    if c is None:
         return []
-    c = cv2.resize(c, (max(1, int(round((x1 - x0) * 960))), max(1, int(round((y1 - y0) * 540)))),
-                   interpolation=cv2.INTER_AREA)
     m = (c.min(axis=2) > soglia).astype(np.uint8)
     n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
     return [tuple(int(v) for v in st[k]) for k in range(1, n) if st[k][4] >= area]
@@ -247,7 +267,7 @@ def tipo_di_scritta(img):
         return None
     alto, basso = riga
     # "Spazio" e' una parola di lettere piccole a sinistra della scritta; la E e' un tasto solo
-    piccole = [p for p in _pezzi_bianchi_tutti(img, 0.50, 0.80, 0.48, 0.66, soglia=160, area=2)
+    piccole = [p for p in _pezzi_bianchi_tutti(img, 0.50, 0.80, 0.48, 0.66, soglia=160, area=2, ancora=(0.5, 0.5))
                if 66 <= p[0] <= 106 and p[3] <= 8 and alto - 3 <= p[1] + p[3] / 2.0 <= basso + 3]
     return "spazio" if len(piccole) >= 3 else "e"
 
@@ -264,7 +284,7 @@ def _riga_della_scritta(img):
     if img is None:
         return None
     x0, x1, y0, y1 = 0.50, 0.80, 0.48, 0.66
-    lettere = [p for p in _pezzi_bianchi(img, x0, x1, y0, y1, soglia=200)
+    lettere = [p for p in _pezzi_bianchi(img, x0, x1, y0, y1, soglia=200, ancora=(0.5, 0.5))
                if 5 <= p[3] <= 8 and 1 <= p[2] <= 12 and p[4] >= 5]
     migliore = []
     for l in lettere:
@@ -322,7 +342,7 @@ def spettatore(img):
     compagno)? Una riga di almeno 7 lettere grandi dove di solito c'e' il numero della bussola."""
     if img is None:
         return False
-    grandi = [p for p in _pezzi_bianchi(img, 0.38, 0.62, 0.0, 0.09) if 9 <= p[3] <= 13 and p[2] <= 12]
+    grandi = [p for p in _pezzi_bianchi(img, 0.38, 0.62, 0.0, 0.09, ancora=(0.5, 0.0)) if 9 <= p[3] <= 13 and p[2] <= 12]
     for p in grandi:
         if sum(1 for q in grandi if abs(q[1] - p[1]) <= 2) >= 7:
             return True
@@ -331,10 +351,8 @@ def spettatore(img):
 
 # ------------------------------------------------------------------ vita e scudo
 def _riempita(img, y, colore):
-    H, W = img.shape[:2]
-    r = img[max(0, int(round((y - 0.006) * H))):int(round((y + 0.006) * H)) + 1,
-            int(round(0.034 * W)):int(round(0.2125 * W))]
-    if r.size == 0:
+    r = _taglia(img, 0.034, 0.2125, y - 0.006, y + 0.008, (0.0, 1.0))
+    if r is None:
         return 0
     r = cv2.resize(r, (171, 3), interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(r, cv2.COLOR_BGR2HSV)
@@ -373,9 +391,8 @@ def barra_armi(img):
     Non c'e' nei menu e sul BUS; c'e' quando cado, gioco o guardo un compagno."""
     if img is None:
         return False
-    H, W = img.shape[:2]
-    r = img[int(0.855 * H):int(0.935 * H), int(0.69 * W):int(0.735 * W)]
-    if r.size == 0:
+    r = _taglia(img, 0.69, 0.735, 0.855, 0.935, (1.0, 1.0))
+    if r is None:
         return False
     hsv = cv2.cvtColor(r, cv2.COLOR_BGR2HSV)
     s, v = hsv[..., 1], hsv[..., 2]
@@ -389,15 +406,25 @@ LATO = 64
 IGNOTO, TERRA, ACQUA, TEMPESTA = 0, 1, 2, 3
 
 
-def classi_minimappa(img):
-    """La minimappa 64x64 divisa in: 0 non so (icone, scritte), 1 terra, 2 acqua, 3 tempesta."""
+def _ritaglio_minimappa(img, lato=LATO):
+    """Il quadrato della minimappa (con la scala dell'interfaccia: si stringe verso l'angolo in alto
+    a destra), riportato a lato x lato pixel."""
     H, W = img.shape[:2]
-    cx, cy, mezzo = MM_X * W, MM_Y * H, MM_MEZZO * W
+    cx = (1.0 + (MM_X - 1.0) * SCALA) * W
+    cy = MM_Y * SCALA * H
+    mezzo = MM_MEZZO * SCALA * W
     c = img[max(0, int(round(cy - mezzo))):int(round(cy + mezzo)),
             max(0, int(round(cx - mezzo))):int(round(cx + mezzo))]
     if c.size == 0:
         return None
-    c = cv2.resize(c, (LATO, LATO), interpolation=cv2.INTER_AREA)
+    return cv2.resize(c, (lato, lato), interpolation=cv2.INTER_AREA)
+
+
+def classi_minimappa(img):
+    """La minimappa 64x64 divisa in: 0 non so (icone, scritte), 1 terra, 2 acqua, 3 tempesta."""
+    c = _ritaglio_minimappa(img)
+    if c is None:
+        return None
     hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
     h = hsv[..., 0].astype(np.int16)
     s = hsv[..., 1].astype(np.int16)
@@ -589,3 +616,70 @@ def leggi_minimappa(img):
     if img is None:
         return Minimappa(None)
     return Minimappa(classi_minimappa(img))
+
+
+# ------------------------------------------------------------------ stagioni nuove: la scala da sola
+def freccia_al_centro(img):
+    """La mia freccia bianca al centro della minimappa (c'e' sempre quando gioco a terra)."""
+    c = _ritaglio_minimappa(img)
+    if c is None:
+        return False
+    yy, xx = np.mgrid[0:LATO, 0:LATO]
+    vicino = np.hypot(xx - (LATO - 1) / 2.0, yy - (LATO - 1) / 2.0) <= 4
+    return float((c.min(axis=2) > 190)[vicino].mean()) >= 0.03
+
+
+def _grigio_piccone(img):
+    """Quanto e' grigio il quadrato del piccone (0-1): e' massimo quando la scala e' quella giusta."""
+    r = _taglia(img, 0.69, 0.735, 0.855, 0.935, (1.0, 1.0))
+    if r is None:
+        return 0.0
+    hsv = cv2.cvtColor(r, cv2.COLOR_BGR2HSV)
+    s, v = hsv[..., 1], hsv[..., 2]
+    return float(((s < 45) & (v > 110) & (v < 240)).mean())
+
+
+def punteggio_hud(img):
+    """Quanto bene si legge l'interfaccia con la scala di adesso (piu' alto = meglio)."""
+    if img is None:
+        return 0.0
+    punti = 2.0 * _grigio_piccone(img)
+    numero, sicuro = leggi_bussola_dettagli(img)
+    if numero is not None and sicuro >= PUNTEGGIO_MINIMO:
+        punti += 1.0
+    if leggi_vita(img)[0] is not None:
+        punti += 0.5
+    classi = classi_minimappa(img)
+    if classi is not None:
+        punti += float((classi > 0).mean())
+        if freccia_al_centro(img):
+            punti += 0.5
+    return punti
+
+
+def cerca_scala(foto, scale=None):
+    """Prova tante grandezze dell'interfaccia sulle foto di gioco e dice quale si legge meglio.
+    -> (scala, punteggio medio per foto). Non cambia la scala in uso."""
+    foto = [f for f in foto if f is not None]
+    if not foto:
+        return SCALA, 0.0
+    scale = scale or [round(0.6 + 0.05 * i, 2) for i in range(15)]      # da 0.60 a 1.30
+    vecchia = SCALA
+    migliore = (vecchia, -1.0)
+
+    def prova(scala):
+        imposta_scala(scala)
+        return sum(punteggio_hud(f) for f in foto) / float(len(foto))
+    try:
+        for scala in scale:
+            punti = prova(scala)
+            if punti > migliore[1] + 1e-6:
+                migliore = (scala, punti)
+        centro = migliore[0]
+        for scala in (round(centro - 0.025, 3), round(centro + 0.025, 3)):      # piu' preciso
+            punti = prova(scala)
+            if punti > migliore[1] + 1e-6:
+                migliore = (scala, punti)
+    finally:
+        imposta_scala(vecchia)
+    return migliore

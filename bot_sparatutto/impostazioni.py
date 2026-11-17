@@ -100,6 +100,9 @@ PREDEFINITE = {
         "tempesta_soglia_viola": 0.35,   # parte dello schermo viola per dire "sono nella tempesta"
         "corsa_fuori_tempesta": 10,      # secondi di corsa verso la zona sicura, poi ricontrolla
     },
+    # la grandezza dell'interfaccia di Fortnite ("Scala HUD"): il bot la trova da solo se cambia
+    # (stagioni nuove) e la scrive in calibrazione.yaml
+    "hud": {"scala": 1.0},
     # l'IA che guarda (ia.py): la accende e la collega il menu "Collega le IA" (file ia.yaml)
     "ia": {
         "attiva": False,
