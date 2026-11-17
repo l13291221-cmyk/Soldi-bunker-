@@ -141,7 +141,7 @@ class Pilota:
         # bussola e schermo letti senza IA
         self.prossima_bussola = 0.0
         self.prossima_minimappa = 0.0
-        self.lettura_prec = None          # (t, gradi, passi) dell'ultima lettura (anche non accettata)
+        self.letture_recenti = []         # (t, gradi, passi) delle ultime letture (anche non accettate)
         self.ultima_accettata = None      # (t, gradi, passi) dell'ultima lettura accettata
         self.ultima_bussola_hud = -1e9    # quando ho preso per buona una lettura della bussola
         self.ultima_bussola_letta = -1e9  # quando ho visto il numero della bussola (anche se non lo uso)
@@ -490,11 +490,17 @@ class Pilota:
         dicono la stessa cosa (cosi' un'icona sopra il numero non mi inganna)."""
         passi = self._passi_x()
         previsto = self.guardo_verso()
-        prec = self.lettura_prec
-        self.lettura_prec = (t, gradi, passi)
+        self.letture_recenti = [x for x in self.letture_recenti if t - x[0] <= 1.5] + [(t, gradi, passi)]
+        del self.letture_recenti[:-4]
         coerente = previsto is not None and abs(avvolgi(gradi - previsto)) <= 25
-        confermata = prec is not None and t - prec[0] <= 1.0 and abs(avvolgi(
-            gradi - prec[1] - (passi - prec[2]) * 360.0 / max(1.0, self.passi_per_giro))) <= 8
+
+        def d_accordo(a):
+            return abs(avvolgi(gradi - a[1] - (passi - a[2]) * 360.0 / max(1.0, self.passi_per_giro))) <= 8
+        prima = self.letture_recenti[:-1]
+        # se so gia' dove guardo, per cambiare idea servono 3 letture uguali di fila (una cifra
+        # letta male, es. 318 -> 218, puo' ripetersi in 2 foto uguali); se non lo so ne bastano 2
+        servono = 2 if previsto is None else 3
+        confermata = len(prima) >= servono - 1 and all(d_accordo(a) for a in prima[-(servono - 1):])
         if not (coerente or confermata):
             return
         self._leggi_bussola(gradi)

@@ -2638,6 +2638,69 @@ def schermo_vero(numero, larghezza=960, altezza=540, scala=1.0):
     metti("spettatore", int(round(0.38 * larghezza)), 0, (0.5, 0.0))
     return img
 
+# il numero della bussola letto A OCCHIO su foto vere del bot (1280x720): "data_ora_numero" -> gradi
+BUSSOLA_FOTO_720 = {
+    "20261113_115752_00003": 90,
+    "20261113_115758_00004": 90,
+    "20261113_121715_00011": 178,
+    "20261113_121723_00012": 146,
+    "20261113_121728_00013": 29,
+    "20261113_121734_00014": 165,
+    "20261113_121739_00015": 318,
+    "20261113_121746_00016": 316,
+    "20261113_121751_00017": 116,
+    "20261113_121756_00018": 332,
+    "20261113_121801_00019": 341,
+    "20261113_121959_00039": 117,
+    "20261113_122007_00040": 72,
+    "20261113_122022_00041": 49,
+    "20261113_122030_00042": 90,
+    "20261113_122047_00043": 141,
+    "20261113_122052_00044": 67,
+    "20261113_122058_00045": 221,
+    "20261113_122103_00046": 233,
+    "20261113_122111_00047": 83,
+    "20261113_122118_00048": 115,
+    "20261113_122123_00049": 303,
+    "20261113_122128_00050": 283,
+    "20261113_122133_00051": 313,
+    "20261113_122149_00052": 76,
+    "20261113_122155_00053": 208,
+    "20261113_122200_00054": 284,
+    "20261113_122206_00055": 98,
+    "20261113_122211_00056": 43,
+    "20261113_122217_00057": 289,
+    "20261113_122224_00058": 295,
+    "20261113_122230_00059": 249,
+    "20261113_122236_00060": 333,
+    "20261113_122241_00061": 335,
+    "20261113_122246_00062": 290,
+    "20261113_122252_00063": 291,
+    "20261113_122257_00064": 330,
+    "20261113_122302_00065": 320,
+    "20261113_122308_00066": 322,
+    "20261113_122314_00067": 312,
+    "20261113_122319_00068": 53,
+    "20261113_122325_00069": 286,
+    "20261113_122330_00070": 238,
+    "20261113_122335_00071": 344,
+    "20261113_122340_00072": 266,
+    "20261113_122345_00073": 293,
+    "20261113_122350_00074": 318,
+    "20261113_122355_00075": 349,
+    "20261113_122400_00076": 297,
+    "20261113_122405_00077": 330,
+    "20261113_122412_00078": 208,
+    "20261113_122417_00079": 230,
+    "20261113_122422_00080": 281,
+    "20261113_122428_00081": 268,
+    "20261113_122433_00082": 289,
+    "20261113_122438_00083": 301,
+    "20261113_122443_00084": 313,
+    "20261113_122448_00085": 250,
+}
+
+
 class TestHud(unittest.TestCase):
     """Bussola, minimappa, barra delle armi, compagni: letti dallo schermo SENZA IA (hud.py),
     su pezzi di schermo veri di una partita."""
@@ -2659,6 +2722,22 @@ class TestHud(unittest.TestCase):
             self.assertIsNotNone(letto, nome)
             self.assertLessEqual(abs(hud.differenza(letto, giusto)), 3, nome)
         self.assertIsNone(hud.leggi_bussola(np.zeros((540, 960, 3), np.uint8)))
+
+    def test_bussola_su_tante_foto_vere(self):
+        """Sulle foto vere a 1280x720 (numero letto a occhio): quasi tutte giuste; quando c'e' un'icona
+        sopra il numero meglio non leggere che sbagliare."""
+        import hud
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        giuste = sbagliate = 0
+        for nome, gradi in BUSSOLA_FOTO_720.items():
+            letto = hud.leggi_bussola(cv2.imread(os.path.join(cartella, "foto_" + nome + ".jpg")))
+            if letto is not None:
+                if abs(hud.differenza(letto, gradi)) <= 5:
+                    giuste += 1
+                else:
+                    sbagliate += 1
+        self.assertGreaterEqual(giuste, 0.85 * len(BUSSOLA_FOTO_720))
+        self.assertLessEqual(sbagliate, 2)
 
     def test_bussola_dalla_partita_registrata(self):
         import hud
@@ -3030,8 +3109,8 @@ class TestPilotaConLoSchermo(ConCartella):
         vero = 1800.0                                        # nel gioco un giro e' 1800 passi, non 3600
         gradi = 100.0
         for i in range(8):
-            p._nuova_lettura(round(gradi) % 360, t + i * 0.6)          # due letture di fila (conferma)
-            p._nuova_lettura(round(gradi) % 360, t + i * 0.6 + 0.15)
+            for k in range(3):                                        # tre letture di fila (conferma)
+                p._nuova_lettura(round(gradi) % 360, t + i * 0.6 + k * 0.15)
             mani.muovi(300, 0)                               # mi giro di 300 passi = 60 gradi veri
             gradi += 300 * 360.0 / vero
         self.assertAlmostEqual(p.passi_per_giro, vero, delta=120)
