@@ -48,6 +48,8 @@ PREDEFINITE = {
         "pompa_se_nemico_alto": 0.3,
         "slot_cure": 5,
         "non_sparare_ai_compagni": True, # chi ha il nome sopra la testa e' un compagno: non gli spara
+        "risparmia_ia": True,            # foto all'IA solo in partita (non sul bus, in caduta, da spettatore)
+        "ia_nei_menu_ogni_secondi": 30,  # nei menu una foto all'IA ogni 30 secondi
         "sblocca_schermi_fermi": True,   # fuori partita su uno schermo fermo da 4 minuti: INVIO (ogni tanto ESC)
         "schermo_fermo_secondi": 240,
         "slot_impulso": 3,               # la granata impulso (o un altro oggetto per muoversi)

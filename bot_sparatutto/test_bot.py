@@ -2901,6 +2901,21 @@ class TestPilotaConLoSchermo(ConCartella):
         p2 = self._pilota()[2]
         self.assertTrue(self._passi(p2, occhi, bus, t, 4, 0.4).startswith("sul bus"))
 
+    def test_risparmia_le_domande_all_ia(self):
+        mani, occhi, p = self._pilota()
+        p.ia = FintaIA(None)
+        t = 1000.0
+        bus = schermo_vero(184)                                    # sul bus: lo schermo lo leggo da solo
+        for i in range(4):
+            p.passo(occhi.analizza(bus), bus, t + i * 0.5)
+        self.assertLessEqual(p.ia.foto, 1)                         # al massimo la prima, prima di capire
+        gioco = schermo_vero(109)                                  # in partita: si'
+        p.salto_da = None
+        p.in_aria_t = -1e9
+        for i in range(3):
+            p.passo(occhi.analizza(gioco), gioco, t + 10 + i * 0.5)
+        self.assertGreater(p.ia.foto, 0)
+
     def test_schermo_fermo_fuori_partita_preme_invio(self):
         mani, occhi, p = self._pilota()
         t = 1000.0

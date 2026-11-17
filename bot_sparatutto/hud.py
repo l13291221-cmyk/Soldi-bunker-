@@ -347,6 +347,8 @@ def nomi_compagni(img):
     x0, x1, y0, y1 = 0.03, 0.97, 0.10, 0.82
     pezzi = _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=175, area=4)
     lettere = sorted(p for p in pezzi if 4 <= p[3] <= 9 and 1 <= p[2] <= 12)
+    if len(lettere) > 400:
+        return []                         # scena piena di puntini bianchi (neve, scritte): lascio stare
     c = _taglia(img, x0, x1, y0, y1)
     if c is None or not lettere:
         return []

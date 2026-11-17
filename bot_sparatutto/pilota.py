@@ -223,6 +223,7 @@ class Pilota:
         self.foto_hud = []                # qualche foto recente per cercare la grandezza giusta
         self.prossima_foto_hud = 0.0
         self.prossima_ricerca_hud = 0.0
+        self.prossima_ia_fuori = 0.0
         # fuori dalla partita su uno schermo fermo (es. la PS5 chiede chi gioca): provo INVIO / ESC
         self.fuori_da = None
         self.fermo_fuori_da = None
@@ -366,7 +367,7 @@ class Pilota:
         self._aggiorna_hud(img, t)
         lv.consiglio, lv.nuovo = None, False
         if self.ia is not None:
-            if img is not None:
+            if img is not None and self._ia_serve(t):
                 self.ia.guarda(img)
             c = self.ia.consiglio(t, getattr(self.ia, "validita_fase", 45))
             if c is not None and c.fase != "playing" and t - c.quando > 6.0 and not self._schermo_uguale(c, img):
@@ -580,6 +581,22 @@ class Pilota:
         if c.obiettivo is not None:
             cosa, x, y = c.obiettivo
             self.meta_bottino = ((allora + self._gradi_schermo(x)) % 360.0, cosa, y, c.quando)
+
+    def _ia_serve(self, t):
+        """Mando la foto all'IA solo quando serve, cosi' le domande gratis durano di piu':
+        in partita si'; sul bus, in caduta e da spettatore no (lo schermo lo leggo da solo);
+        nei menu una volta ogni 30 secondi (per le schermate strane)."""
+        lv = self.lavagna
+        if not self.fort.get("leggi_lo_schermo", True) or not self.fort.get("risparmia_ia", True) or self.hud_perso:
+            return True
+        if lv.spettatore or lv.bus or self.salto_da is not None or t - self.in_aria_t < 3.0:
+            return False
+        if lv.barra or t - self.ultima_bussola_letta < 2.0:
+            return True
+        if t >= self.prossima_ia_fuori:
+            self.prossima_ia_fuori = t + float(self.fort.get("ia_nei_menu_ogni_secondi", 30) or 30)
+            return True
+        return False
 
     def _schermo_uguale(self, c, img):
         prima = getattr(c, "miniatura", None)
