@@ -224,6 +224,9 @@ class Pilota:
         self.prossima_foto_hud = 0.0
         self.prossima_ricerca_hud = 0.0
         self.prossima_ia_fuori = 0.0
+        # rapporto ogni 5 minuti: quanto riesco a leggere lo schermo (per capire i problemi dal log)
+        self.conta_hud = {"letture": 0, "bussola": 0, "minimappa": 0, "barra": 0, "in_partita": 0}
+        self.prossimo_rapporto = adesso + 300.0
         # fuori dalla partita su uno schermo fermo (es. la PS5 chiede chi gioca): provo INVIO / ESC
         self.fuori_da = None
         self.fermo_fuori_da = None
@@ -439,6 +442,7 @@ class Pilota:
             in_gioco = lv.barra and t - self.ultima_bussola_letta < 1.0 and not lv.spettatore
             lv.compagni = hud.compagni_sulla_bussola(img) if in_gioco else []
             self._controlla_interfaccia(img, t)
+            self._conta_e_rapporto(t, in_gioco)
             lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
             lv.compagni_mini = hud.compagni_sulla_minimappa(img) if in_gioco else []
             lv.compagni_nomi = hud.nomi_compagni(img) if in_gioco else []
@@ -453,6 +457,28 @@ class Pilota:
                 self.bus_conta = 0
             lv.bus = self.bus_conta >= 2
             self._scegli_compagno(t)
+
+    def _conta_e_rapporto(self, t, in_gioco):
+        lv = self.lavagna
+        n = self.conta_hud
+        n["letture"] += 1
+        if (in_gioco or lv.barra) and not lv.spettatore:
+            n["in_partita"] += 1
+            n["bussola"] += 1 if t - self.ultima_bussola_letta < 0.5 else 0
+            n["minimappa"] += 1 if lv.mini.ok else 0
+            n["barra"] += 1 if lv.barra else 0
+        if t < self.prossimo_rapporto:
+            return
+        self.prossimo_rapporto = t + 300.0
+        if n["in_partita"] >= 10:
+            self.log("Schermo negli ultimi 5 minuti (in partita): bussola letta %d%%, minimappa %d%%, barra delle "
+                     "armi %d%%; guardo a %s, sensibilita' %.0f passi per un giro%s" % (
+                         100 * n["bussola"] // n["in_partita"], 100 * n["minimappa"] // n["in_partita"],
+                         100 * n["barra"] // n["in_partita"],
+                         "%.0f gradi" % lv.guardo if lv.guardo is not None else "?", self.passi_per_giro,
+                         "" if hud.SCALA == 1.0 else ", scala interfaccia %.2f" % hud.SCALA))
+        for k in n:
+            n[k] = 0
 
     def _controlla_interfaccia(self, img, t):
         """Se per un po' non riconosco piu' ne' la barra delle armi ne' la bussola (stagione nuova,
