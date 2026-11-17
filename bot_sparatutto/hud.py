@@ -337,6 +337,45 @@ def nome_sopra(img, x, y, w, h):
     return False
 
 
+def nomi_compagni(img):
+    """I NOMI dei compagni sullo schermo (rombo colorato + nome bianco, sopra la testa o al bordo
+    quando sono fuori dallo schermo). -> lista di (x, y) in frazioni dello schermo.
+    Non conta la lista della squadra a sinistra, le eliminazioni, gli incarichi e la scritta
+    "E Apri" a destra del mirino."""
+    if img is None:
+        return []
+    x0, x1, y0, y1 = 0.03, 0.97, 0.10, 0.82
+    pezzi = _pezzi_bianchi_tutti(img, x0, x1, y0, y1, soglia=175, area=4)
+    lettere = sorted(p for p in pezzi if 4 <= p[3] <= 9 and 1 <= p[2] <= 12)
+    c = _taglia(img, x0, x1, y0, y1)
+    if c is None or not lettere:
+        return []
+    hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
+    colorato = (hsv[..., 1] > 120) & (hsv[..., 2] > 150)
+    trovati = []
+    for l in lettere:
+        riga = [q for q in lettere if abs(q[1] + q[3] - l[1] - l[3]) <= 2 and q[0] >= l[0]]
+        catena = []
+        for q in riga:
+            if catena and q[0] - (catena[-1][0] + catena[-1][2]) > 9:
+                break
+            catena.append(q)
+        if len(catena) < 5:
+            continue
+        inizio, fine = catena[0][0], catena[-1][0] + catena[-1][2]
+        alto, basso = min(q[1] for q in catena), max(q[1] + q[3] for q in catena)
+        rombo = colorato[max(0, alto - 2):basso + 2, max(0, inizio - 12):max(0, inizio - 1)]
+        if rombo.size == 0 or int(rombo.sum()) < 5:
+            continue                      # niente rombo colorato davanti: non e' un nome
+        x = x0 + (inizio + fine) / 2.0 / 960.0
+        y = y0 + (alto + basso) / 2.0 / 540.0
+        if (x < 0.30 and (y > 0.55 or y < 0.25)) or (0.55 <= x <= 0.82 and 0.50 <= y <= 0.62):
+            continue                      # lista della squadra, eliminazioni, incarichi, scritta "E Apri"
+        if all(abs(x - a) > 0.02 or abs(y - b) > 0.02 for a, b in trovati):
+            trovati.append((x, y))
+    return trovati
+
+
 def spettatore(img):
     """In alto al centro c'e' la scritta grande "SPETTATORE" (sono stato eliminato e guardo un
     compagno)? Una riga di almeno 7 lettere grandi dove di solito c'e' il numero della bussola."""

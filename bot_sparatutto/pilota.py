@@ -81,6 +81,8 @@ class Lavagna:
         self.compagni = []           # triangolini dei compagni sulla bussola (gradi rispetto a dove guardo)
         self.compagni_bordi = []     # frecce dei compagni ai bordi / dietro (gradi rispetto a dove guardo)
         self.compagni_mini = []      # frecce gialle sulla minimappa: (gradi della bussola, distanza 0-1)
+        self.compagni_nomi = []      # nomi dei compagni sullo schermo (rombo + nome): (x, y) 0-1
+        self.persone = []            # tutte le persone viste dagli occhi (anche i compagni)
         self.scritta = False         # c'e' la scritta "E Apri" / "Raccogli" / ... a destra del mirino
         self.spettatore = False      # in alto c'e' "SPETTATORE": sono stato eliminato, guardo un compagno
         self.vita = None             # vita e scudo letti dalle barre in basso a sinistra (0-100)
@@ -353,6 +355,7 @@ class Pilota:
         # i nemici visti dagli occhi veloci, senza il mio personaggio (in basso al centro, di spalle)
         lv.nemici = [b for b in vis.nemici
                      if not (b.fondo >= 0.85 * H and 0.25 * W <= b.cx <= 0.65 * W)]
+        lv.persone = [(b.cx / float(W), b.y / float(H), b.h / float(H)) for b in lv.nemici]
         if lv.nemici and img is not None and self.fort.get("leggi_lo_schermo", True) \
                 and self.fort.get("non_sparare_ai_compagni", True):
             # chi ha il NOME sopra la testa e' un compagno (i nemici in Fortnite non hanno il nome)
@@ -437,6 +440,7 @@ class Pilota:
             self._controlla_interfaccia(img, t)
             lv.compagni_bordi = hud.compagni_ai_bordi(img) if in_gioco else []
             lv.compagni_mini = hud.compagni_sulla_minimappa(img) if in_gioco else []
+            lv.compagni_nomi = hud.nomi_compagni(img) if in_gioco else []
             if lv.mini.ok and 0.05 <= lv.mini.tempesta <= 0.9:
                 g = lv.mini.lontano_dalla_tempesta()
                 if g is not None:
@@ -534,14 +538,19 @@ class Pilota:
         if g is None:
             return
         candidati = [(b, d, "minimappa") for b, d in lv.compagni_mini]
+        for x, y in lv.compagni_nomi:
+            # sotto il nome c'e' una persona grande? allora e' vicino
+            sotto = [h for px, py, h in lv.persone if abs(px - x) < 0.06 and y - 0.02 <= py <= y + 0.14]
+            vicino = bool(sotto) and max(sotto) >= float(self.fort.get("compagno_vicino_altezza", 0.22) or 0.22)
+            candidati.append(((g + self._gradi_schermo(x)) % 360.0, 0.05 if vicino else None, "nome"))
         candidati += [((g + d) % 360.0, None, "bussola") for d in lv.compagni]
         candidati += [((g + d) % 360.0, None, "bordo") for d in lv.compagni_bordi]
         if not candidati:
             return
-        ordine = {"minimappa": 0, "bussola": 1, "bordo": 2}
+        ordine = {"minimappa": 0, "nome": 1, "bussola": 2, "bordo": 3}
         scelto = None
         if self.compagno_hud is not None and t - self.compagno_hud_t < 20.0:
-            tolleranza = {"minimappa": 45, "bussola": 45, "bordo": 90}
+            tolleranza = {"minimappa": 45, "nome": 45, "bussola": 45, "bordo": 90}
             vicini = [c for c in candidati if abs(avvolgi(c[0] - self.compagno_hud)) <= tolleranza[c[2]]]
             if vicini:
                 scelto = min(vicini, key=lambda c: (ordine[c[2]], abs(avvolgi(c[0] - self.compagno_hud))))

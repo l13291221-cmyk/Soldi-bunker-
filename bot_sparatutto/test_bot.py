@@ -2776,6 +2776,15 @@ class TestHud(unittest.TestCase):
             finally:
                 hud.imposta_scala(1.0)
 
+    def test_nomi_dei_compagni_sullo_schermo(self):
+        """Il nome del compagno (rombo colorato + nome) sopra la testa: in una foto vera c'e',
+        e non conta la lista della squadra a sinistra."""
+        import hud
+        cartella = os.path.join(QUI, "foto_per_ia", "images")
+        nomi = hud.nomi_compagni(cv2.imread(os.path.join(cartella, "foto_20261113_141124_00009.jpg")))
+        self.assertTrue(any(abs(x - 0.57) < 0.03 and abs(y - 0.39) < 0.03 for x, y in nomi), nomi)
+        self.assertEqual(hud.nomi_compagni(cv2.imread(os.path.join(cartella, "foto_20261113_122640_00104.jpg"))), [])
+
     def test_direzione_sicura(self):
         import hud
         m = hud.leggi_minimappa(schermo_vero(109))
@@ -2939,6 +2948,26 @@ class TestPilotaConLoSchermo(ConCartella):
         self.assertEqual(p._ramo_arma_e_cure(occhi.analizza(img), img, t), "mi curo")
         self.assertIn("giu tasto 0x%02X" % CODICI["5"], mani.storia)
         self.assertEqual(p.cure_fallite, 0)
+
+    def test_compagno_dal_nome_sullo_schermo(self):
+        mani, occhi, p = self._pilota()
+        t = time.monotonic()
+        img = schermo_vero(109)
+        p.passo(occhi.analizza(img), img, t)
+        p.passo(occhi.analizza(img), img, t + 0.5)
+        g = p.guardo_verso()
+        p.lavagna.compagni_mini, p.lavagna.compagni, p.lavagna.compagni_bordi = [], [], []
+        p.lavagna.compagni_nomi = [(0.75, 0.4)]                    # nome a destra, nessuna persona sotto
+        p.lavagna.persone = []
+        p.compagno_hud = None
+        p._scegli_compagno(t + 0.6)
+        self.assertEqual(p.compagno_fonte, "nome")
+        self.assertAlmostEqual(avvolgi_test(p.compagno_hud - g), 20, delta=2)   # 0.25 * 80 gradi
+        self.assertIsNone(p.compagno_dist if t + 0.6 - p.compagno_dist_t <= 0.01 else None)
+        p.lavagna.persone = [(0.75, 0.42, 0.3)]                    # sotto il nome una persona grande: vicino
+        p._scegli_compagno(t + 0.7)
+        self.assertEqual(p.compagno_dist, 0.05)
+        self.assertEqual(p._ramo_compagno(None, img, t + 0.8), "sto vicino al compagno")
 
     def test_impulso_nella_tempesta_lontana(self):
         mani, occhi, p = self._pilota()
