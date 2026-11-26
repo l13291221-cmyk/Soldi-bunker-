@@ -1,6 +1,7 @@
 # Crea su un PC Windows di GitHub, prova e pubblica:
 #  - BotSparatutto_Schedina.uf2 : UN file per la Raspberry Pi Pico (CircuitPython + bot gia' dentro)
 #  - BotSparatutto.zip          : il programma per il PC (lo scarica da solo "AVVIA IL BOT")
+#  - BotSparatutto_TUTTO.zip    : TUTTO in un file (programma + guida PDF coi disegni + file della Pico)
 # https://github.com/<proprietario>/<repository>/releases/download/bot-sparatutto/BotSparatutto_Schedina.uf2
 name: Crea BotSparatutto.zip
 
@@ -32,7 +33,7 @@ jobs:
       - name: Installa le librerie
         run: |
           python -m pip install --upgrade pip
-          pip install -r bot_sparatutto/requirements.txt pyinstaller
+          pip install -r bot_sparatutto/requirements.txt pyinstaller matplotlib
 
       - name: Scarica l'occhio universale (YOLOX, Apache 2.0)
         shell: pwsh
@@ -84,12 +85,18 @@ jobs:
           Copy-Item bot_sparatutto/immagini/LEGGIMI.txt "$dir/immagini"
           Copy-Item bot_sparatutto/modelli/LEGGIMI.txt, bot_sparatutto/modelli/*.onnx "$dir/modelli"
           Copy-Item BotSparatutto_Schedina.uf2 "$dir/Schedina"
+          Expand-Archive -Path BotSparatutto_FileSchedina.zip -DestinationPath "$dir/Schedina/file_della_schedina" -Force
+          python bot_sparatutto/guida_completa.py "${{ github.run_number }}"
+          if ($LASTEXITCODE -ne 0) { throw "guida_completa.py e' fallito" }
+          Copy-Item bot_sparatutto/GUIDA_COMPLETA.pdf $dir
+          Copy-Item bot_sparatutto/avvia_il_bot_pc.cmd "$dir/AVVIA IL BOT.cmd"
           Set-Content -Path "$dir/versione.txt" -Value "${{ github.run_number }}" -NoNewline
           & "$dir/BotSparatutto.exe" --autotest
           if ($LASTEXITCODE -ne 0) { throw "BotSparatutto.exe --autotest e' fallito" }
           Remove-Item "$dir/statistiche.txt", "$dir/calibrazione.yaml" -ErrorAction SilentlyContinue
           Compress-Archive -Path $dir -DestinationPath BotSparatutto.zip -Force
-          Get-Item BotSparatutto.zip, BotSparatutto_Schedina.uf2 | Select-Object Name, Length
+          Copy-Item BotSparatutto.zip BotSparatutto_TUTTO.zip
+          Get-Item BotSparatutto.zip, BotSparatutto_TUTTO.zip, BotSparatutto_Schedina.uf2 | Select-Object Name, Length
 
       - name: Pubblica i download
         shell: bash
@@ -97,10 +104,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete bot-sparatutto --cleanup-tag --yes || true
-          gh release create bot-sparatutto BotSparatutto_Schedina.uf2 BotSparatutto.zip BotSparatutto_FileSchedina.zip \
+          gh release create bot-sparatutto BotSparatutto_TUTTO.zip BotSparatutto_Schedina.uf2 BotSparatutto.zip BotSparatutto_FileSchedina.zip \
             --target "$GITHUB_SHA" \
             --title "Bot sparatutto" \
             --latest \
-            --notes "BotSparatutto_Schedina.uf2: tieni premuto BOOTSEL, attacca la Raspberry Pi Pico al PC e trascina questo file sulla chiavetta RPI-RP2. Poi sulla chiavetta CIRCUITPY fai doppio click su AVVIA IL BOT.
+            --notes "BotSparatutto_TUTTO.zip: TUTTO IN UN FILE. Estrailo in Documenti: dentro c'e' il programma (AVVIA IL BOT.cmd), la GUIDA_COMPLETA.pdf coi disegni di come si monta e si collega la Pico, e i file per la Pico (cartella Schedina).
+          BotSparatutto_Schedina.uf2: tieni premuto BOOTSEL, attacca la Raspberry Pi Pico al PC e trascina questo file sulla chiavetta RPI-RP2. Poi sulla chiavetta CIRCUITPY fai doppio click su AVVIA IL BOT.
           BotSparatutto.zip: il programma per il PC (lo scarica da solo AVVIA IL BOT, non serve scaricarlo a mano).
           BotSparatutto_FileSchedina.zip: se dopo il .uf2 la chiavetta CIRCUITPY e' vuota (niente AVVIA IL BOT), copia questi file dentro CIRCUITPY."

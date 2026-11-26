@@ -32,6 +32,13 @@ COME SI ADATTA AD OGNI GIOCO (da solo)
   gia'. QUANDO CAMBI GIOCO cancella calibrazione.yaml (o usa una copia della
   cartella per ogni gioco).
 
+TUTTO IN UN FILE
+----------------
+https://github.com/l13291221-cmyk/Soldi-bunker-/releases/download/bot-sparatutto/BotSparatutto_TUTTO.zip
+Estrailo in Documenti (diventa Documenti\BotSparatutto). Dentro: AVVIA IL BOT.cmd (doppio click),
+GUIDA_COMPLETA.pdf (con i DISEGNI di come si monta e si collega la Pico all'Arduino e alla Play),
+Schedina\BotSparatutto_Schedina.uf2 (il file per la Pico) e tutto il resto.
+
 IN 3 PASSI (la prima volta)
 ---------------------------
 1. Scarica il file unico per la schedina:

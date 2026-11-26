@@ -3120,6 +3120,19 @@ def avvolgi_test(gradi):
     return (gradi + 180.0) % 360.0 - 180.0
 
 
+class TestGuidaCompleta(ConCartella):
+    def test_crea_la_guida_pdf(self):
+        import importlib.util
+        if importlib.util.find_spec("matplotlib") is None:
+            self.skipTest("serve matplotlib")
+        import guida_completa
+        uscita = guida_completa.crea(os.path.join(self.base, "guida.pdf"), versione="prova")
+        with open(uscita, "rb") as f:
+            dati = f.read()
+        self.assertTrue(dati.startswith(b"%PDF"))
+        self.assertEqual(dati.count(b"/Type /Page\n") + dati.count(b"/Type /Page "), 8)
+
+
 class TestRegistra(ConCartella):
     def test_registra_foto_log_e_zip(self):
         import zipfile
