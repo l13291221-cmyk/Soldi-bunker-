@@ -3133,6 +3133,97 @@ class TestGuidaCompleta(ConCartella):
         self.assertEqual(dati.count(b"/Type /Page\n") + dati.count(b"/Type /Page "), 8)
 
 
+class TestTelecomandoClaude(ConCartella):
+    """I comandi foto / leggi / mossa per quando Claude gioca collegato al PC."""
+
+    def _cfg(self):
+        return impostazioni.carica(QUI)
+
+    def test_traduce_le_parole_in_piu(self):
+        import telecomando_claude as tc
+        self.assertEqual(tc.traduci("gira 40, corri 3; avanti 1,5\nguarda giu 20, guarda su 5, spara 0.5, tieni e 1.2"),
+                         [("istruzione", "gira 40"), ("corri", 3.0), ("istruzione", "tieni avanti 1.5"),
+                          ("guarda", 20.0), ("guarda", -5.0),
+                          ("istruzione", "tieni spara 0.5"), ("istruzione", "tieni e 1.2")])
+        self.assertEqual(tc.traduci("gira 40,corri 2"), [("istruzione", "gira 40"), ("corri", 2.0)])
+
+    def test_foto_salva_e_scrive_cosa_legge(self):
+        import telecomando_claude as tc
+        cfg = self._cfg()
+        schermo = SchermoFinto([schermo_vero(97)])            # i pezzi veri sono di foto 960x540
+        occhi = Occhi(cfg, self.base, lambda *a: None, universale=False)
+        percorso, righe = tc.foto(self.base, cfg, True, schermo, occhi)
+        self.assertTrue(os.path.isfile(percorso))
+        testo = "\n".join(righe)
+        bussola = int(next(r for r in righe if r.startswith("bussola:")).split(":")[1])
+        self.assertLessEqual(abs(((bussola - 346) + 180) % 360 - 180), 3, testo)
+        self.assertIn("minimappa: sono su", testo)
+        self.assertIn("barra delle armi: si", testo)
+        self.assertIn("casse (luce dorata):", testo)
+        # una foto grande si rimpicciolisce a 1280 di larghezza (si manda piu' in fretta)
+        grande = SchermoFinto([np.zeros((1080, 1920, 3), np.uint8)])
+        percorso, _ = tc.foto(self.base, cfg, True, grande, occhi)
+        self.assertEqual(cv2.imread(percorso).shape[:2], (720, 1280))
+
+    def test_mossa_preme_e_poi_molla_tutto(self):
+        import telecomando_claude as tc
+        cfg = self._cfg()
+        mani = ManiFinte(cfg["tasti"])
+        schermo = SchermoFinto([schermo_vero(97, 1280, 720)])
+        occhi = Occhi(cfg, self.base, lambda *a: None, universale=False)
+        percorso, righe = tc.mossa(self.base, cfg, "gira 90, corri 0.05, guarda giu 10, tieni e 0.05",
+                                   mani=mani, schermo=schermo, occhi=occhi)
+        self.assertTrue(os.path.isfile(percorso))
+        self.assertTrue(righe[0].startswith("fatto: gira 90 | corri 0.1 | guarda giu 10 | tieni e 0.05"), righe[0])
+        passi = float(cfg["mira"]["passi_per_giro"])
+        self.assertAlmostEqual(mani.mosso_x, passi / 4, delta=2)
+        self.assertAlmostEqual(mani.mosso_y, passi / 36, delta=2)
+        storia = " ".join(mani.storia)
+        for tasto in ("w", "shift", "e"):
+            codice = "0x%02X" % risolvi_grezzo(tasto)[1]
+            self.assertIn("giu tasto " + codice, storia)
+            self.assertIn("su tasto " + codice, storia)
+        self.assertEqual(mani.storia[-1], "rilascia tutto")
+        self.assertEqual(mani.tenuti, set())
+
+    def test_punta_si_gira_verso_i_gradi_della_bussola(self):
+        import telecomando_claude as tc
+        cfg = self._cfg()
+        mani = ManiFinte(cfg["tasti"])
+        # la bussola dice 346 e poi 300 (dopo il giro): si ferma alla seconda lettura
+        schermo = SchermoFinto([schermo_vero(97), schermo_vero(121), schermo_vero(121)])
+        esec = Esecutore(mani, None, schermo, cfg, None, lambda *a: None)
+        testo = tc._punta(esec, schermo, 300)
+        self.assertTrue(testo.startswith("punta 300 (bussola 29"), testo)
+        passi = float(cfg["mira"]["passi_per_giro"])
+        self.assertAlmostEqual(mani.mosso_x, -46 / 360.0 * passi, delta=passi * 3 / 360.0)   # a sinistra
+        nera = SchermoFinto([np.zeros((540, 960, 3), np.uint8)])
+        self.assertIn("bussola non letta", tc._punta(esec, nera, 90))
+        self.assertEqual(tc.traduci("punta 450"), [("punta", 90.0)])
+
+    def test_mossa_sbagliata_non_preme_niente(self):
+        import telecomando_claude as tc
+        cfg = self._cfg()
+        mani = ManiFinte(cfg["tasti"])
+        percorso, righe = tc.mossa(self.base, cfg, "gira 30, premi tastoinventato", mani=mani,
+                                   schermo=SchermoFinto([np.zeros((720, 1280, 3), np.uint8)]))
+        self.assertIsNone(percorso)
+        self.assertTrue(righe[0].startswith("NON FATTO"), righe)
+        self.assertEqual(mani.mosso_x, 0)                     # neanche il "gira 30" prima dell'errore
+
+    def test_foto_nera_non_si_blocca(self):
+        import telecomando_claude as tc
+        righe = tc._cosa_legge(np.zeros((720, 1280, 3), np.uint8))
+        self.assertIn("bussola: non letta", righe)
+        self.assertEqual(tc._cosa_legge(None), ["Nessuna foto (lo schermo non si cattura)."])
+
+    def test_comando_senza_mossa(self):
+        import telecomando_claude as tc
+        self.assertEqual(tc.comando(self.base, self._cfg(), []), 1)
+        self.assertEqual(tc.comando(self.base, self._cfg(), ["mossa"]), 1)
+        self.assertEqual(tc.comando(self.base, self._cfg(), ["boh"]), 1)
+
+
 class TestRegistra(ConCartella):
     def test_registra_foto_log_e_zip(self):
         import zipfile

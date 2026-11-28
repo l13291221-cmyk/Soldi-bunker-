@@ -490,3 +490,19 @@ Le chiavi restano nel file ia.yaml accanto al programma: non mandarlo a nessuno.
 Le foto del gioco vengono mandate al servizio che scegli.
 Per spegnerla: in ia.yaml scrivi  attiva: false
 
+
+I) FAR GIOCARE CLAUDE (collegato al tuo PC)
+-------------------------------------------
+Nell'app Claude per PC: Impostazioni -> Claude Code -> Remote Control -> aggiungi la
+cartella del bot (es. Documenti\BotSparatutto). Poi scrivi a Claude "fatto".
+Claude usa 3 comandi (si possono provare anche a mano, nella cartella del bot):
+  BotSparatutto.exe foto       foto di Remote Play in per_claude\foto.jpg + cosa legge
+                               il bot (bussola, minimappa, tempesta, vita, "E Apri"...)
+  BotSparatutto.exe leggi      solo cosa legge, senza salvare la foto
+  BotSparatutto.exe mossa "punta 290, corri 3, tieni e 1.2"
+                               manda la mossa alla Pico, molla tutti i tasti, fa la foto
+Parole della mossa: punta 290 (si gira verso 290 della bussola), gira 40 / gira -40,
+corri 3, avanti 2 (indietro/sinistra/destra), guarda giu 20 / guarda su 20, spara 0.5,
+tieni e 1.2 (apre la cassa), premi salta, premi 1 ... (come istruzioni.txt).
+Aggiungi --prova per non premere niente. Se una parola e' sbagliata non preme NIENTE.
+Mentre Claude gioca il bot deve essere CHIUSO (la Pico la usa uno alla volta).

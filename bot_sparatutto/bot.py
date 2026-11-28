@@ -658,6 +658,10 @@ def main():
     imposta_dpi()
     disattiva_quick_edit()
     os.chdir(BASE)
+    if len(sys.argv) > 1 and sys.argv[1].lower() in ("foto", "leggi", "mossa"):
+        # il telecomando per Claude (telecomando_claude.py): la mossa va letta cosi' com'e'
+        import telecomando_claude
+        sys.exit(telecomando_claude.comando(BASE, impostazioni.carica(BASE), sys.argv[1:], log))
     args = [a.lower() for a in sys.argv[1:]]
     if "--autotest" in args:
         sys.exit(autotest())
